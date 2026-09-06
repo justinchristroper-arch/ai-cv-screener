@@ -1,0 +1,40 @@
+# Local development database.
+#
+# Development-only credentials. These are intentionally weak and intentionally
+# committed: the container is bound to localhost and holds only synthetic data.
+# Nothing here is used in a deployed environment — Phase 19 supplies real
+# secrets through the hosting platform, never through this file.
+#
+# Plain PostgreSQL, no pgvector: Phase 1 evaluated vector search and deferred it
+# (docs/data-model.md section 10).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ai-cv-screener-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ai_cv_screener
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Deterministic collation, so index ordering does not depend on the
+      # host's locale.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # Host 5432 -> container 5432. Change the host side if you already run
+      # PostgreSQL locally, and update DATABASE_URL to match.
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `docker compose up --wait` blocks until this passes, so migrations are
+      # never run against a database that is still starting up.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_cv_screener"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  pgdata:
+    name: ai-cv-screener-pgdata

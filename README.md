@@ -2,8 +2,8 @@
 
 An AI-assisted CV screening tool that helps recruiters evaluate many candidates against one job description — by showing **evidence**, not just a number.
 
-> **Project status: Phase 1 of 20 — specification and design complete.**
-> No application code exists yet. Everything below describes what is *planned*. Nothing in this README should be read as a description of working software. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
+> **Project status: Phase 2 of 20 — local development environment.**
+> The application skeleton runs: a FastAPI backend with health endpoints, a migrated PostgreSQL schema, and a React shell that reports backend connectivity. **None of the CV screening pipeline is implemented** — no job description processing, no PDF parsing, no matching, no scoring. Everything described under "What this project is" is still *planned*. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
@@ -57,17 +57,38 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Development roadmap | ✅ Complete — [docs/roadmap.md](docs/roadmap.md) |
 | Architecture | ✅ Complete — [docs/architecture.md](docs/architecture.md) |
 | Data model | ✅ Complete — [docs/data-model.md](docs/data-model.md) |
-| Backend | ⬜ Not implemented |
-| Frontend | ⬜ Not implemented |
-| Database | ⬜ Not implemented |
+| Backend | 🟡 Skeleton runs — FastAPI, typed settings, health endpoints. No pipeline routes. |
+| Frontend | 🟡 Shell runs — React + Vite, reports backend connectivity. No screening UI. |
+| Database | 🟡 PostgreSQL 16 in Docker; all 16 tables migrated via Alembic |
+| Tests | 🟡 47 passing (32 backend, 15 frontend). Infrastructure only. |
 | LLM integration | ⬜ Not implemented |
 | PDF parsing | ⬜ Not implemented |
 | Scoring engine | ⬜ Not implemented |
 | Evaluation | ⬜ Not implemented |
-| Tests | ⬜ Not implemented |
 | Deployment / live demo | ⬜ Not deployed |
 
-There is no quickstart yet because there is nothing to start. Setup instructions arrive in Phase 2.
+## Quickstart
+
+Requires Python 3.10+, Node 20+, and a **running** Docker Desktop.
+
+```powershell
+git clone <repository-url> ai-cv-screener
+cd ai-cv-screener
+.\tasks.ps1 install
+Copy-Item .env.example .env
+.\tasks.ps1 db-up
+.\tasks.ps1 migrate
+.\tasks.ps1 test
+```
+
+Then run the two servers in separate terminals:
+
+```powershell
+.\tasks.ps1 dev-backend     # http://localhost:8000/docs
+.\tasks.ps1 dev-frontend    # http://localhost:5173
+```
+
+Every underlying command, the bash equivalents, and a troubleshooting section are in [docs/development.md](docs/development.md).
 
 ---
 
@@ -124,7 +145,7 @@ ai-cv-screener/
 └── README.md
 ```
 
-Currently present: `docs/`, `README.md`, `.gitignore`, `.gitattributes`, `.env.example`.
+Currently present: `backend/`, `frontend/`, `docs/`, `docker-compose.yml`, `tasks.ps1`, and the repository metadata files. `data/` and `evaluation/` arrive in Phases 12 and 13.
 
 ---
 
@@ -134,7 +155,7 @@ Currently present: `docs/`, `README.md`, `.gitignore`, `.gitattributes`, `.env.e
 |---|---|---|
 | 0 | Product definition and specification | ✅ |
 | 1 | Architecture and data model | ✅ |
-| 2 | Local development environment | ⬜ |
+| 2 | Local development environment | ✅ |
 | 3 | Git repository setup | ⬜ |
 | 4 | Job description processing | ⬜ |
 | 5 | CV upload and PDF parsing | ⬜ |
@@ -205,6 +226,7 @@ The full list is in [docs/product-spec.md](docs/product-spec.md#17-major-limitat
 - [Product specification](docs/product-spec.md) — scope, principles, scoring, fairness, security, limitations
 - [Architecture](docs/architecture.md) — layering, the pipeline, LLM call sites, trust boundary, error policy, decision log
 - [Data model](docs/data-model.md) — entities, enumerations, constraints, indexes, ER diagram, invalidation rules
+- [Development guide](docs/development.md) — setup, commands, and troubleshooting for local development
 - [Roadmap](docs/roadmap.md) — all 20 phases with deliverables and verification criteria
 
 ---

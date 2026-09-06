@@ -1,0 +1,111 @@
+/* Minimal shell styling. The real design work is Phase 16. */
+
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #5c5c5c;
+  --border: #dcdcdc;
+  --surface: #f7f7f8;
+  --ok: #1c6b3f;
+  --ok-bg: #eaf5ee;
+  --error: #96341f;
+  --error-bg: #fbeee9;
+
+  color-scheme: light dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  line-height: 1.55;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16171a;
+    --fg: #ececec;
+    --muted: #a2a2a8;
+    --border: #33343a;
+    --surface: #1e1f24;
+    --ok: #7cd6a2;
+    --ok-bg: #17301f;
+    --error: #f0a08c;
+    --error-bg: #331d17;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.app {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+.app__header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+
+.app__header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.6rem;
+}
+
+.app__tagline,
+.app__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.app__main section + section {
+  margin-top: 2rem;
+}
+
+.app__main h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+.status {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+}
+
+.status p {
+  margin: 0;
+}
+
+.status--ok {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.status--error {
+  border-color: var(--error);
+  background: var(--error-bg);
+}
+
+.status__hint {
+  margin-top: 0.35rem !important;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.05em 0.3em;
+}

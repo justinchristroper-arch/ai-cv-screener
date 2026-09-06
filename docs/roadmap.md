@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–1 complete. Phases 2–20 not started.
+**Status:** Phases 0–2 complete. Phases 3–20 not started.
 **Last updated:** 2026-09-06
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -40,7 +40,7 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 |---|---|---|
 | 0 | Product definition and project specification | ✅ |
 | 1 | Architecture and data model | ✅ |
-| 2 | Local development environment | ⬜ |
+| 2 | Local development environment | ✅ |
 | 3 | Git repository setup | ⬜ |
 | 4 | Job description processing | ⬜ |
 | 5 | CV upload and PDF parsing | ⬜ |
@@ -103,7 +103,7 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 
 ---
 
-## Phase 2 — Local development environment ⬜
+## Phase 2 — Local development environment ✅
 
 **Objective.** Make the project runnable on a clean machine with a short, documented sequence of commands.
 
