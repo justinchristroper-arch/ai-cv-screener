@@ -1,0 +1,103 @@
+{
+  "description": "Happy path. A realistic backend/AI engineering role covering all five requirement categories, a mix of must-have and nice-to-have, and a compound skills sentence that must be split into separate atomic requirements. Entirely fictional; no real company or person.",
+  "purpose": "JD_EXTRACTION",
+  "model": "claude-opus-5",
+  "prompt_version": "jd-extraction-v1",
+  "attempt": 1,
+  "jd_text": [
+    "Senior Backend Engineer - AI Platform",
+    "Northwind Analytics (fictional company, sample posting)",
+    "",
+    "About the role",
+    "We are building the data and inference platform behind our document",
+    "understanding products. You will own backend services end to end, from",
+    "schema design through to production operation.",
+    "",
+    "What we are looking for",
+    "- Bachelor's degree in Computer Science, Software Engineering or a related field",
+    "- At least 5 years of professional experience building backend services",
+    "- Strong experience with Python, FastAPI, PostgreSQL and Docker",
+    "- Practical experience designing and operating REST APIs in production",
+    "- A track record of shipping and maintaining at least one substantial",
+    "  data-processing or machine-learning system",
+    "- Comfortable explaining technical trade-offs to non-technical stakeholders",
+    "",
+    "Nice to have",
+    "- Experience with Kubernetes",
+    "- Familiarity with vector databases or retrieval systems",
+    "- Prior work on document parsing or OCR pipelines",
+    "- A Master's degree in a quantitative discipline",
+    "",
+    "We review every application ourselves. Final hiring decisions are made by",
+    "our engineering managers."
+  ],
+  "response_json": {
+    "requirements": [
+      {
+        "text": "Bachelor's degree in Computer Science, Software Engineering or a related field",
+        "category": "EDUCATION",
+        "must_have": true
+      },
+      {
+        "text": "At least 5 years of professional experience building backend services",
+        "category": "EXPERIENCE",
+        "must_have": true
+      },
+      {
+        "text": "Strong experience with Python",
+        "category": "TECHNICAL_SKILL",
+        "must_have": true
+      },
+      {
+        "text": "Strong experience with FastAPI",
+        "category": "TECHNICAL_SKILL",
+        "must_have": true
+      },
+      {
+        "text": "Strong experience with PostgreSQL",
+        "category": "TECHNICAL_SKILL",
+        "must_have": true
+      },
+      {
+        "text": "Strong experience with Docker",
+        "category": "TECHNICAL_SKILL",
+        "must_have": true
+      },
+      {
+        "text": "Practical experience designing and operating REST APIs in production",
+        "category": "EXPERIENCE",
+        "must_have": true
+      },
+      {
+        "text": "Shipped and maintained at least one substantial data-processing or machine-learning system",
+        "category": "PROJECT",
+        "must_have": true
+      },
+      {
+        "text": "Able to explain technical trade-offs to non-technical stakeholders",
+        "category": "SOFT_SKILL_OTHER",
+        "must_have": true
+      },
+      {
+        "text": "Experience with Kubernetes",
+        "category": "TECHNICAL_SKILL",
+        "must_have": false
+      },
+      {
+        "text": "Familiarity with vector databases or retrieval systems",
+        "category": "TECHNICAL_SKILL",
+        "must_have": false
+      },
+      {
+        "text": "Prior work on document parsing or OCR pipelines",
+        "category": "PROJECT",
+        "must_have": false
+      },
+      {
+        "text": "Master's degree in a quantitative discipline",
+        "category": "EDUCATION",
+        "must_have": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "description": "Unrecoverable path, attempt 2: valid JSON, still invalid against the schema - one entry is missing the required 'category' field and another has a blank 'text'. Two failures exhaust the single permitted retry, so the extraction must fail cleanly and persist no requirements.",
+  "purpose": "JD_EXTRACTION",
+  "model": "claude-opus-5",
+  "prompt_version": "jd-extraction-v1",
+  "attempt": 2,
+  "jd_text": [
+    "Office Coordinator",
+    "Harbourline Logistics (fictional company, sample posting)",
+    "",
+    "Requirements",
+    "- Two years of office administration experience",
+    "- Confident with spreadsheets"
+  ],
+  "response_json": {
+    "requirements": [
+      {
+        "text": "Two years of office administration experience",
+        "must_have": true
+      },
+      {
+        "text": "   ",
+        "category": "TECHNICAL_SKILL",
+        "must_have": true
+      }
+    ]
+  }
+}

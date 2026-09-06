@@ -2,8 +2,8 @@
 
 An AI-assisted CV screening tool that helps recruiters evaluate many candidates against one job description — by showing **evidence**, not just a number.
 
-> **Project status: Phase 3 of 20 — repository workflow and CI.**
-> The application skeleton runs: a FastAPI backend with health endpoints, a migrated PostgreSQL schema, and a React shell that reports backend connectivity. A CI workflow now lints, migrates, and tests both halves on every push (see [Continuous integration](#continuous-integration) below). **None of the CV screening pipeline is implemented** — no job description processing, no PDF parsing, no matching, no scoring. Everything described under "What this project is" is still *planned*. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
+> **Project status: Phase 4 of 20 — job description processing.**
+> The first AI-powered feature works end to end: a job description is turned into structured, validated, atomic requirements, which a human then reviews, edits, and **confirms** before anything downstream may use them. It runs offline from recorded fixtures, so no API key is needed to try it. **The candidate side is not implemented** — no CV upload, no PDF parsing, no matching, no scoring, no ranking, and no screening UI. Steps 3–6 of the workflow below exist; steps 7–15 do not. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
@@ -57,13 +57,13 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Development roadmap | ✅ Complete — [docs/roadmap.md](docs/roadmap.md) |
 | Architecture | ✅ Complete — [docs/architecture.md](docs/architecture.md) |
 | Data model | ✅ Complete — [docs/data-model.md](docs/data-model.md) |
-| Backend | 🟡 Skeleton runs — FastAPI, typed settings, health endpoints. No pipeline routes. |
+| Backend | 🟡 Health, jobs, job descriptions, requirement extraction, requirement CRUD, confirmation gate. No candidate routes. |
 | Frontend | 🟡 Shell runs — React + Vite, reports backend connectivity. No screening UI. |
 | Database | 🟡 PostgreSQL 16 in Docker; all 16 tables migrated via Alembic |
-| Tests | 🟡 47 passing (32 backend, 15 frontend). Infrastructure only. |
+| Tests | 🟡 155 passing (140 backend, 15 frontend) |
 | CI | 🟡 [Workflow created](.github/workflows/ci.yml) and its steps verified locally against a fresh database; **not yet observed running on GitHub** — the repository hasn't been pushed yet. |
 | Repository hygiene | ✅ [CONTRIBUTING.md](CONTRIBUTING.md), [ADRs](docs/decisions/README.md), pinned language versions, MIT license, secret scan performed |
-| LLM integration | ⬜ Not implemented |
+| LLM integration | 🟡 Requirement extraction only, behind an `LlmClient` abstraction with live and fixture-replay implementations |
 | PDF parsing | ⬜ Not implemented |
 | Scoring engine | ⬜ Not implemented |
 | Evaluation | ⬜ Not implemented |
@@ -159,7 +159,7 @@ Currently present: `backend/`, `frontend/`, `docs/` (including `docs/decisions/`
 | 1 | Architecture and data model | ✅ |
 | 2 | Local development environment | ✅ |
 | 3 | Git repository setup | ✅ |
-| 4 | Job description processing | ⬜ |
+| 4 | Job description processing | ✅ |
 | 5 | CV upload and PDF parsing | ⬜ |
 | 6 | Candidate profile extraction | ⬜ |
 | 7 | Requirement matching engine | ⬜ |

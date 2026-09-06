@@ -1,0 +1,23 @@
+{
+  "description": "Unrecoverable path, attempt 1: not JSON at all. Proves the application treats a non-structured reply as a failure rather than trying to interpret prose as free text (docs/architecture.md section 8).",
+  "purpose": "JD_EXTRACTION",
+  "model": "claude-opus-5",
+  "prompt_version": "jd-extraction-v1",
+  "attempt": 1,
+  "jd_text": [
+    "Office Coordinator",
+    "Harbourline Logistics (fictional company, sample posting)",
+    "",
+    "Requirements",
+    "- Two years of office administration experience",
+    "- Confident with spreadsheets"
+  ],
+  "response_text": [
+    "Sure! Here are the requirements I found in that job description:",
+    "",
+    "1. Two years of office administration experience (required)",
+    "2. Confident with spreadsheets (required)",
+    "",
+    "Let me know if you would like me to format these differently."
+  ]
+}

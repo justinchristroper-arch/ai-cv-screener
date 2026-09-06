@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–3 complete (Phase 3's CI-workflow-observed-passing criterion pending the first push to GitHub — see the note under Phase 3 below). Phases 4–20 not started.
+**Status:** Phases 0–4 complete (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 5–20 not started.
 **Last updated:** 2026-09-06
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -42,7 +42,7 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 | 1 | Architecture and data model | ✅ |
 | 2 | Local development environment | ✅ |
 | 3 | Git repository setup | ✅ (see note) |
-| 4 | Job description processing | ⬜ |
+| 4 | Job description processing | ✅ |
 | 5 | CV upload and PDF parsing | ⬜ |
 | 6 | Candidate profile extraction | ⬜ |
 | 7 | Requirement matching engine | ⬜ |
@@ -152,25 +152,31 @@ Also delivered, beyond the original list, because they turned out to be needed t
 
 ---
 
-## Phase 4 — Job description processing ⬜
+## Phase 4 — Job description processing ✅
 
 **Objective.** Turn a job description into a structured, human-confirmed requirement set — the first LLM feature, and the input on which every later score depends.
 
 **Deliverables.**
-- Endpoints to create a job, attach a JD, and retrieve it.
-- LLM requirement-extraction service with a versioned prompt and a strict output schema.
-- Schema validation, one retry, and an explicit failure path.
-- Requirement CRUD so HR can edit text, category, must-have flag, and weight.
-- Confirmation endpoint that freezes the requirement set.
-- A stored record of every LLM call: model, prompt version, token usage.
+- Endpoints to create a job, attach a JD, and retrieve it. ✅
+- LLM requirement-extraction service with a versioned prompt and a strict output schema. ✅ `app/services/jd_extraction.py`, prompt `jd-extraction-v1`.
+- Schema validation, one retry, and an explicit failure path. ✅ Exactly one retry, carrying the specific validation errors so the second attempt can correct the first.
+- Requirement CRUD so HR can edit text, category, must-have flag, and weight. ✅
+- Confirmation endpoint that freezes the requirement set. ✅
+- A stored record of every LLM call: model, prompt version, token usage. ✅ Every attempt, success or failure, written to `llm_call_log`.
+
+Also delivered:
+- The `LlmClient` abstraction (`LiveLlmClient` / `ReplayLlmClient`) with the two no-fallback rules from [architecture §4.2](architecture.md#42-the-client-abstraction-and-demo-mode), and six recorded fixtures covering the happy path, a recoverable retry, an unrecoverable double failure, and a prompt-injection attempt.
+- `app/core/errors.py` — domain errors with a structured, non-leaking HTTP mapping.
 
 **Verification criteria.**
-- A realistic JD yields atomic requirements — one testable claim each, verified by inspection against a sample JD.
-- Categories and must-have flags are populated and are valid enumeration values.
-- Malformed model output is rejected by validation rather than propagated; covered by a test with a fabricated bad response.
-- Editing and confirming a requirement set persists correctly.
-- Scoring against an unconfirmed requirement set is refused by the API.
-- Tests pass without a live API key, using recorded responses.
+- A realistic JD yields atomic requirements — one testable claim each, verified by inspection against a sample JD. ✅ The bundled backend-engineer JD's "Python, FastAPI, PostgreSQL and Docker" line becomes four separate requirements; asserted directly.
+- Categories and must-have flags are populated and are valid enumeration values. ✅ All five categories exercised, with both flag values.
+- Malformed model output is rejected by validation rather than propagated; covered by a test with a fabricated bad response. ✅ Eight malformed shapes, each asserted to persist nothing.
+- Editing and confirming a requirement set persists correctly. ✅
+- Scoring against an unconfirmed requirement set is refused by the API. ✅ Enforced in the service (`get_confirmed_requirements` raises), which is what every future caller must go through — not only in a route.
+- Tests pass without a live API key, using recorded responses. ✅ The whole suite runs offline; no network call is made.
+
+**Not done in this phase, deliberately:** no CV upload, parsing, matching, scoring, ranking, or frontend work — those are Phases 5-11. No migration was created: the Phase 1 data model already had every column this phase needed, and `alembic check` confirms no drift.
 
 ---
 

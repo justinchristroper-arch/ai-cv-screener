@@ -1,0 +1,49 @@
+{
+  "description": "Retry path, attempt 2: the corrected reply after attempt 1 was rejected for an invalid category. 'jd_text' is byte-identical to jd_data_analyst_retry_attempt1.json so both resolve to the same input hash and differ only by attempt number.",
+  "purpose": "JD_EXTRACTION",
+  "model": "claude-opus-5",
+  "prompt_version": "jd-extraction-v1",
+  "attempt": 2,
+  "jd_text": [
+    "Data Analyst",
+    "Meridian Retail Group (fictional company, sample posting)",
+    "",
+    "Requirements",
+    "- Bachelor's degree in Statistics, Mathematics or Economics",
+    "- 3+ years analysing commercial datasets",
+    "- Advanced SQL",
+    "- Clear written communication with business teams",
+    "",
+    "Nice to have",
+    "- Experience with dbt"
+  ],
+  "response_json": {
+    "requirements": [
+      {
+        "text": "Bachelor's degree in Statistics, Mathematics or Economics",
+        "category": "EDUCATION",
+        "must_have": true
+      },
+      {
+        "text": "3+ years analysing commercial datasets",
+        "category": "EXPERIENCE",
+        "must_have": true
+      },
+      {
+        "text": "Advanced SQL",
+        "category": "TECHNICAL_SKILL",
+        "must_have": true
+      },
+      {
+        "text": "Clear written communication with business teams",
+        "category": "SOFT_SKILL_OTHER",
+        "must_have": true
+      },
+      {
+        "text": "Experience with dbt",
+        "category": "TECHNICAL_SKILL",
+        "must_have": false
+      }
+    ]
+  }
+}

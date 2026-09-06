@@ -15,3 +15,10 @@ pydantic-settings>=2.5,<3.0
 SQLAlchemy>=2.0,<2.1
 alembic>=1.13,<2.0
 psycopg[binary]>=3.2,<4.0
+
+# LLM provider. Imported ONLY inside app/llm/ (docs/architecture.md section 2);
+# every service above that layer depends on the LlmClient protocol instead.
+# Demo mode never touches it — the replay client serves recorded fixtures — but
+# it is a hard dependency rather than an extra so that live mode cannot be
+# deployed with the package silently absent.
+anthropic>=1.0,<2.0

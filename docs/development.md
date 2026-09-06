@@ -105,7 +105,11 @@ backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.lock.txt
 
 Versions verified: FastAPI 0.141.1, Uvicorn 0.52.4, Pydantic 2.13.5,
 pydantic-settings 2.15.0, SQLAlchemy 2.0.52, Alembic 1.19.2, psycopg 3.3.5,
-pytest 8.4.2, httpx2 2.12.0, ruff 0.16.6.
+anthropic 1.4.0, pytest 8.4.2, httpx2 2.12.0, ruff 0.16.6.
+
+The `anthropic` SDK is imported **only** inside `backend/app/llm/` — every
+service above that layer depends on the `LlmClient` protocol instead. In demo
+mode it is never called at all; see §20.
 
 > **Why `httpx2`, not `httpx`:** `starlette.testclient` (used via
 > `fastapi.testclient.TestClient` in every backend test) tries
@@ -274,7 +278,10 @@ cd backend
 .venv\Scripts\python.exe -m pytest
 ```
 
-or `.\tasks.ps1 test-backend`. Expected: **32 passed**.
+or `.\tasks.ps1 test-backend`. Expected: **140 passed**.
+
+The suite makes no network call and needs no API key: every LLM-backed test
+runs against recorded fixtures (§20).
 
 Tests are split by what they need:
 
@@ -466,10 +473,81 @@ if you have nvm installed.
 
 Deliberately absent, arriving in the phase named:
 
-- LLM client and prompts (Phase 4) — `app/llm/` does not exist; `app/services/`
-  is an empty package.
-- API routes beyond health (Phases 4-10).
+- CV upload and PDF parsing (Phase 5).
+- Candidate profile extraction (Phase 6), matching (Phase 7), semantic
+  evaluation (Phase 8), scoring (Phase 9), ranking (Phase 10).
 - Authentication, rate limiting, structured request logging (Phase 15).
 - Frontend routing and the screening UI (Phase 11) — the current page is a shell
   that reports backend connectivity and nothing more.
 - Deployment (Phase 19) — CI (§16) validates the code; it does not deploy it.
+
+---
+
+## 20. The LLM layer, demo mode, and fixtures
+
+Everything that talks to a language model sits behind one protocol in
+`backend/app/llm/client.py`:
+
+```
+LlmClient (Protocol)
+├── LiveLlmClient    — calls the Anthropic API;  used when DEMO_MODE=false
+└── ReplayLlmClient  — serves recorded fixtures; used when DEMO_MODE=true
+```
+
+`DEMO_MODE=true` is the default, so a fresh clone runs the whole job-description
+pipeline — and the whole test suite — with **no API key, no network call, and no
+cost**. Two rules are enforced in code and covered by tests:
+
+- **Demo mode never falls back to a live call.** A missing fixture raises a 503
+  naming the key it looked for. Silent fallback would let the "free" demo
+  quietly start spending money.
+- **Live mode never falls back to a fixture.** That would present a recording as
+  a fresh result.
+
+### Trying it locally
+
+```powershell
+# with the backend running (.\tasks.ps1 dev-backend)
+$job = (Invoke-RestMethod -Method Post http://localhost:8000/api/jobs `
+        -ContentType application/json -Body '{"title":"Senior Backend Engineer"}')
+# attach a job description, then:
+Invoke-RestMethod -Method Post "http://localhost:8000/api/jobs/$($job.id)/requirements/extract"
+```
+
+Or explore the whole surface at <http://localhost:8000/docs>.
+
+### Adding a fixture
+
+Fixtures live in `backend/app/llm/fixtures/*.json` and are keyed on load by
+`(purpose, model, prompt_version, sha256(rendered input), attempt)`. **The hash
+is computed from the fixture's own input text**, using the same renderer the
+runtime uses — nothing is hand-copied, so a fixture cannot silently drift out of
+sync with the prompt that produced it.
+
+```json
+{
+  "description": "what this fixture is for",
+  "purpose": "JD_EXTRACTION",
+  "model": "claude-opus-5",
+  "prompt_version": "jd-extraction-v1",
+  "attempt": 1,
+  "jd_text": ["line one", "line two"],
+  "response_json": { "requirements": [] }
+}
+```
+
+Use `response_json` for a well-formed reply and `response_text` for a
+deliberately malformed one. Both `jd_text` and `response_text` accept a list of
+lines, joined with newlines, so multi-line content stays readable in a diff.
+
+> **Changing a prompt invalidates its fixtures.** `PROMPT_VERSION` in
+> `app/llm/prompts/jd_extraction.py` is part of the key, so bump it whenever the
+> prompt text changes. Replay will then fail loudly for the old fixtures rather
+> than quietly replaying output that answered different instructions.
+
+### Running against the real API
+
+Set `DEMO_MODE=false` and `ANTHROPIC_API_KEY` in `.env`. Startup fails
+immediately if the key is missing — live mode has no fallback, so there is no
+point discovering that at the first request. The key is read server-side only
+and is never logged or returned in a response.
