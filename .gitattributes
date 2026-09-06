@@ -1,0 +1,9 @@
+# Normalize line endings so a Windows dev machine and a Linux CI runner
+# never produce a whole-repo diff. Text files are stored LF in the repo and
+# checked out with the platform's native ending.
+* text=auto eol=lf
+
+# Binary assets — never touch these.
+*.pdf binary
+*.png binary
+*.jpg binary
