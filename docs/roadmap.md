@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phase 0 complete. Phases 1–20 not started.
+**Status:** Phases 0–1 complete. Phases 2–20 not started.
 **Last updated:** 2026-09-06
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -39,7 +39,7 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 | Phase | Title | Status |
 |---|---|---|
 | 0 | Product definition and project specification | ✅ |
-| 1 | Architecture and data model | ⬜ |
+| 1 | Architecture and data model | ✅ |
 | 2 | Local development environment | ⬜ |
 | 3 | Git repository setup | ⬜ |
 | 4 | Job description processing | ⬜ |
@@ -83,7 +83,7 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 
 ---
 
-## Phase 1 — Architecture and data model ⬜
+## Phase 1 — Architecture and data model ✅
 
 **Objective.** Decide the system's shape and its persistent data model, and write both down, before writing code that would silently fix these decisions in place.
 

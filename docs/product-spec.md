@@ -2,7 +2,8 @@
 
 **Status:** Phase 0 (specification only — no application code exists yet)
 **Last updated:** 2026-09-06
-**Scope of this document:** product definition. Architecture and data model are specified separately in Phase 1.
+**Scope of this document:** product definition. System design lives in the companion documents.
+**Companion documents:** [architecture.md](architecture.md) · [data-model.md](data-model.md)
 
 ---
 
@@ -219,7 +220,7 @@ Every requirement is flagged `must_have: true | false`.
 
 The flag has two distinct effects, kept separate on purpose:
 
-1. **Weight.** Must-haves default to a higher weight than nice-to-haves (proposed defaults: `3` and `1`). Weights are HR-editable per requirement.
+1. **Weight.** Must-haves default to a higher weight than nice-to-haves (confirmed defaults: `3` and `1`). Weights are HR-editable per requirement.
 2. **Coverage.** Must-have coverage is computed and displayed as its own figure, independent of the overall score, because a high average can conceal a missing hard requirement — the most misleading failure mode of a weighted-average screener.
 
 The flag is LLM-proposed and **human-owned**: HR can change it during review, and JD language is frequently ambiguous about which requirements are genuinely hard.
@@ -310,7 +311,7 @@ Binding rules:
 - The band is always displayed next to its score and its must-have coverage, never alone.
 - The UI states that bands are heuristic wherever they are shown.
 
-**Proposed extension — must-have guard (to be confirmed in Phase 9).** A weighted average can return 91 while a hard requirement has no evidence at all. The proposal: if any `must_have` requirement is `NO_EVIDENCE`, the displayed band is capped at `Review` and annotated with the specific requirement that triggered the cap. This is a *deterministic business rule*, it is transparent, it is reversible by the recruiter, and it never removes the candidate. It is recorded here as a decision to confirm rather than assumed, because it modifies the heuristic given in the original brief.
+**Must-have guard (confirmed in Phase 1).** A weighted average can return 91 while a hard requirement has no evidence at all. So: if any `must_have` requirement is `NO_EVIDENCE`, the displayed band is capped at `Review` and annotated with the specific requirement that triggered the cap. This is a *deterministic business rule* — transparent, reversible by the recruiter, and it never removes the candidate. The numeric score itself is unchanged and still shown, and the uncapped band is retained for audit. It is configurable and can be switched off; see [data-model.md §11](data-model.md#11-resolved-open-questions).
 
 ---
 
@@ -475,12 +476,14 @@ Ordered roughly by value per unit of effort, and deliberately **not** part of th
 
 ---
 
-## 19. Open questions to confirm
+## 19. Resolved decisions
 
-1. **Must-have guard** (section 12): should an unevidenced must-have cap the displayed band at `Review`? Proposed yes; not implemented until confirmed.
-2. **Default weights**: proposed `must_have = 3`, `nice_to_have = 1`. To be confirmed in Phase 1.
-3. **Score comparability**: confirm that the UI should actively discourage cross-job score comparison.
-4. **Evidence granularity**: sentence-level spans proposed for the MVP, with character offsets retained so finer granularity remains possible later.
+These four questions were open at the end of Phase 0 and were settled in Phase 1. Full rationale is in [data-model.md §11](data-model.md#11-resolved-open-questions).
+
+1. **Must-have guard** (section 12): **confirmed.** Any `must_have` requirement at `NO_EVIDENCE` caps the displayed band at `Review`, annotated with the requirement responsible. The score is unchanged and still shown, the uncapped band is retained for audit, and the candidate remains fully visible — this is never a rejection.
+2. **Default weights**: **confirmed** as `must_have = 3`, `nice_to_have = 1`, editable per requirement.
+3. **Score comparability**: **confirmed.** No screen places scores from different jobs side by side, and the score label states that it is relative to this job's requirements.
+4. **Evidence granularity**: **confirmed** as sentence-level spans, with character offsets stored on every verified span so finer highlighting remains possible without a schema change.
 
 ---
 

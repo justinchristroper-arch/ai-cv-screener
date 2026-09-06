@@ -2,7 +2,7 @@
 
 An AI-assisted CV screening tool that helps recruiters evaluate many candidates against one job description — by showing **evidence**, not just a number.
 
-> **Project status: Phase 0 of 20 — specification only.**
+> **Project status: Phase 1 of 20 — specification and design complete.**
 > No application code exists yet. Everything below describes what is *planned*. Nothing in this README should be read as a description of working software. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ---
@@ -55,7 +55,8 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 |---|---|
 | Product specification | ✅ Complete — [docs/product-spec.md](docs/product-spec.md) |
 | Development roadmap | ✅ Complete — [docs/roadmap.md](docs/roadmap.md) |
-| Architecture and data model | ⬜ Not started (Phase 1) |
+| Architecture | ✅ Complete — [docs/architecture.md](docs/architecture.md) |
+| Data model | ✅ Complete — [docs/data-model.md](docs/data-model.md) |
 | Backend | ⬜ Not implemented |
 | Frontend | ⬜ Not implemented |
 | Database | ⬜ Not implemented |
@@ -100,7 +101,7 @@ Detailed architecture and the data model are Phase 1 deliverables.
 |---|---|---|
 | Backend | Python, FastAPI | Typed request/response models via Pydantic map directly onto the structured-output discipline this project depends on. |
 | Frontend | React, Vite | Standard, fast dev loop, no framework overhead the project does not need. |
-| Database | PostgreSQL (pgvector if justified) | Relational data with a real audit trail. Whether vector search earns its place is an explicit Phase 1 decision, not an assumption. |
+| Database | PostgreSQL | Relational data with a real audit trail. **pgvector was evaluated in Phase 1 and deferred** — nothing in the MVP pipeline needs vector search, and the schema is arranged so adding it later is a purely additive migration. |
 | LLM | Anthropic Claude API | Server-side only; structured outputs; model and prompt version recorded with every call. |
 | PDF | Python text-extraction library (selected in Phase 5) | Text-layer extraction with page and character offsets, so evidence can be cited back to a location. |
 | Tooling | Git, GitHub, Docker Compose, pytest | — |
@@ -123,7 +124,7 @@ ai-cv-screener/
 └── README.md
 ```
 
-Currently present: `docs/`, `README.md`, `.gitignore`, `.env.example`.
+Currently present: `docs/`, `README.md`, `.gitignore`, `.gitattributes`, `.env.example`.
 
 ---
 
@@ -132,7 +133,7 @@ Currently present: `docs/`, `README.md`, `.gitignore`, `.env.example`.
 | Phase | Title | Status |
 |---|---|---|
 | 0 | Product definition and specification | ✅ |
-| 1 | Architecture and data model | ⬜ |
+| 1 | Architecture and data model | ✅ |
 | 2 | Local development environment | ⬜ |
 | 3 | Git repository setup | ⬜ |
 | 4 | Job description processing | ⬜ |
@@ -202,6 +203,8 @@ The full list is in [docs/product-spec.md](docs/product-spec.md#17-major-limitat
 ## Documentation
 
 - [Product specification](docs/product-spec.md) — scope, principles, scoring, fairness, security, limitations
+- [Architecture](docs/architecture.md) — layering, the pipeline, LLM call sites, trust boundary, error policy, decision log
+- [Data model](docs/data-model.md) — entities, enumerations, constraints, indexes, ER diagram, invalidation rules
 - [Roadmap](docs/roadmap.md) — all 20 phases with deliverables and verification criteria
 
 ---
