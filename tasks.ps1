@@ -123,6 +123,10 @@ switch ($Task) {
         Invoke-InDir $Frontend { npm run format }
     }
 
+    "check-docs" {
+        python (Join-Path $Root "scripts\check_docs.py")
+    }
+
     default {
         Write-Host @"
 AI CV Screener — developer commands
@@ -142,6 +146,7 @@ AI CV Screener — developer commands
   .\tasks.ps1 test-frontend  Frontend tests only
   .\tasks.ps1 lint           Lint and format-check both halves
   .\tasks.ps1 format         Apply formatting to both halves
+  .\tasks.ps1 check-docs     Check docs for broken relative links and anchors
 
 There is no single 'dev' task: the two servers are long-running, so run
 dev-backend and dev-frontend in separate terminals.

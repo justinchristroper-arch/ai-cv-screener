@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–2 complete. Phases 3–20 not started.
+**Status:** Phases 0–3 complete (Phase 3's CI-workflow-observed-passing criterion pending the first push to GitHub — see the note under Phase 3 below). Phases 4–20 not started.
 **Last updated:** 2026-09-06
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -41,7 +41,7 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 | 0 | Product definition and project specification | ✅ |
 | 1 | Architecture and data model | ✅ |
 | 2 | Local development environment | ✅ |
-| 3 | Git repository setup | ⬜ |
+| 3 | Git repository setup | ✅ (see note) |
 | 4 | Job description processing | ⬜ |
 | 5 | CV upload and PDF parsing | ⬜ |
 | 6 | Candidate profile extraction | ⬜ |
@@ -127,21 +127,28 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 
 ---
 
-## Phase 3 — Git repository setup ⬜
+## Phase 3 — Git repository setup ✅ (one criterion pending push)
 
 **Objective.** Establish repository hygiene and the conventions that keep the history reviewable.
 
 **Deliverables.**
-- Branch and commit-message conventions recorded in `CONTRIBUTING.md`.
-- `.gitignore` extended to cover the real toolchain now that it exists (Python, Node, Docker, IDE, uploads).
-- CI workflow running lint and tests on push.
-- `docs/decisions/` for lightweight architecture decision records, seeded with the Phase 1 decisions.
-- Repository metadata: license, description, topics.
+- Branch and commit-message conventions recorded in `CONTRIBUTING.md`. ✅
+- `.gitignore` extended to cover the real toolchain now that it exists (Python, Node, Docker, IDE, uploads). ✅ (already covered as of Phase 2; reverified)
+- CI workflow running lint and tests on push. ✅ [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — three jobs (backend, frontend, docs); every step re-verified locally, including against a fresh, isolated PostgreSQL container standing in for the CI service.
+- `docs/decisions/` for lightweight architecture decision records, seeded with the Phase 1 decisions. ✅ 8 ADRs + index, see [`docs/decisions/README.md`](decisions/README.md).
+- Repository metadata: license, description, topics. ✅ MIT [`LICENSE`](../LICENSE); description and GitHub topics are set at push time, not before (they're a GitHub repository setting, not a file — see the note below).
+
+Also delivered, beyond the original list, because they turned out to be needed to actually meet this phase's objective:
+- Language version pinning (`backend/.python-version`, `frontend/.nvmrc`, `engines` + `engine-strict` in the frontend) — closes a reproducibility gap Phase 2 explicitly flagged.
+- The `httpx` → `httpx2` dependency fix, removing the deprecation warning Phase 2 reported (one unrelated, unfixable-by-us upstream warning remains — documented in [`docs/development.md` §5](development.md#5-install-backend-dependencies)).
+- [`scripts/check_docs.py`](../scripts/check_docs.py) — the ad-hoc link-verification logic used by hand in Phases 0–2, promoted into a real, tested, reusable tool, wired into CI as its own job.
+- A one-time secret-oriented audit of the working tree and the full git history (detect-secrets pattern scan + a manual history grep for common secret shapes) — see the Phase 3 completion report for findings.
+- `.github/ISSUE_TEMPLATE/bug_report.md` and `.github/pull_request_template.md`.
 
 **Verification criteria.**
-- A fresh `git clone` into a new directory contains no secrets, no virtualenv, no `node_modules`, no uploaded files, and no database data.
-- CI runs and passes on the current commit — observed in the CI output.
-- `git status` is clean after a full local build and test run, proving the ignore rules cover every generated artifact.
+- A fresh `git clone` into a new directory contains no secrets, no virtualenv, no `node_modules`, no uploaded files, and no database data. ✅ Verified: full git-history scan (not just the working tree) found no `.env`, no real-secret-shaped string, and no accidentally committed dependency directory in any commit.
+- CI runs and passes on the current commit — observed in the CI output. **⬜ NOT YET MET.** Every job's steps were run locally and pass, including the backend job's full sequence against a freshly created, isolated PostgreSQL container — but this repository has not yet been pushed to GitHub, so no workflow run has actually executed on GitHub Actions. "The workflow file is correct and its steps pass locally" and "CI passed on GitHub" are different claims; only the first is true as of this phase. This will be updated to ✅ with a link to the passing run once the repository is pushed.
+- `git status` is clean after a full local build and test run, proving the ignore rules cover every generated artifact. ✅
 
 ---
 

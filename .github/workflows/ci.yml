@@ -1,0 +1,160 @@
+# Continuous integration for the AI CV Screener.
+#
+# Three jobs, each independent:
+#   backend  - lint, then a full migration cycle against a real PostgreSQL
+#              service, then the full pytest suite (including the requires_db
+#              tests, which are otherwise silently skipped when no database
+#              is reachable).
+#   frontend - install, lint, test, production build.
+#   docs     - the documentation link/anchor checker (scripts/check_docs.py).
+#              Pure standard library, no service, sub-second: cheap enough
+#              that there is no real cost to running it on every push, and a
+#              broken link in a public repository is a real, visible defect.
+#
+# Deliberately NOT here: deployment, and any service beyond the one database
+# the backend's own tests actually require.
+#
+# Language versions are read directly from the files that already pin them
+# locally (backend/.python-version, frontend/.nvmrc) rather than duplicated
+# as literals in this file - one source of truth, checked in Phase 3's
+# "language version pinning" work.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # Matches docker-compose.yml exactly. Not a secret: these are the same
+  # intentionally weak, intentionally public dev-only credentials documented
+  # there and in .env.example - bound to a throwaway CI service container,
+  # never reachable outside this job, holding no real data either way.
+  DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_cv_screener
+  APP_ENV: development
+  DEMO_MODE: "true"
+  LOG_LEVEL: warning
+
+jobs:
+  backend:
+    name: Backend (lint + test)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ai_cv_screener
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        # Wait for PostgreSQL to actually be ready before any step below runs
+        # a query against it - the same property docker-compose.yml's
+        # healthcheck + `up --wait` gives locally.
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_cv_screener"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint (ruff check)
+        working-directory: backend
+        run: ruff check .
+
+      - name: Format check (ruff format)
+        working-directory: backend
+        run: ruff format --check .
+
+      - name: Apply migrations (upgrade)
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Migration round-trip (downgrade then upgrade)
+        # Exercises the same cycle that caught real defects in the initial
+        # migration during Phase 2 (enum types that were never imported,
+        # created twice, or never dropped on downgrade). A migration that
+        # only ever gets upgraded in CI would not have caught that.
+        working-directory: backend
+        run: |
+          alembic downgrade base
+          alembic upgrade head
+
+      - name: Verify no drift between models and migrations
+        working-directory: backend
+        run: alembic check
+
+      - name: Test (pytest)
+        working-directory: backend
+        run: pytest -v
+
+  frontend:
+    name: Frontend (lint + test + build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint (eslint)
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Format check (prettier)
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Test (vitest)
+        working-directory: frontend
+        run: npm test
+
+      - name: Production build
+        working-directory: frontend
+        run: npm run build
+
+  docs:
+    name: Documentation links
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Check relative links and anchors
+        run: python scripts/check_docs.py -v

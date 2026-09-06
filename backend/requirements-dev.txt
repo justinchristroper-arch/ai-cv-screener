@@ -2,5 +2,14 @@
 #     python -m pip install -r requirements.txt -r requirements-dev.txt
 
 pytest>=8.3,<9.0
-httpx>=0.27,<1.0          # required by starlette's TestClient
+
+# starlette.testclient (used via fastapi.testclient.TestClient) tries
+# `import httpx2 as httpx` first and falls back to the older `httpx` package
+# with a DeprecationWarning if httpx2 is absent. httpx2 is real, on PyPI, and
+# is what starlette 1.6 actually wants — installing it removes the warning
+# outright rather than silencing it. Plain `httpx` is intentionally NOT listed:
+# nothing in this project imports it directly, and installing both would leave
+# the deprecated fallback path importable by accident.
+httpx2>=2.10,<3.0
+
 ruff>=0.8,<1.0            # linter AND formatter — one tool, not two

@@ -2,8 +2,8 @@
 
 An AI-assisted CV screening tool that helps recruiters evaluate many candidates against one job description — by showing **evidence**, not just a number.
 
-> **Project status: Phase 2 of 20 — local development environment.**
-> The application skeleton runs: a FastAPI backend with health endpoints, a migrated PostgreSQL schema, and a React shell that reports backend connectivity. **None of the CV screening pipeline is implemented** — no job description processing, no PDF parsing, no matching, no scoring. Everything described under "What this project is" is still *planned*. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
+> **Project status: Phase 3 of 20 — repository workflow and CI.**
+> The application skeleton runs: a FastAPI backend with health endpoints, a migrated PostgreSQL schema, and a React shell that reports backend connectivity. A CI workflow now lints, migrates, and tests both halves on every push (see [Continuous integration](#continuous-integration) below). **None of the CV screening pipeline is implemented** — no job description processing, no PDF parsing, no matching, no scoring. Everything described under "What this project is" is still *planned*. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
@@ -61,6 +61,8 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Frontend | 🟡 Shell runs — React + Vite, reports backend connectivity. No screening UI. |
 | Database | 🟡 PostgreSQL 16 in Docker; all 16 tables migrated via Alembic |
 | Tests | 🟡 47 passing (32 backend, 15 frontend). Infrastructure only. |
+| CI | 🟡 [Workflow created](.github/workflows/ci.yml) and its steps verified locally against a fresh database; **not yet observed running on GitHub** — the repository hasn't been pushed yet. |
+| Repository hygiene | ✅ [CONTRIBUTING.md](CONTRIBUTING.md), [ADRs](docs/decisions/README.md), pinned language versions, MIT license, secret scan performed |
 | LLM integration | ⬜ Not implemented |
 | PDF parsing | ⬜ Not implemented |
 | Scoring engine | ⬜ Not implemented |
@@ -145,7 +147,7 @@ ai-cv-screener/
 └── README.md
 ```
 
-Currently present: `backend/`, `frontend/`, `docs/`, `docker-compose.yml`, `tasks.ps1`, and the repository metadata files. `data/` and `evaluation/` arrive in Phases 12 and 13.
+Currently present: `backend/`, `frontend/`, `docs/` (including `docs/decisions/`), `.github/` (CI workflow, issue/PR templates), `scripts/`, `docker-compose.yml`, `tasks.ps1`, `CONTRIBUTING.md`, `LICENSE`, and the repository metadata files. `data/` and `evaluation/` arrive in Phases 12 and 13.
 
 ---
 
@@ -156,7 +158,7 @@ Currently present: `backend/`, `frontend/`, `docs/`, `docker-compose.yml`, `task
 | 0 | Product definition and specification | ✅ |
 | 1 | Architecture and data model | ✅ |
 | 2 | Local development environment | ✅ |
-| 3 | Git repository setup | ⬜ |
+| 3 | Git repository setup | ✅ |
 | 4 | Job description processing | ⬜ |
 | 5 | CV upload and PDF parsing | ⬜ |
 | 6 | Candidate profile extraction | ⬜ |
@@ -221,16 +223,32 @@ The full list is in [docs/product-spec.md](docs/product-spec.md#17-major-limitat
 
 ---
 
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs three jobs on every push and pull request to `main`: backend (lint, a full Alembic migration round-trip against a real PostgreSQL service container, then the full pytest suite), frontend (install, lint, test, production build), and a documentation link/anchor checker. Full rationale — including why CI runs a real database rather than only the offline test subset — is in [docs/development.md §16](docs/development.md#16-continuous-integration).
+
+**Honesty note:** every step in the workflow was individually verified by running it locally — including against a freshly created, isolated PostgreSQL container standing in for the CI service — before being written into the YAML. That is not the same claim as "CI passed on GitHub." This repository has not yet been pushed, so no workflow run has actually executed on GitHub Actions. This section will be updated once one has.
+
+---
+
 ## Documentation
 
 - [Product specification](docs/product-spec.md) — scope, principles, scoring, fairness, security, limitations
 - [Architecture](docs/architecture.md) — layering, the pipeline, LLM call sites, trust boundary, error policy, decision log
 - [Data model](docs/data-model.md) — entities, enumerations, constraints, indexes, ER diagram, invalidation rules
-- [Development guide](docs/development.md) — setup, commands, and troubleshooting for local development
+- [Development guide](docs/development.md) — setup, commands, CI, and troubleshooting for local development
+- [Architecture decision records](docs/decisions/README.md) — why each significant, non-obvious design choice was made, and what it costs
 - [Roadmap](docs/roadmap.md) — all 20 phases with deliverables and verification criteria
+- [CONTRIBUTING.md](CONTRIBUTING.md) — workflow, conventions, and how to propose a change
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, branch and commit conventions, testing and linting requirements, secret handling, and how to propose an architectural change.
 
 ---
 
 ## License
 
-Not yet chosen — added in Phase 3.
+[MIT](LICENSE). Chosen because this is a portfolio project with no commercial distribution model and no reason to restrict reuse — a standard, widely recognized permissive license lowers friction for anyone reading the code, more than a custom license would gain by trying to encode the product's own non-use warnings (see [Fairness — and its limits](#fairness-and-its-limits) above) into the legal terms themselves. Those warnings live in the product documentation, where they belong; the license governs the code, not its appropriate use.
