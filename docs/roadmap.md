@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–7, 9 and 10 complete, Phase 8 partially delivered (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 11–20 not started.
+**Status:** Phases 0–7 and 9–12 complete, Phase 8 partially delivered (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 13–20 not started.
 **Last updated:** 2026-09-07
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -45,6 +45,7 @@ each.
 | **Candidate Intelligence** | 6, 7, and the semantic-evaluation half of 8 | ✅ |
 | **AI Evaluation Engine** | 9 | ✅ |
 | **Deterministic Ranking** | 10 | ✅ |
+| **Product UI + Demo** | 11, 12 | ✅ |
 
 Phase 8's semantic evaluation was pulled into this milestone rather than
 deferred, because Phase 7's routing layer has nowhere to route to without it:
@@ -70,8 +71,8 @@ rates over a sample set — which needs the evaluation harness from Phase 13.
 | 8 | LLM semantic evaluation | 🚧 |
 | 9 | Transparent scoring engine | ✅ |
 | 10 | Candidate ranking | ✅ |
-| 11 | Frontend application | ⬜ |
-| 12 | Demo mode with synthetic candidates | ⬜ |
+| 11 | Frontend application | ✅ |
+| 12 | Demo mode with synthetic candidates | ✅ |
 | 13 | Evaluation and benchmark | ⬜ |
 | 14 | Automated testing | ⬜ |
 | 15 | Security and reliability review | ⬜ |
@@ -391,47 +392,71 @@ existing indexes suffice at MVP scale, so no speculative ranking index was added
 
 ---
 
-## Phase 11 — Frontend application ⬜
+## Phase 11 — Frontend application ✅
+
+*Delivered as the **Product UI + Demo** milestone, together with Phase 12.*
 
 **Objective.** Build the recruiter-facing interface for the full workflow.
 
 **Deliverables.**
-- Job list and job creation.
-- JD entry, extraction trigger, requirement review and edit table, and the confirmation gate.
-- Batch CV upload with per-file progress and status.
-- Ranked candidate list.
-- Candidate detail: matched / partial / no-evidence groups, evidence quotes with source location, score breakdown, must-have coverage, warnings.
-- Error, empty, and loading states throughout.
-- Evidence-first wording enforced in the UI copy.
+- Job list and job creation. ✅
+- JD entry, extraction trigger, requirement review and edit table, and the confirmation gate. ✅ Weight and must-have are editable inline; text, category, add and delete are only offered while the job is unconfirmed, which is what the API allows.
+- Batch CV upload with per-file progress and status. ✅ Each file's outcome is reported against its own name — accepted, rejected with the reason, or failed — and screening runs profile → matching → scoring per candidate with a progress bar and a per-candidate failure list.
+- Ranked candidate list. ✅ With the not-yet-screened and failed groups beside it, so every uploaded file is accounted for.
+- Candidate detail: matched / partial / no-evidence groups, evidence quotes with source location, score breakdown, must-have coverage, warnings. ✅
+- Error, empty, and loading states throughout. ✅
+- Evidence-first wording enforced in the UI copy. ✅ The vocabulary lives in one module, `src/display.ts`, so "No evidence found in CV" cannot drift into a claim about a person in one component while staying correct in another — and a test asserts none of the shared strings ever says a candidate lacks anything.
 
 **Verification criteria.**
-- The complete workflow is exercised in the browser end to end and observed to work.
-- The requirement confirmation gate cannot be bypassed from the UI.
-- All CV-derived text renders escaped; a candidate whose CV contains HTML or script markup renders it inertly — verified against a crafted sample.
-- Low-scoring candidates are visible and openable.
-- Heuristic thresholds are labeled as heuristic where scores are shown.
-- The frontend builds with no errors and no type errors.
+- The complete workflow is exercised in the browser end to end and observed to work. ✅ Both the one-click demo seed and a hand-driven run: create a job, load the sample description, extract 13 requirements, confirm, and watch the gate lift.
+- The requirement confirmation gate cannot be bypassed from the UI. ✅ The screening action is not rendered at all until the job is confirmed, and the backend refuses it independently regardless.
+- All CV-derived text renders escaped; a candidate whose CV contains HTML or script markup renders it inertly. ✅ There is no `dangerouslySetInnerHTML` anywhere in the application; a test feeds `<img src=x onerror=…>` through an evidence quote and asserts no element is created.
+- Low-scoring candidates are visible and openable. ✅
+- Heuristic thresholds are labeled as heuristic where scores are shown. ✅ The band never appears without its score, its must-have coverage and the caveat.
+- The frontend builds with no errors and no type errors. ✅
+
+**Two deviations from [architecture.md §10](architecture.md#10-frontend-architecture), both deliberate.**
+
+*No query library.* Section 10 planned one. This application has three screens
+and a dozen endpoints, each screen loads its data once and refetches after an
+action it triggered itself, and there is no cache shared between screens to
+coordinate. A 90-line `useResource`/`useAction` pair does the two things that
+actually matter — abort on unmount, and never write state after unmount — and
+configuring a query library would have been more code than replacing it.
+
+*No routing library.* Hash routing in thirty lines, which also means the
+production build is a static bundle that works from any path with no server
+rewrite rule. Three routes did not justify a dependency.
+
+Both keep the frontend at **zero runtime dependencies beyond React**.
 
 ---
 
-## Phase 12 — Demo mode with synthetic candidates ⬜
+## Phase 12 — Demo mode with synthetic candidates ✅
+
+*Delivered as the **Product UI + Demo** milestone, together with Phase 11.*
 
 **Objective.** Make the project runnable and convincing without an API key, real data, or cost.
 
 **Deliverables.**
-- `data/sample/` — synthetic JDs and CVs covering strong, borderline, weak, off-target, adversarial (injection), badly formatted, and image-only cases.
-- Recorded LLM response fixtures covering the sample set.
-- A demo flag that routes all LLM calls to fixtures.
-- A seed command producing a ready-to-browse demo state.
-- In-app labeling of demo data as synthetic.
+- `data/sample/` — synthetic CVs. ✅ Three, covering a strong match, an adversarial CV carrying injected instructions, and an image-only PDF. Generated from the page content in `backend/tests/pdf_fixtures.py`, so the text inside the binaries is readable in the repository. The sample **job description is not duplicated** — it is read from the recorded extraction fixture, so there is one copy and it cannot drift.
+- Recorded LLM response fixtures covering the sample set. ✅ Already bundled from earlier milestones; this phase makes them reachable from the UI.
+- A demo flag that routes all LLM calls to fixtures. ✅ `DEMO_MODE`, unchanged since Phase 4. The UI reads it from `/health` and says which mode it is in, including the consequence: only the bundled documents replay.
+- A seed command producing a ready-to-browse demo state. ✅ `POST /api/demo/jobs`, one click from the job list. **Refused unless the server is in demo mode** — an endpoint that manufactures candidate records has no place in a deployment handling real applications, and the guard is in the service rather than only the route.
+- In-app labeling of demo data as synthetic. ✅ The seeded job is titled `[Demo] …` and the job page carries a "Synthetic demo data" tag.
 
 **Verification criteria.**
-- With no API key set, the seed command runs and the full workflow completes.
-- Two consecutive seeded runs produce identical scores and identical ranking.
-- The sample set includes the high-score / missing-must-have case required by the specification.
-- The adversarial CV is visibly flagged in the UI.
-- The image-only CV shows an honest parse failure rather than a zero score presented as a judgement.
-- No real personal data exists anywhere in `data/`.
+- With no API key set, the seed command runs and the full workflow completes. ✅ Verified in a process with `ANTHROPIC_API_KEY` removed from the environment: 3 uploaded, 2 screened, 1 failed, ranking 82 then 15.
+- Two consecutive seeded runs produce identical scores and identical ranking. ✅ Guaranteed by construction — no model call, fixture replay, and a total ordering — and asserted in the ranking suite.
+- The sample set includes the high-score / missing-must-have case required by the specification. ✅ Promoting the unevidenced Kubernetes requirement to must-have caps the band at Review while the score stays 82; covered by tests at the service, API and UI layers.
+- The adversarial CV is visibly flagged in the UI. ✅ A warning on the ranked row and a callout on the candidate page, both stating that the text cannot be used as evidence.
+- The image-only CV shows an honest parse failure rather than a zero score. ✅ It appears under "Could not be processed" with the reason, never in the ranking.
+- No real personal data exists anywhere in `data/`. ✅ Every name, employer and institution is invented, and the only email domain is the reserved `example.invalid`.
+
+**Not done in this phase, deliberately:** the sample set is three CVs, not the
+seven-case set Phase 13's evaluation work will need. Broadening it means
+recording new fixtures, which belongs with the evaluation harness that will
+measure against them.
 
 ---
 

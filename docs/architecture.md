@@ -269,6 +269,8 @@ Error responses are structured and never include stack traces, SQL, file paths, 
 | `GET` | `/api/jobs/{job_id}/candidates` | Upload and parse state for every candidate |
 | `GET` | `/api/jobs/{job_id}/ranking` | Ranked list with score, band, coverage, warnings |
 | `GET` | `/api/candidates/{id}` | Detail: verdicts, evidence, score breakdown |
+| `GET` | `/api/demo/samples` | The synthetic sample JD and CVs bundled with the project |
+| `POST` | `/api/demo/jobs` | Seed a ready-to-browse demo job. **Demo mode only** |
 | `POST` | `/api/candidates/{id}/retry` | Re-run the pipeline for a stuck or failed candidate |
 
 Tracing the workflow end to end: `POST /api/jobs` → `PUT .../description` → `POST .../requirements/extract` (stage 2) → `PATCH /api/requirements/{id}` (stage 3) → `POST .../requirements/confirm` (stage 4) → `POST .../candidates` (stage 5) → `POST /api/candidates/{id}/profile` (stages 7–8) → `POST .../matches` (stages 9–10) → `POST .../score` (stage 11) → `GET /api/jobs/{job_id}/ranking` (stage 12) → `GET /api/candidates/{id}`. No gaps.
@@ -281,7 +283,8 @@ Tracing the workflow end to end: `POST /api/jobs` → `PUT .../description` → 
 
 A Vite + React SPA, deliberately plain:
 
-- **Server state** via a query library with polling for in-flight candidate statuses. No global client store: almost all state in this app *is* server state, and a Redux-shaped layer would mostly re-implement caching badly.
+- **Server state** via a small `useResource` hook. This section originally planned a query library; Phase 11 did not use one. Three screens, a dozen endpoints, each screen loading once and refetching after an action it triggered itself — there is no cross-screen cache to coordinate, and configuring a query library would have been more code than the 90 lines that replaced it. No global client store either: almost all state in this app *is* server state.
+- **Routing** is a thirty-line hash router rather than a routing package, for the same reason and one more: the production build is then a static bundle that works from any path with no server rewrite rule. The frontend has **zero runtime dependencies beyond React**.
 - **Routes:** job list → job detail (JD + requirement review) → candidate list (ranked) → candidate detail (evidence and breakdown).
 - **All CV-derived text is rendered as text.** No `dangerouslySetInnerHTML` anywhere — a lint rule enforces this in Phase 14, because it is the XSS control for untrusted CV content.
 - **Score arithmetic is displayed, not recomputed.** The backend returns the per-requirement breakdown; the frontend renders it. Two implementations of the formula would eventually disagree, and the backend's is the auditable one.

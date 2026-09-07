@@ -1,9 +1,11 @@
 /**
- * Shows whether the backend is reachable.
+ * A compact backend indicator, in the header.
  *
- * This is the whole of the Phase 2 frontend/backend integration: enough to
- * prove the two halves talk to each other (and that CORS is configured), and
- * no more. The screening UI arrives in Phase 11.
+ * It says which mode the server is in, because that changes what the product
+ * can do: in demo mode every model call is replayed from a recorded fixture, so
+ * the workflow only completes for the bundled synthetic documents. A user who
+ * uploads their own CV in demo mode and gets a "no recorded fixture" error
+ * deserves to have been told why beforehand.
  */
 
 import { useEffect, useState } from "react";
@@ -36,7 +38,7 @@ export function BackendStatus() {
 
   if (status.state === "checking") {
     return (
-      <p className="status status--checking" role="status">
+      <p className="backend backend--checking" role="status">
         Checking backend…
       </p>
     );
@@ -44,31 +46,24 @@ export function BackendStatus() {
 
   if (status.state === "unreachable") {
     return (
-      <div className="status status--error" role="status">
-        <p>
-          <strong>Backend unreachable.</strong> {status.message}
-        </p>
-        <p className="status__hint">
-          Start it with <code>uvicorn app.main:app --reload</code> from <code>backend/</code>.
-        </p>
+      <div className="backend backend--error" role="status">
+        <strong>Backend unreachable</strong>
+        <span className="backend__hint">
+          {status.message}. Start it with <code>.\tasks.ps1 dev-backend</code>.
+        </span>
       </div>
     );
   }
 
   const { health } = status;
   return (
-    <div className="status status--ok" role="status">
-      <p>
-        <strong>Backend connected.</strong> v{health.version} · {health.app_env}
-      </p>
-      <p className="status__hint">
+    <div className="backend backend--ok" role="status">
+      <strong>{health.demo_mode ? "Demo mode" : "Live mode"}</strong>
+      <span className="backend__hint">
         {health.demo_mode
-          ? "Demo mode: LLM calls will be served from recorded fixtures."
-          : "Live mode: LLM calls will use the configured provider."}
-      </p>
-      <p className="status__hint">
-        API base: <code>{API_BASE_URL}</code>
-      </p>
+          ? "Model calls are replayed from recorded fixtures — no API key, no cost. Only the bundled synthetic documents replay."
+          : `Model calls use the configured provider. v${health.version} · ${API_BASE_URL}`}
+      </span>
     </div>
   );
 }

@@ -2,8 +2,8 @@
 
 An AI-assisted CV screening tool that helps recruiters evaluate many candidates against one job description — by showing **evidence**, not just a number.
 
-> **Project status: Deterministic Ranking milestone — the backend pipeline is complete from job description to ranked shortlist (roadmap phases 6, 7, most of 8, 9 and 10).**
-> The pipeline now runs end to end on the backend. A job description becomes structured requirements that a human reviews and **confirms**; a CV PDF becomes text with page-level provenance, then a candidate profile whose every item quotes the document; every confirmed requirement gets a `MATCHED` / `PARTIAL` / `NO_EVIDENCE` verdict with verified evidence; and those verdicts become a transparent 0–100 score with a per-requirement breakdown. It all runs offline from recorded model responses — no API key needed. Finally the job's candidates come back in a deterministic order, with failed and not-yet-scored candidates in their own groups so none can be quietly dropped. **Still missing:** any screening UI — the frontend is a shell. **There is no OCR**, so scanned CVs are rejected rather than silently treated as empty. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
+> **Project status: Product UI + Demo milestone — the product is usable end to end in a browser, with a one-click synthetic demo that needs no API key (roadmap phases 6, 7, most of 8, and 9–12).**
+> The pipeline now runs end to end on the backend. A job description becomes structured requirements that a human reviews and **confirms**; a CV PDF becomes text with page-level provenance, then a candidate profile whose every item quotes the document; every confirmed requirement gets a `MATCHED` / `PARTIAL` / `NO_EVIDENCE` verdict with verified evidence; and those verdicts become a transparent 0–100 score with a per-requirement breakdown. It all runs offline from recorded model responses — no API key needed. Finally the job's candidates come back in a deterministic order, with failed and not-yet-scored candidates in their own groups so none can be quietly dropped — and all of it is now driveable from a React UI, including a one-click demo seeded from synthetic CVs. **Still missing:** the measured evaluation, a security review, and deployment. **There is no OCR**, so scanned CVs are rejected rather than silently treated as empty. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
@@ -58,9 +58,9 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Architecture | ✅ Complete — [docs/architecture.md](docs/architecture.md) |
 | Data model | ✅ Complete — [docs/data-model.md](docs/data-model.md) |
 | Backend | 🟡 The whole pipeline: jobs, job descriptions, requirement extraction + CRUD, confirmation gate, CV upload and PDF text extraction, candidate profile extraction, evidence verification, requirement matching with evidence-backed verdicts, deterministic scoring, and ranking. **No screening UI yet.** |
-| Frontend | 🟡 Shell runs — React + Vite, reports backend connectivity. No screening UI. |
+| Frontend | 🟡 The full workflow — job creation, JD entry, requirement review and confirmation, batch upload, screening progress, ranked results, candidate detail with evidence. React + Vite, zero runtime dependencies beyond React. |
 | Database | 🟡 PostgreSQL 16 in Docker; all 16 tables migrated via Alembic |
-| Tests | 🟡 548 passing (533 backend, 15 frontend) |
+| Tests | 🟡 611 passing (549 backend, 62 frontend) |
 | CI | 🟡 [Workflow created](.github/workflows/ci.yml) and its steps verified locally against a fresh database; **not yet observed running on GitHub** — the repository hasn't been pushed yet. |
 | Repository hygiene | ✅ [CONTRIBUTING.md](CONTRIBUTING.md), [ADRs](docs/decisions/README.md), pinned language versions, MIT license, secret scan performed |
 | LLM integration | 🟡 Requirement extraction, candidate profile extraction and semantic matching — three call sites, all behind one `LlmClient` abstraction with live and fixture-replay implementations |
@@ -69,6 +69,7 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Scoring engine | 🟡 Weighted average over stored verdicts, 0–100 plus a heuristic band. Pure, reproducible, no model call in its path. Must-have coverage reported separately, and an unevidenced must-have caps the band at Review without changing the score or hiding anyone. |
 | Ranking | 🟡 Deterministic per-job order — score, then must-have coverage, then matched-requirement count, then arrival and id for a total order. Nothing is filtered; failed and unscored candidates are surfaced in their own groups. |
 | Evaluation | ⬜ Not implemented |
+| Demo mode | 🟡 One click seeds a job from three synthetic CVs — a strong match, one carrying injected instructions, and an unreadable scan. No API key, no cost, no real applicant data. Refused outside demo mode. |
 | Deployment / live demo | ⬜ Not deployed |
 
 ## Quickstart
@@ -168,8 +169,8 @@ Currently present: `backend/`, `frontend/`, `docs/` (including `docs/decisions/`
 | 8 | LLM semantic evaluation | 🚧 |
 | 9 | Transparent scoring engine | ✅ |
 | 10 | Candidate ranking | ✅ |
-| 11 | Frontend application | ⬜ |
-| 12 | Demo mode with synthetic candidates | ⬜ |
+| 11 | Frontend application | ✅ |
+| 12 | Demo mode with synthetic candidates | ✅ |
 | 13 | Evaluation and benchmark | ⬜ |
 | 14 | Automated testing | ⬜ |
 | 15 | Security and reliability review | ⬜ |

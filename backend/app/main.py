@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api.routes import candidates, health, jobs, requirements
+from app.api.routes import candidates, demo, health, jobs, requirements
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 
@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(jobs.router)
     app.include_router(requirements.router)
     app.include_router(candidates.router)
+    app.include_router(demo.router)
 
     logger.info(
         "AI CV Screener backend %s starting (env=%s, demo_mode=%s)",

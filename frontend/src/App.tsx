@@ -1,39 +1,55 @@
 /**
- * Application shell.
+ * Application shell and router.
  *
- * Layout and honest status only. The screening workflow — job creation,
- * requirement review, CV upload, ranking — is Phase 11.
+ * The tagline is not decoration. This is decision support: it orders a
+ * worklist, and a person makes the decision. That claim is on every screen
+ * because it is the one a reader most needs to keep hold of.
  */
 
 import { BackendStatus } from "./components/BackendStatus";
+import { EmptyState } from "./components/ui";
+import { href, useHashRoute } from "./hooks/useHashRoute";
+import { CandidatePage } from "./routes/CandidatePage";
+import { JobPage } from "./routes/JobPage";
+import { JobsPage } from "./routes/JobsPage";
 
 export function App() {
+  const route = useHashRoute();
+
   return (
     <div className="app">
       <header className="app__header">
-        <h1>AI CV Screener</h1>
-        <p className="app__tagline">
-          Decision support for CV screening. The recruiter makes the decision.
-        </p>
+        <a className="app__brand" href={href.jobs()}>
+          <span className="app__mark" aria-hidden="true">
+            ▤
+          </span>
+          <span>
+            <span className="app__name">AI CV Screener</span>
+            <span className="app__tagline">
+              Evidence-first decision support. The recruiter decides.
+            </span>
+          </span>
+        </a>
+        <BackendStatus />
       </header>
 
       <main className="app__main">
-        <section aria-labelledby="status-heading">
-          <h2 id="status-heading">System status</h2>
-          <BackendStatus />
-        </section>
-
-        <section aria-labelledby="phase-heading">
-          <h2 id="phase-heading">Project status</h2>
-          <p>
-            Phase 2 of 20 — local development environment. The screening pipeline is not implemented
-            yet.
-          </p>
-          <p className="app__hint">
-            See <code>docs/roadmap.md</code> for what each phase delivers.
-          </p>
-        </section>
+        {route.name === "jobs" ? <JobsPage /> : null}
+        {route.name === "job" ? <JobPage jobId={route.jobId} /> : null}
+        {route.name === "candidate" ? <CandidatePage candidateId={route.candidateId} /> : null}
+        {route.name === "unknown" ? (
+          <EmptyState title="Page not found">
+            <a href={href.jobs()}>Back to all jobs</a>
+          </EmptyState>
+        ) : null}
       </main>
+
+      <footer className="app__footer">
+        <p>
+          This system never accepts, rejects, filters or hides a candidate. Scores and bands are
+          summaries of what a document contains, not predictions of how someone will perform.
+        </p>
+      </footer>
     </div>
   );
 }

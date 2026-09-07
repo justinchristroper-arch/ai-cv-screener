@@ -2,48 +2,64 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { DEMO_SAMPLES, HEALTH_DEMO, stubFetch } from "./testing/stubs";
 
 beforeEach(() => {
-  // The shell must render regardless of backend availability, so the default
-  // stub is a failing request.
-  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+  window.location.hash = "";
+  stubFetch({
+    "GET /health": HEALTH_DEMO,
+    "GET /api/jobs": { body: [] },
+    "GET /api/demo/samples": DEMO_SAMPLES,
+  });
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.location.hash = "";
 });
 
 describe("App shell", () => {
-  it("renders the product name", () => {
+  it("renders the product name and what it is for", () => {
     render(<App />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "AI CV Screener" })).toBeInTheDocument();
+    expect(screen.getByText("AI CV Screener")).toBeInTheDocument();
+    expect(screen.getByText(/the recruiter decides/i)).toBeInTheDocument();
   });
 
-  it("states that the recruiter makes the decision", () => {
+  it("states in the footer that nothing is ever auto-rejected or hidden", () => {
     render(<App />);
 
-    expect(screen.getByText(/the recruiter makes the decision/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/never accepts, rejects, filters or hides a candidate/i),
+    ).toBeInTheDocument();
   });
 
-  it("reports the project phase honestly rather than implying a finished product", () => {
+  it("does not present scores as predictions of performance", () => {
     render(<App />);
 
-    expect(screen.getByText(/phase 2 of 20/i)).toBeInTheDocument();
-    expect(screen.getByText(/not implemented yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/not predictions of how someone will perform/i)).toBeInTheDocument();
   });
 
-  it("renders both landmark sections", () => {
+  it("routes to the jobs list by default", async () => {
     render(<App />);
 
-    expect(screen.getByRole("heading", { level: 2, name: /system status/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: /project status/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /start a job/i })).toBeInTheDocument();
   });
 
-  it("renders the shell even when the backend is down", async () => {
+  it("shows a not-found state for an unrecognised route", () => {
+    window.location.hash = "#/nowhere";
     render(<App />);
 
-    expect(await screen.findByText(/Backend unreachable/i)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(screen.getByText(/page not found/i)).toBeInTheDocument();
+  });
+
+  it("renders even when the backend is unreachable", async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    render(<App />);
+
+    expect(await screen.findByText(/backend unreachable/i)).toBeInTheDocument();
+    expect(screen.getByText("AI CV Screener")).toBeInTheDocument();
   });
 });
