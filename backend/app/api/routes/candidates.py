@@ -15,9 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import LlmClientDep, SessionDep, SettingsDep, StorageDep
 from app.core.enums import MatchMethod, MatchVerdict
-from app.core.errors import ConflictError
+from app.core.errors import ConflictError, NotFoundError
 from app.models.candidate import Candidate
-from app.models.evaluation import EvidenceSpan
+from app.models.evaluation import EvidenceSpan, Score
+from app.models.job import Requirement
 from app.models.profile import CandidateProfile
 from app.schemas.api.candidates import (
     CandidateListResponse,
@@ -28,6 +29,7 @@ from app.schemas.api.candidates import (
     UploadBatchResponse,
     UploadOutcomeResponse,
 )
+from app.schemas.api.scoring import ContributionResponse, ScoreResponse
 from app.schemas.api.screening import (
     CandidateProfileResponse,
     EvidenceResponse,
@@ -46,6 +48,7 @@ from app.services import candidates as candidates_service
 from app.services import jobs as jobs_service
 from app.services import matching as matching_service
 from app.services import profile_extraction as profile_service
+from app.services import scoring as scoring_service
 
 router = APIRouter(tags=["candidates"])
 
@@ -435,3 +438,101 @@ def run_candidate_matching(
 def get_candidate_matches(candidate_id: uuid.UUID, db: SessionDep) -> MatchResultsResponse:
     candidate = candidates_service.get_candidate(db, candidate_id)
     return _match_results_response(db, candidate)
+
+
+# --------------------------------------------------------------------------
+# Scoring
+# --------------------------------------------------------------------------
+
+
+def _score_response(
+    db: Session,
+    candidate: Candidate,
+    row: Score,
+    breakdown: scoring_service.ScoreBreakdown,
+) -> ScoreResponse:
+    capped_text: str | None = None
+    if row.capped_by_requirement_id is not None:
+        requirement = db.get(Requirement, row.capped_by_requirement_id)
+        capped_text = requirement.text if requirement else None
+
+    return ScoreResponse(
+        candidate_id=candidate.id,
+        job_id=candidate.job_id,
+        status=row.status,
+        score=row.score,
+        score_raw=row.score_raw,
+        weighted_sum=row.weighted_sum,
+        total_weight=row.total_weight,
+        must_have_coverage=row.must_have_coverage,
+        band=row.band,
+        band_raw=row.band_raw,
+        capped=row.capped,
+        capped_by_requirement_id=row.capped_by_requirement_id,
+        capped_by_requirement_text=capped_text,
+        scoring_config_version=row.scoring_config_version,
+        computed_at=row.computed_at,
+        contributions=[
+            ContributionResponse(
+                requirement_id=item.requirement_id,
+                requirement_text=item.requirement_text,
+                category=item.category,
+                must_have=item.must_have,
+                display_order=item.display_order,
+                weight=item.weight,
+                verdict=item.verdict,
+                verdict_value=item.verdict_value,
+                points=item.points,
+            )
+            for item in breakdown.contributions
+        ],
+    )
+
+
+@router.post(
+    "/api/candidates/{candidate_id}/score",
+    response_model=ScoreResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Compute the candidate's score from stored verdicts and weights",
+    description=(
+        "Deterministic arithmetic over the stored match results and the "
+        "recruiter's weights: no model call is made, and the same verdicts and "
+        "weights always produce the same number. Requires the job's requirements "
+        "to be confirmed and every one of them to have a verdict. Recomputation "
+        "is free and expected — changing a weight and re-running costs nothing. "
+        "The score orders a worklist; it never rejects, hides or filters anyone."
+    ),
+    responses={
+        404: {"description": "Candidate does not exist"},
+        409: {
+            "description": (
+                "Requirements are not confirmed, or some confirmed requirement has "
+                "no match result for this candidate"
+            )
+        },
+    },
+)
+def score_candidate(candidate_id: uuid.UUID, db: SessionDep) -> ScoreResponse:
+    row, breakdown = scoring_service.score_candidate(db, candidate_id)
+    candidate = candidates_service.get_candidate(db, candidate_id)
+    return _score_response(db, candidate, row, breakdown)
+
+
+@router.get(
+    "/api/candidates/{candidate_id}/score",
+    response_model=ScoreResponse,
+    summary="The candidate's stored score and its per-requirement breakdown",
+    description=(
+        "The breakdown is recomputed from the requirements and verdicts still in "
+        "the database rather than stored a second time, so what is returned is "
+        "always the arithmetic behind the stored total."
+    ),
+    responses={404: {"description": "Candidate does not exist, or has no score yet"}},
+)
+def get_candidate_score(candidate_id: uuid.UUID, db: SessionDep) -> ScoreResponse:
+    candidate = candidates_service.get_candidate(db, candidate_id)
+    row = scoring_service.get_score(db, candidate_id)
+    if row is None:
+        raise NotFoundError(f"Candidate {candidate_id} has no score yet. Run scoring first.")
+    breakdown = scoring_service.load_breakdown(db, candidate_id)
+    return _score_response(db, candidate, row, breakdown)

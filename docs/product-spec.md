@@ -274,8 +274,13 @@ match_value(PARTIAL)      = 0.5
 match_value(NO_EVIDENCE)  = 0.0
 
 score_raw = Σ (requirement_weight × match_value) / Σ (requirement_weight)
-score     = round(score_raw × 100)          # 0–100
+score     = round(score_raw × 100)          # 0–100, rounded half up
 ```
+
+`round` here means **half up**: 62.5 becomes 63. This is stated because it is
+otherwise ambiguous — Python's built-in `round` is banker's rounding and would
+give 62 — and a recruiter checking the arithmetic by hand should not have to
+know which convention the implementation happened to pick.
 
 Computed alongside it, and displayed separately:
 

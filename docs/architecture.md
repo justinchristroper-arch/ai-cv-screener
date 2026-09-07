@@ -264,6 +264,8 @@ Error responses are structured and never include stack traces, SQL, file paths, 
 | `GET` | `/api/candidates/{id}/profile` | The extracted profile, with each item's evidence |
 | `POST` | `/api/candidates/{id}/matches` | Match against the job's **confirmed** requirements |
 | `GET` | `/api/candidates/{id}/matches` | Stored verdicts, reasons and evidence |
+| `POST` | `/api/candidates/{id}/score` | Compute the score from stored verdicts and weights |
+| `GET` | `/api/candidates/{id}/score` | The score and its per-requirement breakdown |
 | `GET` | `/api/jobs/{job_id}/candidates` | Ranked list with score, band, coverage, warnings |
 | `GET` | `/api/candidates/{id}` | Detail: verdicts, evidence, score breakdown |
 | `POST` | `/api/candidates/{id}/retry` | Re-run the pipeline for a stuck or failed candidate |

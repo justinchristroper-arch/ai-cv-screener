@@ -18,6 +18,7 @@ from app.core.enums import JdSourceType, RequirementOrigin
 from app.core.errors import NotFoundError
 from app.core.hashing import sha256_text
 from app.models.job import Job, JobDescription, Requirement
+from app.services import invalidation
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,11 @@ def set_description(
         )
         job = get_job(db, job_id)
         job.requirements_confirmed_at = None
+        # Deleting the requirements takes their match results with them, by
+        # ON DELETE CASCADE. Scores are not cascaded from `requirement` and have
+        # to be discarded explicitly, or a candidate would keep a number
+        # computed against criteria that no longer exist.
+        invalidation.invalidate_match_results_for_job(db, job_id)
 
     db.commit()
     db.refresh(existing)

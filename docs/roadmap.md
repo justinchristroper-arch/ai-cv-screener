@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–7 complete, Phase 8 partially delivered (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 9–20 not started.
+**Status:** Phases 0–7 and 9 complete, Phase 8 partially delivered (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 10–20 not started.
 **Last updated:** 2026-09-07
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -43,6 +43,7 @@ each.
 | Milestone | Phases | Status |
 |---|---|---|
 | **Candidate Intelligence** | 6, 7, and the semantic-evaluation half of 8 | ✅ |
+| **AI Evaluation Engine** | 9 | ✅ |
 
 Phase 8's semantic evaluation was pulled into this milestone rather than
 deferred, because Phase 7's routing layer has nowhere to route to without it:
@@ -66,7 +67,7 @@ rates over a sample set — which needs the evaluation harness from Phase 13.
 | 6 | Candidate profile extraction | ✅ |
 | 7 | Requirement matching engine | ✅ |
 | 8 | LLM semantic evaluation | 🚧 |
-| 9 | Transparent scoring engine | ⬜ |
+| 9 | Transparent scoring engine | ✅ |
 | 10 | Candidate ranking | ⬜ |
 | 11 | Frontend application | ⬜ |
 | 12 | Demo mode with synthetic candidates | ⬜ |
@@ -300,25 +301,49 @@ deferred rather than skipped, and are picked up in Phase 13.
 
 ---
 
-## Phase 9 — Transparent scoring engine ⬜
+## Phase 9 — Transparent scoring engine ✅
+
+*Delivered as the **AI Evaluation Engine** milestone.*
 
 **Objective.** Turn verdicts into a score that a recruiter can verify by hand.
 
 **Deliverables.**
-- Pure scoring function implementing the weighted formula from the specification.
-- Must-have coverage computed and stored separately from the score.
-- Recommendation band mapping with configurable thresholds.
-- The must-have guard, if confirmed in Phase 1.
-- A per-requirement score-breakdown structure for the UI.
-- Defined behaviour for edge cases: no requirements, all weights zero, single requirement.
+- Pure scoring function implementing the weighted formula from the specification. ✅ `app/services/scoring.py`. `compute_score` takes requirement rows and verdicts and touches no database, network, clock or random source.
+- Must-have coverage computed and stored separately from the score. ✅ Null — not 0 and not 1 — when the job has no must-haves or their weights sum to zero, because there is no ratio to report.
+- Recommendation band mapping with configurable thresholds. ✅ 90 / 75 / 60, named on a versioned `ScoringConfig` rather than written into an expression.
+- The must-have guard, confirmed in Phase 1. ✅ An unevidenced must-have caps the *displayed* band at `REVIEW`; the score is untouched, `band_raw` keeps the uncapped band, `capped_by_requirement_id` names the trigger, and the guard can only ever lower a band.
+- A per-requirement score-breakdown structure for the UI. ✅ Weight, verdict, verdict value and points per line, in display order.
+- Defined behaviour for edge cases: no requirements, all weights zero, single requirement. ✅
 
 **Verification criteria.**
-- Unit tests assert exact expected scores for hand-computed cases.
-- Recomputing a score from stored rows reproduces the stored value exactly.
-- Scoring is a pure function: no I/O, no network, no clock, no randomness — enforced by the tests running fully offline.
-- The band boundaries are tested at their exact edges (59/60, 74/75, 89/90).
-- Division-by-zero and empty-requirement cases are handled explicitly, not by exception.
-- The breakdown sums to the total; asserted by a property test over generated inputs.
+- Unit tests assert exact expected scores for hand-computed cases. ✅ Including the specification's own worked example (5/3/2 against MATCHED/PARTIAL/NO_EVIDENCE = 65) and the bundled fixture end to end (25.5 / 31 = 82).
+- Recomputing a score from stored rows reproduces the stored value exactly. ✅ `load_breakdown` rebuilds the arithmetic from the requirements and verdicts still in the database; asserted field by field against the stored row.
+- Scoring is a pure function: no I/O, no network, no clock, no randomness — enforced by the tests running fully offline. ✅
+- The band boundaries are tested at their exact edges (59/60, 74/75, 89/90). ✅
+- Division-by-zero and empty-requirement cases are handled explicitly, not by exception. ✅ Both produce `status = UNDEFINED_NO_WEIGHT` with NULL numbers, which removes the division by construction.
+- The breakdown sums to the total. ✅ Asserted in the service tests and again over HTTP. A property test over generated inputs was **not** written: the sum is an invariant of one expression over a list, and a generator would restate it rather than probe it.
+
+**Two decisions this phase had to make that the specification left open.**
+
+*Rounding is half-up.* `round(score_raw × 100)` is ambiguous in Python, whose
+built-in `round` is banker's rounding and would turn 62.5 into 62. A recruiter
+checking the arithmetic on paper expects 63, so `Decimal` with `ROUND_HALF_UP`
+is used and the 0–100 figure is scaled from the *stored* `score_raw` rather than
+from an unrounded intermediate nobody kept.
+
+*Staleness is enforced, not detected.* The data model has no matching-run
+identifier, by design — `match_result` is unique per (requirement, candidate)
+and a re-run replaces the whole set. Rather than invent one, this phase
+implements the invalidation table in [data-model.md §7](data-model.md#7-staleness-and-invalidation)
+in `app/services/invalidation.py`: re-running matching drops that candidate's
+score, editing a weight or the must-have flag drops the job's scores, and
+unconfirming a job drops its match results and scores. A stale score is deleted
+rather than served, so a stored number always belongs to the verdicts it was
+computed from.
+
+**Not done in this phase, deliberately:** no ranking, no top-K, no shortlisting,
+and no automatic accept or reject. No migration was needed — the Phase 1 schema
+already had every column, and `alembic check` confirms no drift.
 
 ---
 

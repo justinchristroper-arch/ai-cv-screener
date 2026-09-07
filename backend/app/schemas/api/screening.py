@@ -4,10 +4,12 @@ Kept in `schemas/api` and separate from `schemas/llm` for the usual reason
 (docs/architecture.md section 2.2): these change when the UI needs different
 data, those change when a prompt is revised.
 
-Two things are deliberately absent from every model here, because they do not
-exist yet and inventing a placeholder for them would misrepresent the system:
-**no score, and no ranking.** A verdict, its reason and its evidence are the
-whole of what this milestone produces.
+Two things are deliberately absent from every model here. **Ranking** does not
+exist yet, and inventing a placeholder for it would misrepresent the system. The
+**score** does exist, but it has its own contract in `schemas/api/scoring.py`:
+it changes when the scoring formula or its thresholds change, which is a
+different reason from anything below. A verdict, its reason and its evidence are
+the whole of what these models carry.
 
 Evidence is always returned with its `verification_status`, so a client never
 has to guess whether a quote was actually found in the document. A quote that

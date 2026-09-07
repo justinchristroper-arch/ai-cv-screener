@@ -59,8 +59,8 @@ from app.models.evaluation import EvidenceSpan, MatchResult
 from app.models.job import Requirement
 from app.models.profile import CandidateProfile, ProfileExperience, ProfileSkill
 from app.services import candidates as candidates_service
+from app.services import invalidation, semantic_eval
 from app.services import requirements as requirements_service
-from app.services import semantic_eval
 from app.services.evidence import SpanWriter
 
 logger = logging.getLogger(__name__)
@@ -642,8 +642,14 @@ def _persist(
     Delete-then-insert rather than upsert: a re-run is a fresh reading of the
     same evidence, and a verdict left over from a previous requirement set would
     be indistinguishable from one this run produced.
+
+    Any stored score goes with the old verdicts. A score is a number computed
+    from a particular set of verdicts; leaving one behind would attach it to
+    verdicts it was never computed from, which is precisely the accident
+    docs/data-model.md section 7 exists to prevent.
     """
     db.execute(delete(MatchResult).where(MatchResult.candidate_id == candidate.id))
+    invalidation.invalidate_score_for_candidate(db, candidate.id)
 
     by_requirement = {decision.requirement_id: decision for decision in decisions}
     rows: list[MatchResult] = []

@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 from app.core.enums import RequirementCategory, RequirementOrigin
 from app.core.errors import ConflictError, NotFoundError, RequirementsNotConfirmedError
 from app.models.job import Job, Requirement
+from app.services import invalidation
 from app.services.jd_extraction import (
     MUST_HAVE_DEFAULT_WEIGHT,
     NICE_TO_HAVE_DEFAULT_WEIGHT,
@@ -129,6 +130,11 @@ def add_requirement(
         proposed_must_have=None,
     )
     db.add(requirement)
+    # Normally a no-op: the job has to be unconfirmed to get here, and
+    # unconfirming already discarded everything derived from the old set. Stated
+    # anyway so "adding a requirement invalidates the job's scores" is true of
+    # this function rather than true only via a chain of reasoning elsewhere.
+    invalidation.invalidate_scores_for_job(db, job_id)
     db.commit()
     db.refresh(requirement)
     return requirement
@@ -168,10 +174,21 @@ def update_requirement(
         requirement.text = stripped
     if category is not None:
         requirement.category = category
-    if must_have is not None:
+
+    # Weight and must-have are the two fields a recruiter edits freely, and both
+    # feed the arithmetic rather than the verdicts (docs/data-model.md section
+    # 7). Any stored score in this job is therefore now wrong and is dropped;
+    # every verdict survives, so recomputing costs nothing and no model call.
+    scoring_inputs_changed = False
+    if must_have is not None and must_have != requirement.must_have:
         requirement.must_have = must_have
-    if weight is not None:
+        scoring_inputs_changed = True
+    if weight is not None and weight != requirement.weight:
         requirement.weight = weight
+        scoring_inputs_changed = True
+
+    if scoring_inputs_changed or changes_meaning:
+        invalidation.invalidate_scores_for_job(db, requirement.job_id)
 
     db.commit()
     db.refresh(requirement)
@@ -193,6 +210,9 @@ def delete_requirement(db: Session, requirement_id: uuid.UUID) -> None:
     _require_unconfirmed(job, "deleting a requirement")
 
     db.delete(requirement)
+    # As in `add_requirement`: normally a no-op, stated for the same reason.
+    # The requirement's own match results go with it, by ON DELETE CASCADE.
+    invalidation.invalidate_scores_for_job(db, requirement.job_id)
     db.commit()
 
 
@@ -225,12 +245,22 @@ def confirm_requirements(db: Session, job_id: uuid.UUID) -> Job:
 def unconfirm_requirements(db: Session, job_id: uuid.UUID) -> Job:
     """Release the freeze so the requirement set can be changed again.
 
-    Idempotent. In later phases this is also the point at which match results
-    and scores derived from the confirmed set are invalidated; neither table is
-    populated yet, so there is nothing to invalidate in Phase 4.
+    Idempotent, and **not free**: every match result and every score in the job
+    is discarded, because both were derived from a requirement set that is now
+    editable again (ADR-0004, docs/data-model.md section 7). That cost is the
+    point. It is what makes changing a confirmed requirement a deliberate act
+    with visible consequences rather than a silent corruption of results a
+    recruiter has already seen.
+
+    Only an actual unconfirm invalidates. Calling this on a job that was never
+    confirmed changes nothing and destroys nothing.
     """
     job = _get_job(db, job_id)
+    if job.requirements_confirmed_at is None:
+        return job
+
     job.requirements_confirmed_at = None
+    invalidation.invalidate_match_results_for_job(db, job_id)
     db.commit()
     db.refresh(job)
     return job
