@@ -124,13 +124,34 @@ def client() -> Iterator[TestClient]:
 
 
 @pytest.fixture()
-def api(db_session: Session) -> Iterator[TestClient]:
+def storage_root(tmp_path):
+    """A throwaway upload directory, one per test.
+
+    Uploads must never land in the developer's real storage directory during a
+    test run, and each test starts from an empty one.
+    """
+    root = tmp_path / "uploads"
+    root.mkdir()
+    return root
+
+
+@pytest.fixture()
+def storage(storage_root):
+    from app.core.storage import DocumentStorage
+
+    return DocumentStorage(storage_root)
+
+
+@pytest.fixture()
+def api(db_session: Session, storage) -> Iterator[TestClient]:
     """A TestClient whose requests share the rolled-back `db_session`.
 
     Overriding `get_db` is what keeps API tests isolated: every request in a
     test runs against the same transaction the test can inspect, and none of it
-    is committed for real.
+    is committed for real. Storage is redirected to a temporary directory for
+    the same reason.
     """
+    from app.api.deps import get_document_storage
     from app.db.session import get_db
     from app.main import create_app
 
@@ -141,6 +162,7 @@ def api(db_session: Session) -> Iterator[TestClient]:
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_document_storage] = lambda: storage
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

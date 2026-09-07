@@ -13,3 +13,12 @@ import hashlib
 def sha256_text(text: str) -> str:
     """Lowercase hex SHA-256 of ``text``, encoded as UTF-8."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_bytes(data: bytes) -> str:
+    """Lowercase hex SHA-256 of raw bytes.
+
+    Used for `candidate_document.file_sha256`: the hash of the uploaded file
+    exactly as received, before any parsing or normalization touches it.
+    """
+    return hashlib.sha256(data).hexdigest()

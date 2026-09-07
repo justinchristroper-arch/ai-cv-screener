@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–4 complete (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 5–20 not started.
+**Status:** Phases 0–5 complete (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 6–20 not started.
 **Last updated:** 2026-09-06
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -43,7 +43,7 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 | 2 | Local development environment | ✅ |
 | 3 | Git repository setup | ✅ (see note) |
 | 4 | Job description processing | ✅ |
-| 5 | CV upload and PDF parsing | ⬜ |
+| 5 | CV upload and PDF parsing | ✅ |
 | 6 | Candidate profile extraction | ⬜ |
 | 7 | Requirement matching engine | ⬜ |
 | 8 | LLM semantic evaluation | ⬜ |
@@ -180,25 +180,27 @@ Also delivered:
 
 ---
 
-## Phase 5 — CV upload and PDF parsing ⬜
+## Phase 5 — CV upload and PDF parsing ✅
 
 **Objective.** Accept CV files safely and convert them to text with location information, handling failure honestly.
 
 **Deliverables.**
-- Batch upload endpoint with size, count, page, and content-type validation by magic bytes.
-- Safe storage using generated identifiers, never client-supplied filenames.
-- PDF text extraction with page and character offsets retained.
-- Text normalization, applied identically here and in evidence verification later.
-- Detection of empty or image-only text layers, surfaced as a candidate-level `failed` status with a reason.
-- Per-file status tracking through the pipeline.
+- Batch upload endpoint with size, count, page, and content-type validation by magic bytes. ✅ The `Content-Type` header is never consulted; the file's own signature decides.
+- Safe storage using generated identifiers, never client-supplied filenames. ✅ `app/core/storage.py` — the path comes from the document UUID and nothing else.
+- PDF text extraction with page and character offsets retained. ✅ `app/services/document_parsing.py`, using pypdf (BSD-3; PyMuPDF was rejected as AGPL-incompatible with this project's MIT licence).
+- Text normalization, applied identically here and in evidence verification later. ✅ `app/core/text.py`, versioned `text-normalize-v1`.
+- Detection of empty or image-only text layers, surfaced as a candidate-level `failed` status with a reason. ✅ `NO_TEXT_LAYER`.
+- Per-file status tracking through the pipeline. ✅ `UPLOADED → PARSING → PARSED`, or `FAILED` with a reason.
 
 **Verification criteria.**
-- A multi-file upload of sample PDFs parses, with the extracted text inspected against the source.
-- A scanned / image-only PDF is reported as unparseable — it does not silently produce an empty profile.
-- A corrupt or non-PDF file is rejected with a clear error and fails only its own candidate, not the batch.
-- An oversized file is rejected before parsing.
-- A filename containing path-traversal characters cannot influence the storage path; covered by a test.
-- Offsets round-trip: a substring taken at a stored offset returns the expected text.
+- A multi-file upload of sample PDFs parses, with the extracted text inspected against the source. ✅ Verified against a live uvicorn server over real multipart HTTP, not only TestClient.
+- A scanned / image-only PDF is reported as unparseable — it does not silently produce an empty profile. ✅ Fails as `NO_TEXT_LAYER`, and no `parsed_document` row is written.
+- A corrupt or non-PDF file is rejected with a clear error and fails only its own candidate, not the batch. ✅ A six-file batch with two bad files yielded four candidates and two per-file rejections.
+- An oversized file is rejected before parsing. ✅ Size is checked before anything opens the file.
+- A filename containing path-traversal characters cannot influence the storage path; covered by a test. ✅ `../../../../etc/passwd.pdf` stored under a UUID path; the name survives only as sanitized display metadata.
+- Offsets round-trip: a substring taken at a stored offset returns the expected text. ✅ `full_text[start:end]` returns exactly one page, asserted in unit tests and against the live server.
+
+**Scope notes.** No migration was needed — the Phase 1 schema already had every column, and `alembic check` reports no drift. **There is no OCR**, so scanned CVs are unsupported by design and fail honestly. Language detection is not implemented, so `language_detected` is always NULL and the `UNSUPPORTED_LANGUAGE` reason is reserved but unused. Parsing runs inline rather than in a background task: architecture section 7 requires background processing for the minutes of LLM work in later stages, none of which exists yet.
 
 ---
 

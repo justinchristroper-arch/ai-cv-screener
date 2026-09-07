@@ -16,6 +16,11 @@ data/uploads/
 data/private/
 *.local.pdf
 
+# Runtime state, including the uploaded-CV storage root
+# (UPLOAD_STORAGE_DIR, default <repo>/var/uploads). An uploaded CV must never
+# reach the repository.
+var/
+
 # ---------------------------------------------------------------------------
 # Python
 # ---------------------------------------------------------------------------

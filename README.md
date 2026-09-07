@@ -2,8 +2,8 @@
 
 An AI-assisted CV screening tool that helps recruiters evaluate many candidates against one job description — by showing **evidence**, not just a number.
 
-> **Project status: Phase 4 of 20 — job description processing.**
-> The first AI-powered feature works end to end: a job description is turned into structured, validated, atomic requirements, which a human then reviews, edits, and **confirms** before anything downstream may use them. It runs offline from recorded fixtures, so no API key is needed to try it. **The candidate side is not implemented** — no CV upload, no PDF parsing, no matching, no scoring, no ranking, and no screening UI. Steps 3–6 of the workflow below exist; steps 7–15 do not. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
+> **Project status: Phase 5 of 20 — CV upload and PDF parsing.**
+> Two halves of the pipeline now work. A job description becomes structured, validated requirements that a human reviews and **confirms**; and CV PDFs can be uploaded, validated, and turned into text with page-level provenance. Both run offline — no API key needed. **The two halves are not yet connected**: nothing reads a CV to build a candidate profile, and there is no matching, scoring, ranking, or screening UI. **There is no OCR**, so scanned CVs are rejected rather than silently treated as empty. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
@@ -57,14 +57,14 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Development roadmap | ✅ Complete — [docs/roadmap.md](docs/roadmap.md) |
 | Architecture | ✅ Complete — [docs/architecture.md](docs/architecture.md) |
 | Data model | ✅ Complete — [docs/data-model.md](docs/data-model.md) |
-| Backend | 🟡 Health, jobs, job descriptions, requirement extraction, requirement CRUD, confirmation gate. No candidate routes. |
+| Backend | 🟡 Jobs, job descriptions, requirement extraction + CRUD, confirmation gate, CV upload and PDF text extraction. No matching or scoring. |
 | Frontend | 🟡 Shell runs — React + Vite, reports backend connectivity. No screening UI. |
 | Database | 🟡 PostgreSQL 16 in Docker; all 16 tables migrated via Alembic |
-| Tests | 🟡 155 passing (140 backend, 15 frontend) |
+| Tests | 🟡 264 passing (249 backend, 15 frontend) |
 | CI | 🟡 [Workflow created](.github/workflows/ci.yml) and its steps verified locally against a fresh database; **not yet observed running on GitHub** — the repository hasn't been pushed yet. |
 | Repository hygiene | ✅ [CONTRIBUTING.md](CONTRIBUTING.md), [ADRs](docs/decisions/README.md), pinned language versions, MIT license, secret scan performed |
 | LLM integration | 🟡 Requirement extraction only, behind an `LlmClient` abstraction with live and fixture-replay implementations |
-| PDF parsing | ⬜ Not implemented |
+| PDF parsing | 🟡 Text-layer PDFs, with page offsets. **No OCR** — scanned CVs fail honestly rather than yielding empty text. |
 | Scoring engine | ⬜ Not implemented |
 | Evaluation | ⬜ Not implemented |
 | Deployment / live demo | ⬜ Not deployed |
@@ -126,7 +126,7 @@ Detailed architecture and the data model are Phase 1 deliverables.
 | Frontend | React, Vite | Standard, fast dev loop, no framework overhead the project does not need. |
 | Database | PostgreSQL | Relational data with a real audit trail. **pgvector was evaluated in Phase 1 and deferred** — nothing in the MVP pipeline needs vector search, and the schema is arranged so adding it later is a purely additive migration. |
 | LLM | Anthropic Claude API | Server-side only; structured outputs; model and prompt version recorded with every call. |
-| PDF | Python text-extraction library (selected in Phase 5) | Text-layer extraction with page and character offsets, so evidence can be cited back to a location. |
+| PDF | pypdf | Text-layer extraction with page and character offsets, so evidence can be cited back to a location. BSD-3 and pure Python, so deployment needs no system libraries. PyMuPDF extracts better but is AGPL-3.0, which is incompatible with this project's MIT licence. |
 | Tooling | Git, GitHub, Docker Compose, pytest | — |
 
 ---
@@ -160,7 +160,7 @@ Currently present: `backend/`, `frontend/`, `docs/` (including `docs/decisions/`
 | 2 | Local development environment | ✅ |
 | 3 | Git repository setup | ✅ |
 | 4 | Job description processing | ✅ |
-| 5 | CV upload and PDF parsing | ⬜ |
+| 5 | CV upload and PDF parsing | ✅ |
 | 6 | Candidate profile extraction | ⬜ |
 | 7 | Requirement matching engine | ⬜ |
 | 8 | LLM semantic evaluation | ⬜ |

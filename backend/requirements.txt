@@ -16,6 +16,18 @@ SQLAlchemy>=2.0,<2.1
 alembic>=1.13,<2.0
 psycopg[binary]>=3.2,<4.0
 
+# PDF text extraction. pypdf is BSD-3-Clause, pure Python, and pulls in no
+# system libraries, which keeps deployment simple. PyMuPDF extracts better but
+# is AGPL-3.0 (or a paid commercial licence) and is therefore incompatible with
+# this project's MIT licence; pdfplumber is MIT but heavier and its main
+# advantage — layout fidelity — is not something this phase relies on.
+pypdf>=6.0,<7.0
+
+# Multipart form parsing. FastAPI needs this to accept file uploads at all —
+# without it the CV upload endpoint raises at request time, not at import, so
+# it is a hard runtime dependency rather than an optional extra.
+python-multipart>=0.0.9,<1.0
+
 # LLM provider. Imported ONLY inside app/llm/ (docs/architecture.md section 2);
 # every service above that layer depends on the LlmClient protocol instead.
 # Demo mode never touches it — the replay client serves recorded fixtures — but

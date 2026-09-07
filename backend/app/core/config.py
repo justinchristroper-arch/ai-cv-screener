@@ -61,6 +61,16 @@ class Settings(BaseSettings):
     max_files_per_batch: int = 25
     max_pdf_pages: int = 20
 
+    # Where uploaded CV files are written. Outside any tracked source directory
+    # and git-ignored: uploaded documents are personal data and must never
+    # reach the repository. Stored paths in the database are relative to this
+    # root, so the root can move without a data migration.
+    upload_storage_dir: Path = REPO_ROOT / "var" / "uploads"
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return self.max_upload_size_mb * 1024 * 1024
+
     @property
     def cors_origins(self) -> list[str]:
         """`cors_allowed_origins` split into a list, blanks removed."""

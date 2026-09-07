@@ -175,7 +175,7 @@ The three `proposed_*` columns are written once at extraction and never updated.
 | `injection_flags` | JSONB | yes | `[{"pattern":"...","offset":N,"excerpt":"..."}]` — flagged, never stripped |
 | `text_sha256` | CHAR(64) | no | Cache key for profile extraction |
 | `parser_name` / `parser_version` | TEXT | no | Extraction quality is parser-dependent; record which one ran |
-| `parsed_at` | TIMESTAMPTZ | no | |
+| `created_at` | TIMESTAMPTZ | no | When extraction ran. Named for the project-wide convention in section 1, not `parsed_at`. |
 
 `page_offsets` is the reason page numbers never have to be asked of the model: given a verified character offset, the page is a lookup.
 

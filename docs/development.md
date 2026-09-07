@@ -105,7 +105,8 @@ backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.lock.txt
 
 Versions verified: FastAPI 0.141.1, Uvicorn 0.52.4, Pydantic 2.13.5,
 pydantic-settings 2.15.0, SQLAlchemy 2.0.52, Alembic 1.19.2, psycopg 3.3.5,
-anthropic 1.4.0, pytest 8.4.2, httpx2 2.12.0, ruff 0.16.6.
+anthropic 1.4.0, pypdf 6.17.0, python-multipart 0.0.32, pytest 8.4.2,
+httpx2 2.12.0, reportlab 5.0.1 (test-only), ruff 0.16.6.
 
 The `anthropic` SDK is imported **only** inside `backend/app/llm/` — every
 service above that layer depends on the `LlmClient` protocol instead. In demo
@@ -278,7 +279,7 @@ cd backend
 .venv\Scripts\python.exe -m pytest
 ```
 
-or `.\tasks.ps1 test-backend`. Expected: **140 passed**.
+or `.\tasks.ps1 test-backend`. Expected: **249 passed**.
 
 The suite makes no network call and needs no API key: every LLM-backed test
 runs against recorded fixtures (§20).
@@ -473,9 +474,12 @@ if you have nvm installed.
 
 Deliberately absent, arriving in the phase named:
 
-- CV upload and PDF parsing (Phase 5).
 - Candidate profile extraction (Phase 6), matching (Phase 7), semantic
   evaluation (Phase 8), scoring (Phase 9), ranking (Phase 10).
+- **OCR.** Scanned or image-only PDFs have no text layer and are recorded as
+  failures (`NO_TEXT_LAYER`); nothing recovers text from them. See §21.
+- Language detection. `parsed_document.language_detected` is always NULL and
+  the `UNSUPPORTED_LANGUAGE` failure reason is reserved but never raised.
 - Authentication, rate limiting, structured request logging (Phase 15).
 - Frontend routing and the screening UI (Phase 11) — the current page is a shell
   that reports backend connectivity and nothing more.
@@ -551,3 +555,107 @@ Set `DEMO_MODE=false` and `ANTHROPIC_API_KEY` in `.env`. Startup fails
 immediately if the key is missing — live mode has no fallback, so there is no
 point discovering that at the first request. The key is read server-side only
 and is never logged or returned in a response.
+
+---
+
+## 21. CV upload and PDF parsing
+
+Uploading a CV runs a fixed, deterministic pipeline. No language model is
+involved: turning a PDF into text is mechanical, and keeping it mechanical is
+what gives every later evidence citation a stable substrate to be checked
+against.
+
+```
+PDF  ->  validate  ->  store  ->  extract text  ->  normalize  ->  persist
+```
+
+### Trying it
+
+```powershell
+# with the backend running (.\tasks.ps1 dev-backend)
+curl.exe -X POST "http://localhost:8000/api/jobs/<job-id>/candidates" `
+  -F "files=@cv_one.pdf" -F "files=@cv_two.pdf"
+```
+
+Then `GET /api/candidates/{id}` for status and metadata, or
+`GET /api/candidates/{id}/text` for the extracted text and its page map. The
+full surface is at <http://localhost:8000/docs>.
+
+### What a file has to satisfy
+
+| Check | Limit | Setting |
+|---|---|---|
+| Filename ends `.pdf` | — | — |
+| Not empty | > 0 bytes | — |
+| Size | 10 MB | `MAX_UPLOAD_SIZE_MB` |
+| Starts with the `%PDF-` signature | — | — |
+| Opens as a readable PDF | — | — |
+| Page count | 20 | `MAX_PDF_PAGES` |
+| Files per request | 25 | `MAX_FILES_PER_BATCH` |
+
+**The `Content-Type` header is never consulted.** It is trivially forged and
+says nothing about the bytes actually received, so the file's own signature is
+what decides. A PNG renamed `cv.pdf` is rejected.
+
+### Rejected versus failed
+
+A batch is never all-or-nothing — each file gets its own outcome, and one bad
+file among twenty-five costs you only that one.
+
+- **Rejected** — a structural problem knowable before storing anything. No
+  candidate row is created. Reported as `rejection_code`:
+  `unsupported_file_type`, `empty_file`, `file_too_large`, `not_a_pdf`,
+  `malformed_pdf`, `too_many_pages`, `missing_filename`.
+- **Failed** — a readable PDF whose *content* is unusable. A candidate row
+  exists with `status = FAILED` and a `failure_reason`, because the recruiter
+  who uploaded it needs to see that it did not make it: `NO_TEXT_LAYER`,
+  `CORRUPT_FILE`, `PARSE_TIMEOUT`.
+
+### There is no OCR
+
+**Scanned or image-only PDFs are not supported, because OCR is not implemented
+in this project.** Such a file has no text layer; extraction produces nothing,
+and the candidate is recorded as `FAILED` with `NO_TEXT_LAYER`. Nothing is
+invented to fill the gap — a fabricated CV would be far worse than an honest
+failure. OCR is listed as a future improvement in
+[product-spec.md §18](product-spec.md#18-future-improvements).
+
+### Storage
+
+Uploaded files are written under `UPLOAD_STORAGE_DIR` (default
+`<repo>/var/uploads`, git-ignored). **The path is derived from a
+server-generated UUID and from nothing else** — a client filename never
+influences where a byte lands. The original name is kept only as sanitized
+display metadata, and the API never returns a filesystem path.
+
+The database stores a path *relative* to the storage root, so the root can move
+between environments without a data migration.
+
+### Page provenance
+
+`parsed_document.page_offsets` records the character range of every page:
+
+```json
+[{"page": 1, "start": 0, "end": 318}, {"page": 2, "start": 320, "end": 582}]
+```
+
+`full_text[start:end]` returns exactly that page. This is what lets a later
+evidence quote be traced back to a page **without asking a model where it came
+from** — the model quotes, our code locates.
+
+### Known limitations
+
+- **No OCR** (above).
+- **Multi-column and table-heavy layouts** can extract in the wrong reading
+  order. pypdf reads the text layer as the PDF stores it; it does not
+  reconstruct visual columns.
+- **Character-level offsets within a page are not recorded** — only page
+  ranges. Evidence verification searches the text directly, so sentence-level
+  spans are located at verification time rather than pre-computed here.
+- **The parse time budget is checked between pages**, so it bounds a long
+  document but cannot interrupt a single pathological page. A hard limit needs
+  process isolation, deferred to the Phase 15 security review.
+- **Duplicate uploads are not deduplicated.** `file_sha256` is stored and
+  indexed, so identical files are *detectable*, but uploading the same CV twice
+  creates two candidates. The data model has no concept of a merged candidate,
+  and inventing one here would be a product decision rather than an ingestion one.
