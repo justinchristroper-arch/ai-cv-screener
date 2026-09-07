@@ -24,7 +24,14 @@ from app.schemas.api.jobs import (
     RequirementListResponse,
     RequirementResponse,
 )
-from app.services import jd_extraction, jobs, requirements
+from app.schemas.api.ranking import (
+    FailedCandidateResponse,
+    JobRankingResponse,
+    RankedCandidateResponse,
+    RankingSummary,
+    UnscoredCandidateResponse,
+)
+from app.services import jd_extraction, jobs, ranking, requirements
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -220,4 +227,76 @@ def unconfirm_requirements(job_id: uuid.UUID, db: SessionDep) -> RequirementList
         job_id=job_id,
         requirements_confirmed_at=job.requirements_confirmed_at,
         requirements=[RequirementResponse.model_validate(item) for item in items],
+    )
+
+
+@router.get(
+    "/{job_id}/ranking",
+    response_model=JobRankingResponse,
+    summary="This job's candidates, ordered",
+    description=(
+        "Ordered by score descending, then must-have coverage descending with "
+        "nulls last, then the count of matched requirements descending, then "
+        "arrival time and id — a total order, so repeated requests on unchanged "
+        "data return an identical list. A candidate whose score is undefined "
+        "sorts last rather than as a zero.\n\n"
+        "Nothing is filtered. There is no limit, offset or threshold: every "
+        "candidate in the job is returned, and those not yet scored or whose "
+        "processing failed come back in their own groups rather than being "
+        "dropped. The order is a reading aid for a human, never a decision."
+    ),
+    responses={404: {"description": "Job does not exist"}},
+)
+def get_job_ranking(job_id: uuid.UUID, db: SessionDep) -> JobRankingResponse:
+    result = ranking.rank_job_candidates(db, job_id)
+    return JobRankingResponse(
+        job_id=job_id,
+        job_title=result.job.title,
+        requirements_confirmed_at=result.job.requirements_confirmed_at,
+        ranked=[
+            RankedCandidateResponse(
+                position=entry.position,
+                candidate_id=entry.candidate.id,
+                display_name=entry.candidate.display_name,
+                original_filename=entry.original_filename,
+                status=entry.candidate.status,
+                score_status=entry.score.status,
+                score=entry.score.score,
+                must_have_coverage=entry.score.must_have_coverage,
+                band=entry.score.band,
+                band_raw=entry.score.band_raw,
+                capped=entry.score.capped,
+                matched_count=entry.matched_count,
+                warnings=entry.warnings,
+                scoring_config_version=entry.score.scoring_config_version,
+                computed_at=entry.score.computed_at,
+            )
+            for entry in result.ranked
+        ],
+        not_yet_scored=[
+            UnscoredCandidateResponse(
+                candidate_id=entry.candidate.id,
+                display_name=entry.candidate.display_name,
+                original_filename=entry.original_filename,
+                status=entry.candidate.status,
+            )
+            for entry in result.not_yet_scored
+        ],
+        failed=[
+            FailedCandidateResponse(
+                candidate_id=entry.candidate.id,
+                display_name=entry.candidate.display_name,
+                original_filename=entry.original_filename,
+                status=entry.candidate.status,
+                failure_reason=entry.candidate.failure_reason,
+                failure_detail=entry.candidate.failure_detail,
+            )
+            for entry in result.failed
+        ],
+        summary=RankingSummary(
+            total=result.total,
+            ranked=len(result.ranked),
+            not_yet_scored=len(result.not_yet_scored),
+            failed=len(result.failed),
+        ),
     )

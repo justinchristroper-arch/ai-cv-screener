@@ -266,11 +266,14 @@ Error responses are structured and never include stack traces, SQL, file paths, 
 | `GET` | `/api/candidates/{id}/matches` | Stored verdicts, reasons and evidence |
 | `POST` | `/api/candidates/{id}/score` | Compute the score from stored verdicts and weights |
 | `GET` | `/api/candidates/{id}/score` | The score and its per-requirement breakdown |
-| `GET` | `/api/jobs/{job_id}/candidates` | Ranked list with score, band, coverage, warnings |
+| `GET` | `/api/jobs/{job_id}/candidates` | Upload and parse state for every candidate |
+| `GET` | `/api/jobs/{job_id}/ranking` | Ranked list with score, band, coverage, warnings |
 | `GET` | `/api/candidates/{id}` | Detail: verdicts, evidence, score breakdown |
 | `POST` | `/api/candidates/{id}/retry` | Re-run the pipeline for a stuck or failed candidate |
 
-Tracing the workflow end to end: `POST /api/jobs` → `PUT .../description` → `POST .../requirements/extract` (stage 2) → `PATCH /api/requirements/{id}` (stage 3) → `POST .../requirements/confirm` (stage 4) → `POST .../candidates` (stages 5–11 in background) → `GET .../candidates` (stage 12) → `GET /api/candidates/{id}`. No gaps.
+Tracing the workflow end to end: `POST /api/jobs` → `PUT .../description` → `POST .../requirements/extract` (stage 2) → `PATCH /api/requirements/{id}` (stage 3) → `POST .../requirements/confirm` (stage 4) → `POST .../candidates` (stage 5) → `POST /api/candidates/{id}/profile` (stages 7–8) → `POST .../matches` (stages 9–10) → `POST .../score` (stage 11) → `GET /api/jobs/{job_id}/ranking` (stage 12) → `GET /api/candidates/{id}`. No gaps.
+
+**Two candidate lists, not one.** This table originally gave `GET /api/jobs/{job_id}/candidates` as the ranked list. It is not: it reports what happened to each uploaded file, for candidates in any state, and it existed before scoring did. The ranked list is a separate resource because it needs a grouped shape — candidates whose processing failed are returned in their own group and are never merged into the order — which a flat array cannot express without inventing null positions for them.
 
 ---
 

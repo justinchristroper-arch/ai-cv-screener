@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–7 and 9 complete, Phase 8 partially delivered (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 10–20 not started.
+**Status:** Phases 0–7, 9 and 10 complete, Phase 8 partially delivered (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 11–20 not started.
 **Last updated:** 2026-09-07
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -44,6 +44,7 @@ each.
 |---|---|---|
 | **Candidate Intelligence** | 6, 7, and the semantic-evaluation half of 8 | ✅ |
 | **AI Evaluation Engine** | 9 | ✅ |
+| **Deterministic Ranking** | 10 | ✅ |
 
 Phase 8's semantic evaluation was pulled into this milestone rather than
 deferred, because Phase 7's routing layer has nowhere to route to without it:
@@ -68,7 +69,7 @@ rates over a sample set — which needs the evaluation harness from Phase 13.
 | 7 | Requirement matching engine | ✅ |
 | 8 | LLM semantic evaluation | 🚧 |
 | 9 | Transparent scoring engine | ✅ |
-| 10 | Candidate ranking | ⬜ |
+| 10 | Candidate ranking | ✅ |
 | 11 | Frontend application | ⬜ |
 | 12 | Demo mode with synthetic candidates | ⬜ |
 | 13 | Evaluation and benchmark | ⬜ |
@@ -347,20 +348,46 @@ already had every column, and `alembic check` confirms no drift.
 
 ---
 
-## Phase 10 — Candidate ranking ⬜
+## Phase 10 — Candidate ranking ✅
+
+*Delivered as the **Deterministic Ranking** milestone.*
 
 **Objective.** Order candidates within a job, stably and explicably.
 
 **Deliverables.**
-- Ranking service ordering by score, with a documented deterministic tie-break.
-- Candidates in a failed state are surfaced separately, never silently dropped.
-- Ranked-list endpoint returning score, band, must-have coverage, and warning flags.
+- Ranking service ordering by score, with a documented deterministic tie-break. ✅ `app/services/ranking.py`, implementing the order fixed in [data-model.md §9](data-model.md#9-ranking-and-tie-breaking) rather than inventing one. The sort key is a pure function of five fields, so the tie-break is testable with no database.
+- Candidates in a failed state are surfaced separately, never silently dropped. ✅ Three groups — `ranked`, `not_yet_scored`, `failed` — and a summary whose counts let a recruiter reconcile the list against what they uploaded. Status is checked before the score, so a failed candidate is reported as failed even if an earlier run left a score behind.
+- Ranked-list endpoint returning score, band, must-have coverage, and warning flags. ✅ `GET /api/jobs/{job_id}/ranking`. The warning codes are `MUST_HAVE_NOT_EVIDENCED`, `SCORE_UNDEFINED`, `EVIDENCE_DOWNGRADED` and `INSTRUCTION_LIKE_TEXT_IN_CV` — all drawn from data earlier stages already stored, and none of them changes a score or a position. The last of these is where the injection flag raised at parse time finally reaches a human.
 
 **Verification criteria.**
-- Ranking is deterministic across repeated runs on identical input, including ties.
-- A failed candidate appears in the response with its failure reason rather than disappearing.
-- No candidate is filtered out by score at any point in the API; asserted by a test with a very low-scoring candidate.
-- Ordering is tested against a hand-constructed expected order.
+- Ranking is deterministic across repeated runs on identical input, including ties. ✅ Asserted on the pure ordering (same input, and reversed input, both give the same list), through the service, and over HTTP.
+- A failed candidate appears in the response with its failure reason rather than disappearing. ✅
+- No candidate is filtered out by score at any point in the API; asserted by a test with a very low-scoring candidate. ✅ The endpoint also takes **no** parameter that could hide anyone — a test asserts its only parameter is `job_id`, and that unrecognised query parameters change nothing.
+- Ordering is tested against a hand-constructed expected order. ✅ Eight candidates exercising every rule at once, fed in shuffled.
+
+**Two decisions this phase had to make.**
+
+*A separate endpoint from the candidate list.* Section 9 below originally named
+`GET /api/jobs/{job_id}/candidates` as the ranked list. That endpoint already
+existed, returning upload and parse state for candidates in *any* state, and the
+ranked list needs a **grouped** shape — failed candidates must never be merged
+into the order — which a flat array cannot carry without inventing null
+positions. The two answer different questions: "what happened to my uploads"
+and "the ranked shortlist". They are now two endpoints, and
+[architecture.md §9](architecture.md#9-planned-api-surface) records the split.
+
+*No confirmation gate on ranking.* Every other stage that reads confirmed
+requirements goes through the gate, but ranking produces nothing — it reads
+stored scores. Unconfirming a job already discards every score in it, so its
+candidates simply appear under `not_yet_scored`, which is the honest thing to
+show. Refusing the request instead would hide correctly-labelled data from the
+recruiter.
+
+**Not done in this phase, deliberately:** no top-K, no shortlisting, no
+pagination, no cross-job comparison, and no frontend. No migration was needed —
+ranking joins `candidate` to `score` and adds no column, and
+[data-model.md §8](data-model.md#8-indexes) had already concluded that the
+existing indexes suffice at MVP scale, so no speculative ranking index was added.
 
 ---
 
