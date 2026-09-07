@@ -12,6 +12,8 @@ import {
   VERDICT_MEANING,
   asPercent,
   failureLabel,
+  describeError,
+  isDemoLimitation,
   trimDecimal,
   warningLabel,
 } from "./display";
@@ -82,5 +84,56 @@ describe("number formatting", () => {
     expect(trimDecimal("1.50")).toBe("1.5");
     expect(trimDecimal("0.00")).toBe("0");
     expect(trimDecimal("31")).toBe("31");
+  });
+});
+
+describe("error wording", () => {
+  it("explains the demo-mode limitation without technical jargon", () => {
+    const message = describeError(
+      Object.assign(new Error("No recorded fixture for this input in demo mode."), {
+        code: "llm_unavailable",
+      }),
+    );
+
+    expect(message).toMatch(/demo mode replays ai responses recorded in advance/i);
+    expect(message).toMatch(/sample job description/i);
+    expect(message.toLowerCase()).not.toContain("fixture");
+    expect(message.toLowerCase()).not.toContain("hash");
+    expect(message.toLowerCase()).not.toContain("sha256");
+  });
+
+  it("does not imply the AI read or judged the custom text", () => {
+    const message = describeError(Object.assign(new Error("x"), { code: "llm_unavailable" }));
+
+    expect(message).toMatch(/not sent to an ai model/i);
+    expect(message).toMatch(/nothing was read from it/i);
+    expect(message).not.toMatch(/rejected/i);
+  });
+
+  it("tells the user how to proceed", () => {
+    const message = describeError(Object.assign(new Error("x"), { code: "llm_unavailable" }));
+
+    expect(message).toMatch(/load the sample/i);
+    expect(message).toMatch(/ai provider/i);
+  });
+
+  it("explains the confirmation gate in plain words", () => {
+    const message = describeError(
+      Object.assign(new Error("x"), { code: "requirements_not_confirmed" }),
+    );
+
+    expect(message).toMatch(/have not been confirmed/i);
+  });
+
+  it("falls back to the original message for anything it does not know", () => {
+    expect(describeError(new Error("Could not reach the backend"))).toBe(
+      "Could not reach the backend",
+    );
+    expect(describeError(null)).toBe("Something went wrong.");
+  });
+
+  it("recognises the demo limitation as a limitation, not a fault", () => {
+    expect(isDemoLimitation(Object.assign(new Error("x"), { code: "llm_unavailable" }))).toBe(true);
+    expect(isDemoLimitation(new Error("boom"))).toBe(false);
   });
 });

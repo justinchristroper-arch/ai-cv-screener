@@ -79,7 +79,7 @@ export function JobDescriptionPanel({
               >
                 Use the sample job description
               </button>{" "}
-              — synthetic, and the input the bundled offline fixtures were recorded against.
+              — synthetic, and the one job description this demo can analyse offline.
             </p>
           ) : null}
 
@@ -130,6 +130,36 @@ export function JobDescriptionPanel({
       ) : (
         <>
           <pre className="jd-preview">{existing.raw_text}</pre>
+
+          {/* Said here, before the Extract button further down the page, rather
+              than after the user presses it and gets a failure. Demo mode
+              replays AI responses recorded in advance, so it can only answer
+              for the documents they were recorded against — a real limitation,
+              not a fault, and one the user should not have to discover. */}
+          {samples && existing.raw_text !== samples.job_description ? (
+            <Callout tone="warn" title="This job description cannot be analysed in demo mode">
+              <p>
+                The application is running in demo mode, which replays AI responses recorded in
+                advance. That means requirements can only be extracted from the sample job
+                description — your own text would need an AI provider configured, and nothing has
+                been sent to a model.
+              </p>
+              <p>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => {
+                    setText(samples.job_description);
+                    setEditing(true);
+                  }}
+                >
+                  Replace it with the sample job description
+                </button>{" "}
+                to see the full workflow. Your text stays until you save.
+              </p>
+            </Callout>
+          ) : null}
+
           {confirmed ? (
             <p className="panel__hint">
               The requirement set is confirmed. Replacing the description would discard it.

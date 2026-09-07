@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("BackendStatus", () => {
-  it("says demo mode replays recorded fixtures, and why that limits what works", async () => {
+  it("says demo mode replays recordings, and why that limits what works", async () => {
     stubFetch({
       "GET /health": {
         body: { status: "ok", version: "0.1.0", app_env: "development", demo_mode: true },
@@ -20,7 +20,23 @@ describe("BackendStatus", () => {
 
     expect(await screen.findByText("Demo mode")).toBeInTheDocument();
     expect(screen.getByText(/no api key, no cost/i)).toBeInTheDocument();
-    expect(screen.getByText(/only the bundled synthetic documents replay/i)).toBeInTheDocument();
+    expect(screen.getByText(/only the sample documents can be analysed/i)).toBeInTheDocument();
+  });
+
+  it("uses no internal terminology a recruiter would not recognise", async () => {
+    stubFetch({
+      "GET /health": {
+        body: { status: "ok", version: "0.1.0", app_env: "development", demo_mode: true },
+      },
+    });
+
+    const { container } = render(<BackendStatus />);
+    await screen.findByText("Demo mode");
+
+    const text = (container.textContent ?? "").toLowerCase();
+    expect(text).not.toContain("fixture");
+    expect(text).not.toContain("sha256");
+    expect(text).not.toContain("hash");
   });
 
   it("says live mode uses the configured provider", async () => {

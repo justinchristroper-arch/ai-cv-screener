@@ -10,7 +10,7 @@
 import type { ReactNode } from "react";
 
 import type { MatchVerdict, RecommendationBand } from "../api/client";
-import { BAND_CAVEAT, BAND_LABEL, VERDICT_LABEL, VERDICT_MEANING } from "../display";
+import { BAND_CAVEAT, BAND_LABEL, VERDICT_LABEL, VERDICT_MEANING, describeError } from "../display";
 
 // --------------------------------------------------------------------------
 // Loading, error and empty states
@@ -36,7 +36,9 @@ export function ErrorState({
 }) {
   return (
     <div className="state state--error" role="alert">
-      <p className="state__title">{error.message}</p>
+      {/* The backend's own wording is written for an operator reading a log.
+          `describeError` translates the ones a recruiter can act on. */}
+      <p className="state__title">{describeError(error)}</p>
       {hint ? <p className="state__hint">{hint}</p> : null}
       {onRetry ? (
         <button type="button" className="button button--quiet" onClick={onRetry}>

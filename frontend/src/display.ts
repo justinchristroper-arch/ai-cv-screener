@@ -129,3 +129,49 @@ export function formatDate(iso: string): string {
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
+
+// --------------------------------------------------------------------------
+// Errors, in language a recruiter can act on
+// --------------------------------------------------------------------------
+
+/**
+ * Turn a failure into something a person can understand and act on.
+ *
+ * The backend's own wording is written for an operator reading a log — it names
+ * fixtures, prompt versions and input hashes, which are meaningless to a
+ * recruiter and read as if the product were broken. The stable `code` is the
+ * contract, so the translation keys on that and never on the prose.
+ *
+ * The demo-mode case is the one that matters. It is not a failure of the
+ * product and it is not something the user did wrong: demo mode replays
+ * recorded AI responses, so it can only answer for the documents those
+ * responses were recorded against. The message says that, and is careful not to
+ * suggest the AI looked at the custom input and declined — nothing was read.
+ */
+export function describeError(error: unknown): string {
+  const code = (error as { code?: string } | null)?.code;
+  const message = error instanceof Error ? error.message : "Something went wrong.";
+
+  if (code === "llm_unavailable") {
+    return (
+      "This job description is not part of the demo data set, so it was not sent " +
+      "to an AI model and nothing was read from it. Demo mode replays AI " +
+      "responses recorded in advance, which means it can only extract " +
+      "requirements from the sample job description. Load the sample below to " +
+      "see the full workflow, or run the application with an AI provider " +
+      "configured to use your own text."
+    );
+  }
+  if (code === "requirements_not_confirmed") {
+    return "The requirements for this job have not been confirmed yet, so nothing can be screened against them.";
+  }
+  if (code === "extraction_failed") {
+    return "The AI model returned something this application could not use, and nothing was saved. Try again.";
+  }
+  return message;
+}
+
+/** True when a failure is the demo-mode limitation rather than a real fault. */
+export function isDemoLimitation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === "llm_unavailable";
+}

@@ -16,13 +16,26 @@ export interface StubRoute {
 
 export type RouteMap = Record<string, StubRoute | (() => StubRoute)>;
 
+export interface StubOptions {
+  /**
+   * Resolve responses after a real timer rather than on the next microtask.
+   *
+   * This matters more than it looks. With instant stubs React can batch a
+   * component's "loading" state away before it ever commits, so a bug that only
+   * shows while a request is genuinely in flight — a panel blanking itself on
+   * refresh, say — silently passes. A few milliseconds of delay makes the
+   * intermediate render real, the way it always is against a network.
+   */
+  delayMs?: number;
+}
+
 export interface FetchStub {
   fetch: ReturnType<typeof vi.fn>;
   /** Every request made, as "METHOD /path", in order. */
   calls: string[];
 }
 
-export function stubFetch(routes: RouteMap): FetchStub {
+export function stubFetch(routes: RouteMap, options: StubOptions = {}): FetchStub {
   const calls: string[] = [];
 
   const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
@@ -34,6 +47,10 @@ export function stubFetch(routes: RouteMap): FetchStub {
     const entry = routes[key];
     if (entry === undefined) {
       throw new TypeError(`No stub for ${key}`);
+    }
+
+    if (options.delayMs) {
+      await new Promise((resolve) => setTimeout(resolve, options.delayMs));
     }
 
     const route = typeof entry === "function" ? entry() : entry;

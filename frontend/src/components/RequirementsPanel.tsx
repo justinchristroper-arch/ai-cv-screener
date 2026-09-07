@@ -47,21 +47,32 @@ export function RequirementsPanel({
   const gate = useAction();
   const edit = useAction();
 
-  const refresh = () => {
+  // Two different kinds of change, kept apart on purpose.
+  //
+  // `refreshRequirements` is for an edit that only touches a row — a weight or
+  // a must-have flag. Neither is displayed in the job header, so refetching the
+  // job there would be a request for data that cannot have changed.
+  //
+  // `refreshJob` is for a change to the requirement *set* — extraction,
+  // confirmation, an addition or a deletion — which does change what the header
+  // shows, and is worth the extra request.
+  const refreshRequirements = () => reload();
+
+  const refreshJob = () => {
     reload();
     onChanged();
   };
 
   const onExtract = async () => {
-    if (await extract.run(() => extractRequirements(jobId))) refresh();
+    if (await extract.run(() => extractRequirements(jobId))) refreshJob();
   };
 
   const onConfirm = async () => {
-    if (await gate.run(() => confirmRequirements(jobId))) refresh();
+    if (await gate.run(() => confirmRequirements(jobId))) refreshJob();
   };
 
   const onUnconfirm = async () => {
-    if (await gate.run(() => unconfirmRequirements(jobId))) refresh();
+    if (await gate.run(() => unconfirmRequirements(jobId))) refreshJob();
   };
 
   if (resource.state === "loading") return <Spinner label="Loading requirements…" />;
@@ -140,12 +151,16 @@ export function RequirementsPanel({
                     key={item.id}
                     requirement={item}
                     confirmed={confirmed}
-                    busy={edit.busy}
+                    // Only the row being saved is disabled. Disabling the whole
+                    // panel would blur whatever control the person was using.
+                    busy={edit.pending === item.id}
                     onUpdate={async (body) => {
-                      if (await edit.run(() => updateRequirement(item.id, body))) refresh();
+                      if (await edit.run(() => updateRequirement(item.id, body), item.id)) {
+                        refreshRequirements();
+                      }
                     }}
                     onDelete={async () => {
-                      if (await edit.run(() => deleteRequirement(item.id))) refresh();
+                      if (await edit.run(() => deleteRequirement(item.id), item.id)) refreshJob();
                     }}
                   />
                 ))}
@@ -154,7 +169,7 @@ export function RequirementsPanel({
           </div>
           {edit.error ? <ErrorState error={edit.error} /> : null}
 
-          {!confirmed ? <AddRequirement jobId={jobId} onAdded={refresh} /> : null}
+          {!confirmed ? <AddRequirement jobId={jobId} onAdded={refreshJob} /> : null}
 
           <Callout
             tone={confirmed ? "info" : "warn"}
@@ -241,7 +256,12 @@ function RequirementRow({
         </label>
       </td>
       <td>
+        {/* Uncontrolled, so a half-typed number is not fought over on every
+            keystroke — but keyed on the stored weight so that when the server
+            settles on a different value (it stores two decimal places) the box
+            shows what was actually saved rather than what was typed. */}
         <input
+          key={requirement.weight}
           type="number"
           className="weight-input"
           min={0}

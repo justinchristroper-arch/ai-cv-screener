@@ -61,8 +61,8 @@ export function BackendStatus() {
       <strong>{health.demo_mode ? "Demo mode" : "Live mode"}</strong>
       <span className="backend__hint">
         {health.demo_mode
-          ? "Model calls are replayed from recorded fixtures — no API key, no cost. Only the bundled synthetic documents replay."
-          : `Model calls use the configured provider. v${health.version} · ${API_BASE_URL}`}
+          ? "AI responses are replayed from recordings made in advance — no API key, no cost. Only the sample documents can be analysed."
+          : `AI requests go to the configured provider. v${health.version} · ${API_BASE_URL}`}
       </span>
     </div>
   );

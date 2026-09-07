@@ -152,7 +152,7 @@ describe("JobPage", () => {
 
     render(<JobPage jobId="job-1" />);
     // The description already exists, so the editor is behind "Replace".
-    (await screen.findByRole("button", { name: /replace/i })).click();
+    (await screen.findByRole("button", { name: "Replace" })).click();
 
     expect(
       await screen.findByRole("button", { name: /use the sample job description/i }),
@@ -163,7 +163,7 @@ describe("JobPage", () => {
     stubJob({ confirmed: true });
 
     render(<JobPage jobId="job-1" />);
-    (await screen.findByRole("button", { name: /replace/i })).click();
+    (await screen.findByRole("button", { name: "Replace" })).click();
 
     expect(await screen.findByText(/replacing this text is not free/i)).toBeInTheDocument();
     expect(screen.getByText(/are deleted and the job is unconfirmed/i)).toBeInTheDocument();
