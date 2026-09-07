@@ -13,9 +13,12 @@ import uuid
 from fastapi import APIRouter, File, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import SessionDep, SettingsDep, StorageDep
+from app.api.deps import LlmClientDep, SessionDep, SettingsDep, StorageDep
+from app.core.enums import MatchMethod, MatchVerdict
 from app.core.errors import ConflictError
 from app.models.candidate import Candidate
+from app.models.evaluation import EvidenceSpan
+from app.models.profile import CandidateProfile
 from app.schemas.api.candidates import (
     CandidateListResponse,
     CandidateResponse,
@@ -25,9 +28,32 @@ from app.schemas.api.candidates import (
     UploadBatchResponse,
     UploadOutcomeResponse,
 )
+from app.schemas.api.screening import (
+    CandidateProfileResponse,
+    EvidenceResponse,
+    EvidenceSummary,
+    MatchingRunResponse,
+    MatchResultResponse,
+    MatchResultsResponse,
+    MatchSummary,
+    ProfileEducationResponse,
+    ProfileExperienceResponse,
+    ProfileExtractionResponse,
+    ProfileProjectResponse,
+    ProfileSkillResponse,
+)
 from app.services import candidates as candidates_service
+from app.services import jobs as jobs_service
+from app.services import matching as matching_service
+from app.services import profile_extraction as profile_service
 
 router = APIRouter(tags=["candidates"])
+
+_DETERMINISTIC_METHODS = (
+    MatchMethod.DETERMINISTIC_EXACT,
+    MatchMethod.DETERMINISTIC_ALIAS,
+    MatchMethod.DETERMINISTIC_DURATION,
+)
 
 
 def _candidate_response(db: Session, candidate: Candidate) -> CandidateResponse:
@@ -181,3 +207,231 @@ def get_candidate_text(candidate_id: uuid.UUID, db: SessionDep) -> CandidateText
         pages=parsed.page_offsets,
         injection_flags=parsed.injection_flags or [],
     )
+
+
+# --------------------------------------------------------------------------
+# Candidate intelligence: profile extraction and requirement matching
+# --------------------------------------------------------------------------
+
+
+def _evidence_response(span: EvidenceSpan | None) -> EvidenceResponse | None:
+    return EvidenceResponse.model_validate(span) if span is not None else None
+
+
+def _profile_response(
+    db: Session, candidate_id: uuid.UUID, profile: CandidateProfile
+) -> CandidateProfileResponse:
+    items = profile_service.load_profile_items(db, profile)
+
+    def evidence(span_id: uuid.UUID | None) -> EvidenceResponse | None:
+        return _evidence_response(items.spans.get(span_id)) if span_id else None
+
+    cited = sum(
+        1
+        for group in (items.skills, items.experience, items.education, items.projects)
+        for item in group
+        if item.evidence_span_id is not None
+    )
+    verified = items.verified_evidence_count
+
+    return CandidateProfileResponse(
+        candidate_id=candidate_id,
+        profile_id=profile.id,
+        parsed_document_id=profile.parsed_document_id,
+        prompt_version=profile.prompt_version,
+        llm_call_id=profile.llm_call_id,
+        created_at=profile.created_at,
+        skills=[
+            ProfileSkillResponse(
+                id=item.id,
+                raw_name=item.raw_name,
+                normalized_name=item.normalized_name,
+                evidence=evidence(item.evidence_span_id),
+            )
+            for item in items.skills
+        ],
+        experience=[
+            ProfileExperienceResponse(
+                id=item.id,
+                role_title=item.role_title,
+                organization=item.organization,
+                start_date=item.start_date,
+                end_date=item.end_date,
+                date_precision=item.date_precision,
+                is_current=item.is_current,
+                description=item.description,
+                evidence=evidence(item.evidence_span_id),
+            )
+            for item in items.experience
+        ],
+        education=[
+            ProfileEducationResponse(
+                id=item.id,
+                degree=item.degree,
+                field_of_study=item.field_of_study,
+                institution=item.institution,
+                completion_year=item.completion_year,
+                evidence=evidence(item.evidence_span_id),
+            )
+            for item in items.education
+        ],
+        projects=[
+            ProfileProjectResponse(
+                id=item.id,
+                name=item.name,
+                description=item.description,
+                technologies=list(item.technologies or []),
+                evidence=evidence(item.evidence_span_id),
+            )
+            for item in items.projects
+        ],
+        evidence_summary=EvidenceSummary(
+            items=items.item_count,
+            with_evidence=cited,
+            verified=verified,
+            unverified=cited - verified,
+        ),
+    )
+
+
+def _match_results_response(db: Session, candidate: Candidate) -> MatchResultsResponse:
+    rows = matching_service.list_match_results(db, candidate.id)
+    job = jobs_service.get_job(db, candidate.job_id)
+
+    return MatchResultsResponse(
+        candidate_id=candidate.id,
+        job_id=candidate.job_id,
+        requirements_confirmed_at=job.requirements_confirmed_at,
+        results=[
+            MatchResultResponse(
+                requirement_id=row.requirement.id,
+                requirement_text=row.requirement.text,
+                category=row.requirement.category,
+                must_have=row.requirement.must_have,
+                display_order=row.requirement.display_order,
+                verdict=row.result.verdict,
+                decided_by=row.result.decided_by,
+                reason=row.result.reason,
+                evidence=_evidence_response(row.span),
+                raw_verdict=row.result.raw_verdict,
+                downgraded=row.result.downgraded,
+                llm_call_id=row.result.llm_call_id,
+            )
+            for row in rows
+        ],
+        summary=MatchSummary(
+            total=len(rows),
+            matched=sum(1 for row in rows if row.result.verdict is MatchVerdict.MATCHED),
+            partial=sum(1 for row in rows if row.result.verdict is MatchVerdict.PARTIAL),
+            no_evidence=sum(1 for row in rows if row.result.verdict is MatchVerdict.NO_EVIDENCE),
+            downgraded=sum(1 for row in rows if row.result.downgraded),
+            decided_deterministically=sum(
+                1 for row in rows if row.result.decided_by in _DETERMINISTIC_METHODS
+            ),
+            decided_by_model=sum(
+                1 for row in rows if row.result.decided_by not in _DETERMINISTIC_METHODS
+            ),
+        ),
+    )
+
+
+@router.post(
+    "/api/candidates/{candidate_id}/profile",
+    response_model=ProfileExtractionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Extract a structured profile from the candidate's CV",
+    description=(
+        "Reads the parsed CV text and stores the skills, roles, qualifications and "
+        "projects it states, each with a quoted passage verified against the document. "
+        "The model never returns a score, a rank or a recommendation, and the profile "
+        "has no field for a name, age, gender, nationality, photo, address, phone or "
+        "email. Idempotent: a candidate that already has a profile, or whose document "
+        "text has already been extracted, is served without a model call."
+    ),
+    responses={
+        404: {"description": "Candidate does not exist"},
+        409: {"description": "This candidate has no extracted text"},
+        502: {"description": "The model returned output that could not be used"},
+        503: {"description": "The model could not be reached, or no fixture in demo mode"},
+    },
+)
+def extract_candidate_profile(
+    candidate_id: uuid.UUID, db: SessionDep, client: LlmClientDep
+) -> ProfileExtractionResponse:
+    result = profile_service.extract_profile(db, candidate_id, client)
+    return ProfileExtractionResponse(
+        candidate_id=candidate_id,
+        source=result.source.value if result.source else None,
+        attempts=result.attempts,
+        cache_hit=result.cache_hit,
+        profile=_profile_response(db, candidate_id, result.profile),
+    )
+
+
+@router.get(
+    "/api/candidates/{candidate_id}/profile",
+    response_model=CandidateProfileResponse,
+    summary="The candidate's extracted profile",
+    description=(
+        "Every item carries the passage it was read from, with its verification "
+        "status. An item whose quote could not be located in the document is shown "
+        "and flagged rather than hidden."
+    ),
+    responses={404: {"description": "Candidate does not exist, or has no profile yet"}},
+)
+def get_candidate_profile(candidate_id: uuid.UUID, db: SessionDep) -> CandidateProfileResponse:
+    profile = profile_service.require_profile(db, candidate_id)
+    return _profile_response(db, candidate_id, profile)
+
+
+@router.post(
+    "/api/candidates/{candidate_id}/matches",
+    response_model=MatchingRunResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Match the candidate against the job's confirmed requirements",
+    description=(
+        "Requires the job's requirements to be confirmed: matching against a draft "
+        "set is refused server-side, not merely discouraged in the UI. Deterministic "
+        "rules settle every pair they can before the model is asked about the rest, "
+        "and a proposed verdict whose evidence cannot be verified in the CV is "
+        "downgraded to NO_EVIDENCE and flagged. No score, band or rank is produced."
+    ),
+    responses={
+        404: {"description": "Candidate does not exist"},
+        409: {
+            "description": (
+                "Requirements are not confirmed, the job has none, or the candidate "
+                "has no extracted profile"
+            )
+        },
+        502: {"description": "The model returned output that could not be used"},
+        503: {"description": "The model could not be reached, or no fixture in demo mode"},
+    },
+)
+def run_candidate_matching(
+    candidate_id: uuid.UUID, db: SessionDep, client: LlmClientDep
+) -> MatchingRunResponse:
+    outcome = matching_service.run_matching(db, candidate_id, client)
+    candidate = candidates_service.get_candidate(db, candidate_id)
+    base = _match_results_response(db, candidate)
+    return MatchingRunResponse(
+        **base.model_dump(),
+        source=outcome.source.value if outcome.source else None,
+        attempts=outcome.attempts,
+    )
+
+
+@router.get(
+    "/api/candidates/{candidate_id}/matches",
+    response_model=MatchResultsResponse,
+    summary="Stored verdicts for the candidate, with their evidence",
+    description=(
+        "Returns one entry per requirement, in the recruiter's display order. "
+        "NO_EVIDENCE states that this document contains no verified evidence for a "
+        "requirement; it is never a claim that the candidate lacks the skill."
+    ),
+    responses={404: {"description": "Candidate does not exist"}},
+)
+def get_candidate_matches(candidate_id: uuid.UUID, db: SessionDep) -> MatchResultsResponse:
+    candidate = candidates_service.get_candidate(db, candidate_id)
+    return _match_results_response(db, candidate)

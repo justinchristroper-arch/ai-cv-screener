@@ -29,8 +29,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="AI CV Screener API",
         version=__version__,
         description=(
-            "Decision-support API for CV screening. Job description processing and "
-            "the human confirmation gate are implemented; CV upload, matching, "
+            "Decision-support API for CV screening. Job description processing, the "
+            "human confirmation gate, CV upload and parsing, candidate profile "
+            "extraction and evidence-backed requirement matching are implemented; "
             "scoring and ranking are not — see docs/roadmap.md."
         ),
     )

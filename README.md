@@ -2,7 +2,7 @@
 
 An AI-assisted CV screening tool that helps recruiters evaluate many candidates against one job description — by showing **evidence**, not just a number.
 
-> **Project status: Phase 5 of 20 — CV upload and PDF parsing.**
+> **Project status: Candidate Intelligence milestone — profile extraction and requirement matching (roadmap phases 6, 7 and most of 8).**
 > Two halves of the pipeline now work. A job description becomes structured, validated requirements that a human reviews and **confirms**; and CV PDFs can be uploaded, validated, and turned into text with page-level provenance. Both run offline — no API key needed. **The two halves are not yet connected**: nothing reads a CV to build a candidate profile, and there is no matching, scoring, ranking, or screening UI. **There is no OCR**, so scanned CVs are rejected rather than silently treated as empty. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ---
@@ -57,14 +57,15 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Development roadmap | ✅ Complete — [docs/roadmap.md](docs/roadmap.md) |
 | Architecture | ✅ Complete — [docs/architecture.md](docs/architecture.md) |
 | Data model | ✅ Complete — [docs/data-model.md](docs/data-model.md) |
-| Backend | 🟡 Jobs, job descriptions, requirement extraction + CRUD, confirmation gate, CV upload and PDF text extraction. No matching or scoring. |
+| Backend | 🟡 Jobs, job descriptions, requirement extraction + CRUD, confirmation gate, CV upload and PDF text extraction, candidate profile extraction, evidence verification, and requirement matching with evidence-backed verdicts. **No scoring or ranking yet.** |
 | Frontend | 🟡 Shell runs — React + Vite, reports backend connectivity. No screening UI. |
 | Database | 🟡 PostgreSQL 16 in Docker; all 16 tables migrated via Alembic |
-| Tests | 🟡 264 passing (249 backend, 15 frontend) |
+| Tests | 🟡 433 passing (418 backend, 15 frontend) |
 | CI | 🟡 [Workflow created](.github/workflows/ci.yml) and its steps verified locally against a fresh database; **not yet observed running on GitHub** — the repository hasn't been pushed yet. |
 | Repository hygiene | ✅ [CONTRIBUTING.md](CONTRIBUTING.md), [ADRs](docs/decisions/README.md), pinned language versions, MIT license, secret scan performed |
-| LLM integration | 🟡 Requirement extraction only, behind an `LlmClient` abstraction with live and fixture-replay implementations |
+| LLM integration | 🟡 Requirement extraction, candidate profile extraction and semantic matching — three call sites, all behind one `LlmClient` abstraction with live and fixture-replay implementations |
 | PDF parsing | 🟡 Text-layer PDFs, with page offsets. **No OCR** — scanned CVs fail honestly rather than yielding empty text. |
+| Matching engine | 🟡 Deterministic exact/alias/duration matchers run first; the model settles the rest; every positive verdict carries a quote verified against the CV |
 | Scoring engine | ⬜ Not implemented |
 | Evaluation | ⬜ Not implemented |
 | Deployment / live demo | ⬜ Not deployed |
@@ -161,9 +162,9 @@ Currently present: `backend/`, `frontend/`, `docs/` (including `docs/decisions/`
 | 3 | Git repository setup | ✅ |
 | 4 | Job description processing | ✅ |
 | 5 | CV upload and PDF parsing | ✅ |
-| 6 | Candidate profile extraction | ⬜ |
-| 7 | Requirement matching engine | ⬜ |
-| 8 | LLM semantic evaluation | ⬜ |
+| 6 | Candidate profile extraction | ✅ |
+| 7 | Requirement matching engine | ✅ |
+| 8 | LLM semantic evaluation | 🚧 |
 | 9 | Transparent scoring engine | ⬜ |
 | 10 | Candidate ranking | ⬜ |
 | 11 | Frontend application | ⬜ |

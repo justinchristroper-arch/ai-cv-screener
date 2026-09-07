@@ -1,0 +1,103 @@
+{
+  "description": "Happy path for profile extraction. A full multi-section synthetic CV with skills, two roles, a project and a degree. The CV also prints a 'Personal details' block (date of birth, gender, nationality, marital status, address, phone, email, photograph) which this reply correctly ignores: the schema has no field for any of it. Entirely fictional; no real person or company. cv_text is the exact normalized output of parsing tests/pdf_fixtures.py::full_cv_pdf.",
+  "purpose": "PROFILE_EXTRACTION",
+  "model": "claude-opus-5",
+  "prompt_version": "profile-extraction-v1",
+  "attempt": 1,
+  "cv_text": [
+    "Alex Rivera",
+    "Backend Engineer",
+    "Personal details",
+    "Date of birth: 14 March 1994",
+    "Gender: Female",
+    "Nationality: Fictionalese",
+    "Marital status: Single",
+    "Address: 12 Invented Lane, Fictionalburg",
+    "Phone: +00 000 000 000",
+    "Email: alex.rivera@example.invalid",
+    "Photograph attached above.",
+    "Profile",
+    "Backend engineer working on document-processing services.",
+    "Experience",
+    "Northwind Analytics (fictional) - Backend Engineer, March 2022 - February 2026",
+    "Designed and operated REST services in production for four years.",
+    "Owned the relational schema behind the document pipeline.",
+    "Presented quarterly architecture reviews to the product and operations teams.",
+    "Cobalt Systems (fictional) - Junior Developer, June 2021 - February 2022",
+    "Maintained internal reporting tools and their test suites.",
+    "Projects",
+    "Document understanding pipeline: shipped and maintained a data-processing system",
+    "that parses uploaded PDFs, extracts their text and indexes it for search.",
+    "Built similarity search over sentence embeddings stored in Postgres.",
+    "Skills",
+    "Python, FastAPI, Postgres, Docker, Bash, pytest",
+    "Education",
+    "BSc Computer Science, University of the Fictional Midlands, 2021"
+  ],
+  "response_json": {
+    "display_name": "Alex Rivera",
+    "skills": [
+      {
+        "name": "Python",
+        "evidence_quote": "Python, FastAPI, Postgres, Docker, Bash, pytest"
+      },
+      {
+        "name": "FastAPI",
+        "evidence_quote": "Python, FastAPI, Postgres, Docker, Bash, pytest"
+      },
+      {
+        "name": "Postgres",
+        "evidence_quote": "Python, FastAPI, Postgres, Docker, Bash, pytest"
+      },
+      {
+        "name": "Docker",
+        "evidence_quote": "Python, FastAPI, Postgres, Docker, Bash, pytest"
+      },
+      {
+        "name": "Bash",
+        "evidence_quote": "Python, FastAPI, Postgres, Docker, Bash, pytest"
+      },
+      {
+        "name": "pytest",
+        "evidence_quote": "Python, FastAPI, Postgres, Docker, Bash, pytest"
+      }
+    ],
+    "experience": [
+      {
+        "role_title": "Backend Engineer",
+        "organization": "Northwind Analytics",
+        "start_date": "2022-03",
+        "end_date": "2026-02",
+        "is_current": false,
+        "description": "Designed and operated REST services in production and owned the relational schema behind the document pipeline.",
+        "evidence_quote": "Northwind Analytics (fictional) - Backend Engineer, March 2022 - February 2026"
+      },
+      {
+        "role_title": "Junior Developer",
+        "organization": "Cobalt Systems",
+        "start_date": "2021-06",
+        "end_date": "2022-02",
+        "is_current": false,
+        "description": "Maintained internal reporting tools and their test suites.",
+        "evidence_quote": "Cobalt Systems (fictional) - Junior Developer, June 2021 - February 2022"
+      }
+    ],
+    "education": [
+      {
+        "degree": "BSc",
+        "field_of_study": "Computer Science",
+        "institution": "University of the Fictional Midlands",
+        "completion_year": 2021,
+        "evidence_quote": "BSc Computer Science, University of the Fictional Midlands, 2021"
+      }
+    ],
+    "projects": [
+      {
+        "name": "Document understanding pipeline",
+        "description": "Shipped and maintained a data-processing system that parses uploaded PDFs, extracts their text and indexes it for search.",
+        "technologies": ["Python", "Postgres"],
+        "evidence_quote": "Document understanding pipeline: shipped and maintained a data-processing system"
+      }
+    ]
+  }
+}

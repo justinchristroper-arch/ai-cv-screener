@@ -65,6 +65,52 @@ MULTIPAGE_CV_PAGE_2: list[str] = [
     "Available on request.",
 ]
 
+#: The candidate-intelligence CV: a full multi-section document with skills,
+#: roles, projects and a qualification, written to exercise profile extraction
+#: and every matching verdict against the bundled backend-engineer job.
+#:
+#: The "Personal details" block is there on purpose. Plenty of real CVs carry
+#: exactly these lines, and the tests use them to prove that none of it reaches
+#: the profile, the matcher, or any piece of evidence — the schema has no field
+#: for any of it (ADR-0003). Every value is invented.
+FULL_CV_LINES: list[str] = [
+    "Alex Rivera",
+    "Backend Engineer",
+    "",
+    "Personal details",
+    "Date of birth: 14 March 1994",
+    "Gender: Female",
+    "Nationality: Fictionalese",
+    "Marital status: Single",
+    "Address: 12 Invented Lane, Fictionalburg",
+    "Phone: +00 000 000 000",
+    "Email: alex.rivera@example.invalid",
+    "Photograph attached above.",
+    "",
+    "Profile",
+    "Backend engineer working on document-processing services.",
+    "",
+    "Experience",
+    "Northwind Analytics (fictional) - Backend Engineer, March 2022 - February 2026",
+    "Designed and operated REST services in production for four years.",
+    "Owned the relational schema behind the document pipeline.",
+    "Presented quarterly architecture reviews to the product and operations teams.",
+    "",
+    "Cobalt Systems (fictional) - Junior Developer, June 2021 - February 2022",
+    "Maintained internal reporting tools and their test suites.",
+    "",
+    "Projects",
+    "Document understanding pipeline: shipped and maintained a data-processing system",
+    "that parses uploaded PDFs, extracts their text and indexes it for search.",
+    "Built similarity search over sentence embeddings stored in Postgres.",
+    "",
+    "Skills",
+    "Python, FastAPI, Postgres, Docker, Bash, pytest",
+    "",
+    "Education",
+    "BSc Computer Science, University of the Fictional Midlands, 2021",
+]
+
 #: A CV containing text addressed to the model rather than to a human reader.
 #: Used to prove the parser flags it and does not act on it or remove it.
 INJECTION_CV_LINES: list[str] = [
@@ -104,6 +150,11 @@ def build_pdf(pages: list[list[str]], *, title: str = "Synthetic CV") -> bytes:
 
 def simple_cv_pdf() -> bytes:
     return build_pdf([SIMPLE_CV_LINES], title="Alex Rivera CV")
+
+
+def full_cv_pdf() -> bytes:
+    """The multi-section CV the candidate-intelligence fixtures were recorded on."""
+    return build_pdf([FULL_CV_LINES], title="Alex Rivera CV (full)")
 
 
 def multipage_cv_pdf() -> bytes:

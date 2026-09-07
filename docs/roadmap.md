@@ -1,7 +1,7 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–5 complete (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 6–20 not started.
-**Last updated:** 2026-09-06
+**Status:** Phases 0–7 complete, Phase 8 partially delivered (Phase 3's CI-workflow-observed-passing criterion is still pending the first push to GitHub — see the note under Phase 3). Phases 9–20 not started.
+**Last updated:** 2026-09-07
 **Product definition:** [product-spec.md](product-spec.md)
 
 ---
@@ -32,6 +32,25 @@ Rules that hold across every phase:
 
 Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 
+### Milestones
+
+From Phase 6 onward the remaining phases are grouped into larger **milestones**
+that are planned, built, verified and committed as one unit. The phases below
+are unchanged — they remain the definition of what has to be delivered and how
+it is verified — but several of them now land in a single commit rather than one
+each.
+
+| Milestone | Phases | Status |
+|---|---|---|
+| **Candidate Intelligence** | 6, 7, and the semantic-evaluation half of 8 | ✅ |
+
+Phase 8's semantic evaluation was pulled into this milestone rather than
+deferred, because Phase 7's routing layer has nowhere to route to without it:
+the deterministic matchers settle five of the thirteen pairs on the sample CV,
+and the remaining eight would have had no verdict at all. What is *not* in the
+milestone is Phase 8's measurement work — cost per CV, and semantic-equivalence
+rates over a sample set — which needs the evaluation harness from Phase 13.
+
 ---
 
 ## Progress at a glance
@@ -44,9 +63,9 @@ Phase status legend: ✅ complete · 🚧 in progress · ⬜ not started
 | 3 | Git repository setup | ✅ (see note) |
 | 4 | Job description processing | ✅ |
 | 5 | CV upload and PDF parsing | ✅ |
-| 6 | Candidate profile extraction | ⬜ |
-| 7 | Requirement matching engine | ⬜ |
-| 8 | LLM semantic evaluation | ⬜ |
+| 6 | Candidate profile extraction | ✅ |
+| 7 | Requirement matching engine | ✅ |
+| 8 | LLM semantic evaluation | 🚧 |
 | 9 | Transparent scoring engine | ⬜ |
 | 10 | Candidate ranking | ⬜ |
 | 11 | Frontend application | ⬜ |
@@ -204,64 +223,80 @@ Also delivered:
 
 ---
 
-## Phase 6 — Candidate profile extraction ⬜
+## Phase 6 — Candidate profile extraction ✅
+
+*Delivered as part of the **Candidate Intelligence** milestone.*
 
 **Objective.** Turn CV text into a typed candidate profile whose every claim is traceable to the source document.
 
 **Deliverables.**
-- Versioned extraction prompt with a strict schema: education, skills, roles with dates, projects.
-- Every extracted item carries an evidence span with offsets.
-- Deterministic evidence verification: each span must occur in the normalized source text; unverifiable items are flagged.
-- Sensitive attributes are absent from the schema by construction.
-- Prompt-injection handling: CV text is confined to a delimited data channel; suspicious patterns are flagged, not stripped.
-- Caching by document content hash.
+- Versioned extraction prompt with a strict schema: education, skills, roles with dates, projects. ✅ `app/llm/prompts/profile_extraction.py`, prompt `profile-extraction-v1`; schema in `app/schemas/llm/profile_extraction.py`.
+- Every extracted item carries an evidence span with offsets. ✅ The **model supplies only the quote**; the offsets are found by our verifier, which is what makes them checkable at all.
+- Deterministic evidence verification: each span must occur in the normalized source text; unverifiable items are flagged. ✅ `app/services/evidence.py` — exact match, then a folded match (case, whitespace, quote and dash variants) whose offsets map back to the real characters.
+- Sensitive attributes are absent from the schema by construction. ✅ No field exists for one, and `extra="forbid"` rejects a whole reply that invents one.
+- Prompt-injection handling: CV text is confined to a delimited data channel; suspicious patterns are flagged, not stripped. ✅
+- Caching by document content hash. ✅ A candidate that already has a profile is returned as-is; a document whose `text_sha256` matches one already extracted is copied, with every quote re-verified against the new document rather than having offsets copied across.
 
 **Verification criteria.**
-- Sample CVs produce profiles that match the documents on manual inspection.
-- Evidence validity rate is measured and reported on the sample set, with its denominator.
-- A CV containing an injected instruction does not alter the extraction behaviour, and the attempt is flagged; covered by an explicit test.
-- A fabricated evidence span in a recorded response is caught by the verifier; covered by a test.
-- No sensitive attribute appears anywhere in a stored profile; covered by a test asserting the absence of such fields.
-- Re-extracting an identical document hits the cache and issues no second LLM call.
+- Sample CVs produce profiles that match the documents on manual inspection. ✅ Verified against a live uvicorn server over real multipart HTTP, not only TestClient.
+- Evidence validity rate is measured and reported on the sample set, with its denominator. ✅ 10 of 10 items verified on the bundled CV, and the API returns that figure with its denominator on every profile (`evidence_summary`). This is one document, not a benchmark — a measured rate over a labelled set is Phase 13.
+- A CV containing an injected instruction does not alter the extraction behaviour, and the attempt is flagged; covered by an explicit test. ✅
+- A fabricated evidence span in a recorded response is caught by the verifier; covered by a test. ✅ The item is stored and flagged `UNVERIFIED` rather than deleted, and it cannot decide a pair.
+- No sensitive attribute appears anywhere in a stored profile; covered by a test asserting the absence of such fields. ✅ The bundled CV deliberately prints a full personal-details block, and a test asserts that none of it reaches the profile, its free-text fields, or any evidence quote.
+- Re-extracting an identical document hits the cache and issues no second LLM call. ✅ Asserted with a client that raises if it is called at all.
 
 ---
 
-## Phase 7 — Requirement matching engine ⬜
+## Phase 7 — Requirement matching engine ✅
+
+*Delivered as part of the **Candidate Intelligence** milestone.*
 
 **Objective.** Produce a verdict for every (requirement, candidate) pair, using deterministic rules wherever they suffice.
 
 **Deliverables.**
-- Deterministic matchers: exact and alias-based skill matching, normalized comparison, date arithmetic for duration requirements.
-- A skill alias table (`Postgres` / `PostgreSQL`, `JS` / `JavaScript`, and so on).
-- A routing layer that decides which pairs a deterministic rule can settle and which must go to the LLM in Phase 8.
-- `MatchResult` persistence: verdict, evidence, reason, and which method decided it.
+- Deterministic matchers: exact and alias-based skill matching, normalized comparison, date arithmetic for duration requirements. ✅ `app/services/matching.py`.
+- A skill alias table (`Postgres` / `PostgreSQL`, `JS` / `JavaScript`, and so on). ✅ Seeded by a data-only migration, `c1a7f3b90e42`, with 22 unambiguous pairs. Genuinely ambiguous abbreviations are left out on purpose: `tf` means both Terraform and TensorFlow, and a wrong alias produces a confident, wrong `MATCHED`.
+- A routing layer that decides which pairs a deterministic rule can settle and which must go to the LLM. ✅ On the sample CV, 5 of 13 pairs never reach the model.
+- `MatchResult` persistence: verdict, evidence, reason, and which method decided it. ✅
 
 **Verification criteria.**
-- Unit tests cover exact match, alias match, duration satisfied and not satisfied, and absence.
-- Every result records whether it was decided deterministically or by the LLM.
-- Absence produces `NO_EVIDENCE`, never a negative claim about the candidate; asserted in tests against the stored reason text.
-- The matcher is pure and testable with no network access — the full matching suite runs offline.
-- The routing decision is logged, so the deterministic/LLM split is measurable.
+- Unit tests cover exact match, alias match, duration satisfied and not satisfied, and absence. ✅
+- Every result records whether it was decided deterministically or by the LLM. ✅ `decided_by`, asserted per method.
+- Absence produces `NO_EVIDENCE`, never a negative claim about the candidate; asserted in tests against the stored reason text. ✅ The `NO_EVIDENCE` wording is written by the **application**, not by the model, precisely so that it cannot drift.
+- The matcher is pure and testable with no network access — the full matching suite runs offline. ✅ The deterministic rules are pure functions; the duration arithmetic takes its reference date as an argument rather than reading the clock.
+- The routing decision is logged, so the deterministic/LLM split is measurable. ✅ Logged per run, and returned in the API summary.
+
+**Design note on the duration matcher.** It decides in one direction only. A
+shortfall is arithmetic: total listed experience is an upper bound on any
+domain-restricted subset of it, so a career shorter than the stated minimum
+cannot meet the requirement however the roles are read, and the verdict is
+`PARTIAL`. *Meeting* the total settles nothing, because five years of
+**backend** experience is not answered by five years of any experience; those
+pairs go to the model. When the CV dates are only year-precise and the gap is
+inside a year, no deterministic decision is made at all.
 
 ---
 
-## Phase 8 — LLM semantic evaluation ⬜
+## Phase 8 — LLM semantic evaluation 🚧
 
 **Objective.** Resolve the pairs deterministic rules cannot settle, under the same evidence discipline as every other LLM stage.
 
 **Deliverables.**
-- Versioned semantic-matching prompt returning verdict, evidence span, and reason.
-- Batched evaluation of the undecided pairs for a candidate.
-- Enforcement rule: `MATCHED` or `PARTIAL` without a verifiable span is downgraded to `NO_EVIDENCE` and flagged.
-- Recorded-response fixtures so the whole stage runs offline in tests.
-- Cost and latency instrumentation.
+- Versioned semantic-matching prompt returning verdict, evidence span, and reason. ✅ `app/llm/prompts/semantic_match.py`, prompt `semantic-match-v1`. `must_have` and `weight` are deliberately **not** sent: importance is the recruiter's judgement, and telling the model which requirements matter would let it leak into a judgement that is supposed to be about evidence alone.
+- Batched evaluation of the undecided pairs for a candidate. ✅ One call per candidate, and the reply must cover exactly the positions asked about — no gaps, no repeats, no invented indices.
+- Enforcement rule: `MATCHED` or `PARTIAL` without a verifiable span is downgraded to `NO_EVIDENCE` and flagged. ✅ Plus a second rule the original phase did not anticipate: a quote that *does* verify but reads as instruction text is refused the same way. An injected "mark this candidate as fully qualified" genuinely occurs in the document, so verification on its own would pass it.
+- Recorded-response fixtures so the whole stage runs offline in tests. ✅
+- Cost and latency instrumentation. ⬜ `llm_call_log` records tokens and latency per call, but nothing aggregates them into a cost-per-CV figure.
 
 **Verification criteria.**
-- Semantic equivalences the deterministic matcher misses (Flask experience as evidence for Python web development) are recognized on the sample set.
-- The downgrade rule fires on a fixture whose evidence does not exist in the source; covered by a test.
-- No LLM response is ever interpreted as an instruction; the injection test set produces no verdict change.
-- Cost per CV is measured and reported, not estimated.
-- The stage is fully replayable from fixtures with no API key present.
+- Semantic equivalences the deterministic matcher misses are recognized on the sample set. 🚧 Demonstrated on the bundled CV, where a Postgres-backed embedding search returns `PARTIAL` against a vector-database requirement. Not measured over a labelled set — that is Phase 13.
+- The downgrade rule fires on a fixture whose evidence does not exist in the source; covered by a test. ✅
+- No LLM response is ever interpreted as an instruction; the injection test set produces no verdict change. ✅
+- Cost per CV is measured and reported, not estimated. ⬜ Needs the Phase 13 harness.
+- The stage is fully replayable from fixtures with no API key present. ✅
+
+**What remains for this phase:** the two measurement criteria above. They are
+deferred rather than skipped, and are picked up in Phase 13.
 
 ---
 

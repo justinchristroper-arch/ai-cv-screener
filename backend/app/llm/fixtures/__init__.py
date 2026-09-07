@@ -19,11 +19,16 @@ Fixture format::
       "response_json":  { ... }                // OR "response_text": "..."
     }
 
-`jd_text` and `response_text` accept a list of lines, joined with newlines, so
-multi-line content stays readable in a diff instead of collapsing into one
-escaped string. `response_json` is serialized for you and is the right choice
-for a well-formed reply; `response_text` is for deliberately malformed replies,
-which by definition cannot be expressed as JSON.
+The input field depends on the purpose: `jd_text` for `JD_EXTRACTION`,
+`cv_text` for `PROFILE_EXTRACTION`, and `cv_text` plus a `requirements` list of
+`{"text": ..., "category": ...}` objects for `SEMANTIC_MATCH` — whose order is
+the index the model is asked to answer by.
+
+`jd_text`, `cv_text` and `response_text` accept a list of lines, joined with
+newlines, so multi-line content stays readable in a diff instead of collapsing
+into one escaped string. `response_json` is serialized for you and is the right
+choice for a well-formed reply; `response_text` is for deliberately malformed
+replies, which by definition cannot be expressed as JSON.
 
 These are **recordings**, not live calls. Demo mode never falls back to the
 provider when one is missing — it raises. See `app/llm/client.py`.
@@ -61,7 +66,22 @@ def _render_input(purpose: LlmPurpose, fixture: dict[str, Any], source: Path) ->
 
         return render_user_content(_join_lines(fixture["jd_text"], "jd_text", source))
 
-    # Phases 6 and 8 add PROFILE_EXTRACTION and SEMANTIC_MATCH renderers here.
+    if purpose is LlmPurpose.PROFILE_EXTRACTION:
+        from app.llm.prompts.profile_extraction import render_user_content
+
+        return render_user_content(_join_lines(fixture["cv_text"], "cv_text", source))
+
+    if purpose is LlmPurpose.SEMANTIC_MATCH:
+        from app.llm.prompts.semantic_match import RequirementPrompt, render_user_content
+
+        return render_user_content(
+            _join_lines(fixture["cv_text"], "cv_text", source),
+            [
+                RequirementPrompt(index=index, text=item["text"], category=item["category"])
+                for index, item in enumerate(fixture["requirements"])
+            ],
+        )
+
     raise ValueError(f"{source.name}: no fixture renderer for purpose {purpose.value}")
 
 
@@ -97,6 +117,13 @@ def load_fixtures(directory: Path | None = None) -> dict[FixtureKey, str]:
     return fixtures
 
 
+def _fixture_field(name: str, field: str, directory: Path | None) -> Any:
+    directory = directory or FIXTURE_DIR
+    path = directory / f"{name}.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return raw[field], path
+
+
 def fixture_jd_text(name: str, directory: Path | None = None) -> str:
     """Return a fixture's job-description text by file stem.
 
@@ -104,7 +131,21 @@ def fixture_jd_text(name: str, directory: Path | None = None) -> str:
     fixture was recorded against — otherwise the hash differs and replay
     correctly reports a missing fixture.
     """
-    directory = directory or FIXTURE_DIR
-    path = directory / f"{name}.json"
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    return _join_lines(raw["jd_text"], "jd_text", path)
+    value, path = _fixture_field(name, "jd_text", directory)
+    return _join_lines(value, "jd_text", path)
+
+
+def fixture_cv_text(name: str, directory: Path | None = None) -> str:
+    """Return a fixture's parsed CV text by file stem.
+
+    The same contract as `fixture_jd_text`: what a test feeds the pipeline must
+    be byte-identical to what the fixture was recorded against.
+    """
+    value, path = _fixture_field(name, "cv_text", directory)
+    return _join_lines(value, "cv_text", path)
+
+
+def fixture_requirements(name: str, directory: Path | None = None) -> list[dict[str, str]]:
+    """Return a semantic-match fixture's requirement list, in prompt order."""
+    value, _ = _fixture_field(name, "requirements", directory)
+    return list(value)

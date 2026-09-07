@@ -1,0 +1,123 @@
+{
+  "description": "Semantic matching for the Alex Rivera CV against the eight backend-engineer requirements that the deterministic matchers could not settle. Produces MATCHED, PARTIAL and NO_EVIDENCE, and every quote is a verbatim line of cv_text so it verifies. The requirements list is the undecided subset, in the order and with the indices the matcher hands to the prompt.",
+  "purpose": "SEMANTIC_MATCH",
+  "model": "claude-opus-5",
+  "prompt_version": "semantic-match-v1",
+  "attempt": 1,
+  "cv_text": [
+    "Alex Rivera",
+    "Backend Engineer",
+    "Personal details",
+    "Date of birth: 14 March 1994",
+    "Gender: Female",
+    "Nationality: Fictionalese",
+    "Marital status: Single",
+    "Address: 12 Invented Lane, Fictionalburg",
+    "Phone: +00 000 000 000",
+    "Email: alex.rivera@example.invalid",
+    "Photograph attached above.",
+    "Profile",
+    "Backend engineer working on document-processing services.",
+    "Experience",
+    "Northwind Analytics (fictional) - Backend Engineer, March 2022 - February 2026",
+    "Designed and operated REST services in production for four years.",
+    "Owned the relational schema behind the document pipeline.",
+    "Presented quarterly architecture reviews to the product and operations teams.",
+    "Cobalt Systems (fictional) - Junior Developer, June 2021 - February 2022",
+    "Maintained internal reporting tools and their test suites.",
+    "Projects",
+    "Document understanding pipeline: shipped and maintained a data-processing system",
+    "that parses uploaded PDFs, extracts their text and indexes it for search.",
+    "Built similarity search over sentence embeddings stored in Postgres.",
+    "Skills",
+    "Python, FastAPI, Postgres, Docker, Bash, pytest",
+    "Education",
+    "BSc Computer Science, University of the Fictional Midlands, 2021"
+  ],
+  "requirements": [
+    {
+      "text": "Bachelor's degree in Computer Science, Software Engineering or a related field",
+      "category": "EDUCATION"
+    },
+    {
+      "text": "Practical experience designing and operating REST APIs in production",
+      "category": "EXPERIENCE"
+    },
+    {
+      "text": "Shipped and maintained at least one substantial data-processing or machine-learning system",
+      "category": "PROJECT"
+    },
+    {
+      "text": "Able to explain technical trade-offs to non-technical stakeholders",
+      "category": "SOFT_SKILL_OTHER"
+    },
+    {
+      "text": "Experience with Kubernetes",
+      "category": "TECHNICAL_SKILL"
+    },
+    {
+      "text": "Familiarity with vector databases or retrieval systems",
+      "category": "TECHNICAL_SKILL"
+    },
+    {
+      "text": "Prior work on document parsing or OCR pipelines",
+      "category": "PROJECT"
+    },
+    {
+      "text": "Master's degree in a quantitative discipline",
+      "category": "EDUCATION"
+    }
+  ],
+  "response_json": {
+    "verdicts": [
+      {
+        "index": 0,
+        "verdict": "MATCHED",
+        "evidence_quote": "BSc Computer Science, University of the Fictional Midlands, 2021",
+        "reason": "The CV states a BSc in Computer Science from a named university."
+      },
+      {
+        "index": 1,
+        "verdict": "MATCHED",
+        "evidence_quote": "Designed and operated REST services in production for four years.",
+        "reason": "The CV describes designing and operating REST services in production."
+      },
+      {
+        "index": 2,
+        "verdict": "MATCHED",
+        "evidence_quote": "Document understanding pipeline: shipped and maintained a data-processing system",
+        "reason": "The CV describes shipping and maintaining a data-processing pipeline."
+      },
+      {
+        "index": 3,
+        "verdict": "PARTIAL",
+        "evidence_quote": "Presented quarterly architecture reviews to the product and operations teams.",
+        "reason": "The CV describes presenting architecture reviews to product and operations teams, but does not say whether that audience was non-technical."
+      },
+      {
+        "index": 4,
+        "verdict": "NO_EVIDENCE",
+        "evidence_quote": null,
+        "reason": "The CV does not mention Kubernetes or container orchestration."
+      },
+      {
+        "index": 5,
+        "verdict": "PARTIAL",
+        "evidence_quote": "Built similarity search over sentence embeddings stored in Postgres.",
+        "reason": "The CV describes similarity search over embeddings in Postgres, but names no dedicated vector database or retrieval system."
+      },
+      {
+        "index": 6,
+        "verdict": "MATCHED",
+        "evidence_quote": "that parses uploaded PDFs, extracts their text and indexes it for search.",
+        "reason": "The CV describes a pipeline that parses uploaded PDFs and extracts their text."
+      },
+      {
+        "index": 7,
+        "verdict": "NO_EVIDENCE",
+        "evidence_quote": null,
+        "reason": "The CV lists a bachelor's degree and no postgraduate qualification."
+      }
+    ]
+  }
+}

@@ -17,6 +17,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.enums import RequirementCategory
+from app.schemas.llm.json_schema import provider_json_schema
 
 #: Bounds on what a single extraction may return. These are guards against a
 #: degenerate reply (one giant blob, or hundreds of fragments), not opinions
@@ -68,33 +69,7 @@ def requirement_extraction_json_schema() -> dict[str, Any]:
 
     Derived from the Pydantic model rather than hand-written, so the constraint
     sent to the provider and the constraint enforced locally cannot drift.
-    `$defs`/`$ref` are inlined and `additionalProperties: false` is asserted at
-    every level, which is what the structured-output API requires.
+    The inlining itself lives in `schemas/llm/json_schema.py`, shared with the
+    profile-extraction and semantic-matching contracts.
     """
-    schema = RequirementExtractionOutput.model_json_schema()
-    return _inline_refs(schema)
-
-
-def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
-    """Resolve local `$ref`s against `$defs` and drop the `$defs` block."""
-    defs = schema.pop("$defs", {})
-
-    def resolve(node: Any) -> Any:
-        if isinstance(node, dict):
-            if "$ref" in node:
-                ref: str = node["$ref"]
-                name = ref.rsplit("/", 1)[-1]
-                target = resolve(dict(defs[name]))
-                # Keep any sibling keys (e.g. `description`) alongside the
-                # resolved target rather than discarding them.
-                extras = {key: resolve(value) for key, value in node.items() if key != "$ref"}
-                return {**target, **extras}
-            resolved = {key: resolve(value) for key, value in node.items()}
-            if resolved.get("type") == "object" and "additionalProperties" not in resolved:
-                resolved["additionalProperties"] = False
-            return resolved
-        if isinstance(node, list):
-            return [resolve(item) for item in node]
-        return node
-
-    return resolve(schema)
+    return provider_json_schema(RequirementExtractionOutput)

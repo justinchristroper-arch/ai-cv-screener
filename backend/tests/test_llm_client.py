@@ -26,10 +26,26 @@ MODEL = "claude-opus-5"
 
 
 def test_every_bundled_fixture_loads() -> None:
+    """Counted per purpose, so a new recording cannot be added unnoticed.
+
+    A bare total would drift upward silently with every milestone; this says
+    which stages have recordings and how many each has.
+    """
     fixtures = load_fixtures()
 
-    assert len(fixtures) == 6, "expected the six bundled Phase 4 fixtures"
-    assert all(key.purpose is LlmPurpose.JD_EXTRACTION for key in fixtures)
+    by_purpose: dict[LlmPurpose, int] = {}
+    for key in fixtures:
+        by_purpose[key.purpose] = by_purpose.get(key.purpose, 0) + 1
+
+    assert by_purpose == {
+        # Phase 4: happy path, a recoverable retry pair, an unrecoverable pair,
+        # and a prompt-injection attempt.
+        LlmPurpose.JD_EXTRACTION: 6,
+        # Candidate intelligence: a full CV, an injected CV, and a retry pair.
+        LlmPurpose.PROFILE_EXTRACTION: 4,
+        # Candidate intelligence: the undecided pairs for each of those CVs.
+        LlmPurpose.SEMANTIC_MATCH: 2,
+    }
 
 
 def test_retry_fixtures_share_an_input_hash_and_differ_by_attempt() -> None:
