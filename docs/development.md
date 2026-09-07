@@ -359,7 +359,36 @@ every broken link with its file and line number.
 
 ---
 
-## 15. Stop the development environment
+## 15. Run the evaluation harness
+
+```powershell
+cd C:\path	oi-cv-screener
+backend\.venv\Scripts\python.exe -m evaluation.runner
+```
+
+Run it from the **repository root**, not from `backend\` — the package is
+`evaluation`, and the runner puts `backend\` on `sys.path` itself. It rewrites
+`evaluation/results.json` and `evaluation/RESULTS.md` in place, so a change to a
+matcher shows up as a diff in the results file.
+
+Skill aliases live in a database table, so the alias matcher needs PostgreSQL
+running (section 6) to be measured. Without one, pass `--no-db` and alias
+matching is evaluated as if the table were empty:
+
+```powershell
+backend\.venv\Scripts\python.exe -m evaluation.runner --no-db
+```
+
+The numbers differ between the two modes, which is why the results file records
+which one produced it. Neither mode calls a language model or needs an API key.
+
+[`evaluation/README.md`](../evaluation/README.md) explains the dataset and why
+none of it is model-generated; [`evaluation/RESULTS.md`](../evaluation/RESULTS.md)
+holds the measurements.
+
+---
+
+## 16. Stop the development environment
 
 ```powershell
 # Ctrl+C in each dev-server terminal, then:
@@ -371,7 +400,7 @@ docker compose down -v       # stop PostgreSQL and DELETE all data
 
 ---
 
-## 16. Continuous integration
+## 17. Continuous integration
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push
 and pull request to `main`, as three independent jobs:
@@ -407,7 +436,7 @@ as two different claims; only the first is currently true.
 
 ---
 
-## 17. Task script reference
+## 18. Task script reference
 
 `tasks.ps1` is a thin PowerShell wrapper, not a build system — every task is one
 or two of the commands above.
@@ -422,6 +451,7 @@ or two of the commands above.
 | `.\tasks.ps1 test` / `test-backend` / `test-frontend` | run tests |
 | `.\tasks.ps1 lint` / `format` | lint or format both halves |
 | `.\tasks.ps1 check-docs` | check docs for broken relative links and anchors |
+| `.\tasks.ps1 evaluate` | run the evaluation harness (`--no-db` passes through) |
 | `.\tasks.ps1` | print this list |
 
 If PowerShell refuses to run it, either allow local scripts for the session:
@@ -434,7 +464,7 @@ or just use the underlying commands — nothing depends on the script.
 
 ---
 
-## 18. Troubleshooting
+## 19. Troubleshooting
 
 **`ModuleNotFoundError: No module named 'psycopg2'`**
 `DATABASE_URL` is missing the driver suffix. Use `postgresql+psycopg://`.
@@ -470,7 +500,7 @@ if you have nvm installed.
 
 ---
 
-## 19. What is not set up yet
+## 20. What is not set up yet
 
 Deliberately absent, arriving in the phase named:
 
@@ -487,7 +517,7 @@ Deliberately absent, arriving in the phase named:
 
 ---
 
-## 20. The LLM layer, demo mode, and fixtures
+## 21. The LLM layer, demo mode, and fixtures
 
 Everything that talks to a language model sits behind one protocol in
 `backend/app/llm/client.py`:
@@ -558,7 +588,7 @@ and is never logged or returned in a response.
 
 ---
 
-## 21. CV upload and PDF parsing
+## 22. CV upload and PDF parsing
 
 Uploading a CV runs a fixed, deterministic pipeline. No language model is
 involved: turning a PDF into text is mechanical, and keeping it mechanical is

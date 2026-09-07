@@ -18,7 +18,7 @@ from app.core.enums import JdSourceType, RequirementOrigin
 from app.core.errors import NotFoundError
 from app.core.hashing import sha256_text
 from app.models.job import Job, JobDescription, Requirement
-from app.services import invalidation
+from app.services import document_parsing, invalidation
 
 
 @dataclass(frozen=True)
@@ -71,6 +71,30 @@ def list_jobs(db: Session, *, limit: int = 100) -> list[JobSummary]:
 
 def get_description(db: Session, job_id: uuid.UUID) -> JobDescription | None:
     return db.scalar(select(JobDescription).where(JobDescription.job_id == job_id))
+
+
+def injection_flags(description: JobDescription) -> list[dict]:
+    """Passages in a job description that read as instructions to the system.
+
+    The same scanner the parser runs over CV text (docs/architecture.md section
+    5), pointed at the other untrusted channel. Today a description is typed by
+    an authenticated colleague, but it becomes an arbitrary-text input to a
+    model the moment a live provider is configured, and an untrusted channel
+    nobody looks at is the one that gets used.
+
+    **Computed on read rather than stored.** For a CV the flags are provenance:
+    they describe the exact text every later quote is verified against, so they
+    belong on the row. A description has no such substrate, and scanning on read
+    means a description written before a pattern was added is still covered by
+    it — stored flags would quietly go stale instead.
+
+    Flagged, never stripped, and never a reason to reject the description. The
+    load-bearing controls are elsewhere and unchanged: the text goes to the
+    model inside a delimited data block and never into the system prompt, the
+    reply is validated against a schema with no field for an instruction, and a
+    human reviews and confirms every requirement before anything is screened.
+    """
+    return document_parsing.scan_for_injection(description.raw_text)
 
 
 def set_description(

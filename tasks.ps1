@@ -127,6 +127,14 @@ switch ($Task) {
         python (Join-Path $Root "scripts\check_docs.py")
     }
 
+    "evaluate" {
+        # Run from the repository root: the package is `evaluation`, and the
+        # runner puts backend\ on sys.path itself. Extra arguments pass through,
+        # so `.\tasks.ps1 evaluate --no-db` works with no PostgreSQL running.
+        Require-Venv
+        Invoke-InDir $Root { & $Python -m evaluation.runner @Rest }
+    }
+
     default {
         Write-Host @"
 AI CV Screener — developer commands
@@ -147,6 +155,8 @@ AI CV Screener — developer commands
   .\tasks.ps1 lint           Lint and format-check both halves
   .\tasks.ps1 format         Apply formatting to both halves
   .\tasks.ps1 check-docs     Check docs for broken relative links and anchors
+  .\tasks.ps1 evaluate       Measure the pipeline and rewrite evaluation/RESULTS.md
+                             (add --no-db to run without PostgreSQL)
 
 There is no single 'dev' task: the two servers are long-running, so run
 dev-backend and dev-frontend in separate terminals.

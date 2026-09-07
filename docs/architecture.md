@@ -173,6 +173,20 @@ Three channels, kept apart at every layer:
 
 Suspicious patterns found during parsing are **flagged and surfaced to the recruiter**, not stripped. Stripping would hide an attempted attack and silently alter evidence text so that later verification fails for the wrong reason.
 
+**Verification alone is not sufficient, and the second rule says why.** An injected sentence really is in the document, so a quote citing it verifies. A quote that verifies but reads as an instruction is therefore refused as evidence on its own terms (`INSTRUCTION_EVIDENCE_REASON`), not because it could not be found.
+
+### 5.1 The job description is untrusted too
+
+"Semi-trusted" describes the channel's authority, not the text's content: an HR user pastes arbitrary text from an arbitrary source, and that text is rendered into a prompt. It gets the same treatment a CV does, with one difference that follows from what a job description is.
+
+- **Scanned for instruction-like passages**, using the same scanner as CV parsing (`document_parsing.scan_for_injection`). One implementation, so a pattern added for one input is live for the other.
+- **Flagged and surfaced, never removed and never obeyed.** The flags travel on the job-description API response and the UI shows them on the description panel — before extraction, and before the recruiter confirms.
+- **Never a reason to reject the description.** A refusal on a keyword match would block legitimate criteria, and the wording a recruiter uses is theirs to choose.
+- **Scanned on read, not stored.** A description has no evidence substrate — nothing is ever quoted back out of it and verified against it, the way a CV's `full_text` is — so a flag has no offsets to anchor and nothing downstream depends on it. Computing it on read costs one scan of text already in memory, and means a description written before a pattern existed is scanned against that pattern the next time anyone looks at it. This is the only place the two inputs are treated differently, and the difference is deliberate.
+- **The confirmation gate is what makes this safe.** Whatever the description says, nothing derived from it screens a candidate until a human has reviewed and confirmed the requirement set (ADR-0004). An instruction that survives every other control still has to get past a person reading the requirement it produced.
+
+Bounds apply at the same boundary: the description is length-capped at 100,000 characters and rejected when blank, and control characters that cannot be stored — a NUL surviving a copy out of a PDF viewer — are stripped rather than turned into an opaque server error. Nothing visible is altered.
+
 ---
 
 ## 6. Evidence verification

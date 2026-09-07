@@ -131,6 +131,19 @@ export function JobDescriptionPanel({
         <>
           <pre className="jd-preview">{existing.raw_text}</pre>
 
+          {/* The same treatment a CV gets: flagged, kept, never obeyed. Shown
+              here because this is where a person can still act on it — before
+              requirements are extracted from the text and confirmed. */}
+          {existing.injection_flag_count > 0 ? (
+            <Callout tone="warn" title="This description contains instruction-like text">
+              {existing.injection_flag_count} passage
+              {existing.injection_flag_count === 1 ? "" : "s"} here read as instructions addressed
+              to the system rather than as a statement of what the role needs. The text is flagged
+              and kept, never removed and never acted on, and you still review and confirm every
+              requirement before any candidate is screened against it.
+            </Callout>
+          ) : null}
+
           {/* Said here, before the Extract button further down the page, rather
               than after the user presses it and gets a failure. Demo mode
               replays AI responses recorded in advance, so it can only answer

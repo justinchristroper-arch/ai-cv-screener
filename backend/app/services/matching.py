@@ -51,7 +51,7 @@ from app.core.enums import (
     MatchVerdict,
     RequirementCategory,
 )
-from app.core.errors import ConflictError
+from app.core.errors import ConflictError, ExtractionFailedError
 from app.llm.client import LlmClient
 from app.models.audit import SkillAlias
 from app.models.candidate import Candidate, ParsedDocument
@@ -100,6 +100,26 @@ _SKILL_ALLOWED = re.compile(r"[^a-z0-9+#.\s-]")
 
 _WHITESPACE = re.compile(r"\s+")
 
+#: Shortest token this matcher will accept as *naming* a skill.
+#:
+#: Found by measurement, not by taste. The evaluation set contains a candidate
+#: listing "Go" against a requirement reading "…the ability to **go** deep on
+#: latency problems": a one- or two-character token occurs inside ordinary
+#: English often enough that its presence is not evidence the requirement names
+#: the technology. Longer tokens do not have that problem — "sql" and "c++" are
+#: not English words.
+#:
+#: The check applies to the **form being searched for**, not to the skill's own
+#: name, so a CV listing "js" still matches a requirement naming "JavaScript"
+#: through the alias table: the token actually looked for there is ten
+#: characters long and unambiguous.
+#:
+#: Nothing is lost from a candidate by this. A pair the matcher declines is
+#: routed to the model, which can read the sentence; deterministic-first is a
+#: cost and reproducibility optimisation (docs/architecture.md section 4.1), not
+#: the thing that makes a verdict correct. See evaluation/RESULTS.md.
+MIN_SEARCHABLE_TOKEN_LENGTH = 3
+
 
 def normalize_skill_name(name: str) -> str:
     """Casefold and strip a skill name to a comparable form.
@@ -146,6 +166,31 @@ _YEARS = re.compile(r"(\d+)\s*(?:\+|or more)?\s*(?:years?|yrs?)\b", re.I)
 _YEAR_RANGE = re.compile(r"(\d+)\s*(?:-|--|to)\s*\d+\s*(?:years?|yrs?)\b", re.I)
 _MONTHS = re.compile(r"(\d+)\s*months?\b", re.I)
 
+#: Words that turn a duration into a ceiling or a window rather than a floor.
+#:
+#: Also found by measurement. "Has taken a system from prototype to production
+#: **within** two years" states no minimum length of career at all, but the
+#: parser read it as one and reported a shortfall against a fourteen-month CV —
+#: a verdict about the wrong question. A duration introduced by one of these is
+#: not a minimum, so the matcher declines and the pair goes to the model.
+#:
+#: This is a negative rule and therefore fails **open**: a bounding construction
+#: not listed here will still be read as a minimum. Two things limit the damage.
+#: The duration matcher can only ever return PARTIAL, never MATCHED, so a
+#: misreading understates rather than overstates; and the requirement text is in
+#: front of the recruiter next to the verdict. Recorded rather than hidden.
+_BOUNDING_CUE = re.compile(
+    r"\b(?:within|under|inside|at\s+most|up\s+to|less\s+than|fewer\s+than|"
+    r"no\s+more\s+than|shorter\s+than|in\s+under)\s*$",
+    re.I,
+)
+
+
+def _states_a_minimum(text: str, start: int) -> bool:
+    """Whether the duration beginning at `start` reads as a floor."""
+    return _BOUNDING_CUE.search(text[:start]) is None
+
+
 #: Slack applied before declaring a shortfall. A CV that says "2019-2024"
 #: describes somewhere between four and six years depending on the months
 #: nobody wrote down; asserting a shortfall inside that margin would be
@@ -159,16 +204,29 @@ def parse_required_months(text: str) -> int | None:
     A range takes its **lower** bound: "3-5 years of experience" is met at
     three. Reading it as five would invent a stricter requirement than the job
     description states.
+
+    A duration introduced by a bounding word — "within two years", "in under six
+    months" — states a window, not a floor, and is ignored. A bare "5 years of
+    experience" is still read as a minimum, because that is what it means in a
+    job description.
     """
     range_match = _YEAR_RANGE.search(text)
-    if range_match:
+    if range_match and _states_a_minimum(text, range_match.start()):
         return int(range_match.group(1)) * 12
 
-    year_matches = [int(match.group(1)) for match in _YEARS.finditer(text)]
+    year_matches = [
+        int(match.group(1))
+        for match in _YEARS.finditer(text)
+        if _states_a_minimum(text, match.start())
+    ]
     if year_matches:
         return min(year_matches) * 12
 
-    month_matches = [int(match.group(1)) for match in _MONTHS.finditer(text)]
+    month_matches = [
+        int(match.group(1))
+        for match in _MONTHS.finditer(text)
+        if _states_a_minimum(text, match.start())
+    ]
     if month_matches:
         return min(month_matches)
 
@@ -302,6 +360,8 @@ def _match_skill(
     ]
 
     for skill in usable:
+        if len(skill.normalized_name) < MIN_SEARCHABLE_TOKEN_LENGTH:
+            continue
         if _occurs_as_token(skill.normalized_name, haystack):
             return Decision(
                 requirement_id=requirement.id,
@@ -313,6 +373,8 @@ def _match_skill(
 
     for skill in usable:
         for form in sorted(skill_alias_forms(skill.normalized_name, alias_map)):
+            if len(form) < MIN_SEARCHABLE_TOKEN_LENGTH:
+                continue
             if _occurs_as_token(form, haystack):
                 return Decision(
                     requirement_id=requirement.id,
@@ -492,13 +554,26 @@ def run_matching(db: Session, candidate_id: uuid.UUID, client: LlmClient) -> Mat
 
     evaluation: semantic_eval.SemanticEvaluation | None = None
     if undecided:
-        evaluation = semantic_eval.evaluate(
-            db,
-            candidate=candidate,
-            parsed_document=parsed,
-            requirements=undecided,
-            client=client,
-        )
+        try:
+            evaluation = semantic_eval.evaluate(
+                db,
+                candidate=candidate,
+                parsed_document=parsed,
+                requirements=undecided,
+                client=client,
+            )
+        except ExtractionFailedError as exc:
+            # The model could not be reached, or returned unusable output twice.
+            # docs/architecture.md section 8: on exhaustion that candidate is
+            # FAILED and logged. Recording it on the candidate is what makes the
+            # failure visible in the ranked list instead of leaving someone who
+            # was never screened sitting silently among those who were.
+            #
+            # A missing fixture in demo mode raises LlmUnavailableError, which is
+            # deliberately not caught here: that is an operator's configuration
+            # problem, not a fault in the candidate's document.
+            mark_matching_failed(db, candidate, str(exc))
+            raise
 
     writer = SpanWriter(db, parsed)
     if evaluation is not None:

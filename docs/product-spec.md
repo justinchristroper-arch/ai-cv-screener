@@ -422,6 +422,8 @@ An LLM feature without measurement is a demo, not engineering. The evaluation se
 
 **Reporting rules:** results are published in `evaluation/` together with the exact dataset and command needed to reproduce them. Sample sizes are stated next to every number. No metric is reported without its denominator, and no claim about real-world hiring accuracy is made from synthetic data.
 
+**A metric that cannot be measured honestly is reported as unmeasured, with its reason.** It is never dropped, and never filled in with a number produced by a circular procedure. This is not hypothetical: six of the metrics above are downstream of the language model, and offline the only model output available is a recording written by the same author as the labels — scoring one against the other would measure that author's consistency. Those six need a live provider and say so. The remaining metrics describe this application's deterministic code, which is measurable now, and are labelled as such. See [evaluation/RESULTS.md](../evaluation/RESULTS.md).
+
 ---
 
 ## 17. Major limitations
@@ -455,7 +457,7 @@ Stated plainly, because a specification that hides these is not credible.
 - Automation bias in the human user is not measured.
 
 **Engineering**
-- The evaluation set is small and synthetic; the metrics indicate behaviour, not production accuracy.
+- The evaluation set is small and synthetic; the metrics indicate this application's deterministic behaviour on that set, not production accuracy, not model quality, and not fairness.
 - Single workspace; no authentication or multi-tenancy in the MVP.
 - Not load-tested; batch sizes are modest.
 - No data-retention or deletion workflow — a blocker for handling real personal data.

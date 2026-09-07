@@ -15,6 +15,7 @@ import pytest
 
 from app.core.enums import DatePrecision
 from app.models.profile import ProfileExperience
+from app.services import matching
 from app.services.matching import (
     describe_months,
     normalize_skill_name,
@@ -217,3 +218,77 @@ def test_durations_are_described_the_way_a_recruiter_would_check_them(
     months: int, expected: str
 ) -> None:
     assert describe_months(months) == expected
+
+
+# --------------------------------------------------------------------------
+# Two narrowings found by the evaluation harness (evaluation/RESULTS.md)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("skill", "requirement", "why"),
+    [
+        ("Go", "the ability to go deep on latency problems", "go is ordinary English here"),
+        ("R", "Experience with R&D processes", "R is a letter in a compound word here"),
+        ("C", "Willingness to c through a task", "one letter proves nothing"),
+    ],
+)
+def test_a_very_short_token_is_not_treated_as_naming_a_skill(
+    skill: str, requirement: str, why: str
+) -> None:
+    """Measured, not guessed.
+
+    The evaluation set contains a candidate listing "Go" against a requirement
+    reading "the ability to go deep on latency problems", and the matcher
+    reported MATCHED with evidence attached. Containment of a one- or
+    two-character token is not evidence that a requirement names a technology.
+    """
+    normalized = normalize_skill_name(skill)
+
+    assert len(normalized) < matching.MIN_SEARCHABLE_TOKEN_LENGTH, why
+
+
+def test_a_short_skill_still_matches_through_a_longer_alias() -> None:
+    """The length rule applies to the token searched for, not to the skill.
+
+    A CV listing "js" still matches a requirement naming JavaScript, because the
+    token actually looked for is ten characters long and unambiguous.
+    """
+    forms = skill_alias_forms("js", {"js": "javascript"})
+
+    assert "javascript" in forms
+    assert all(len(form) >= matching.MIN_SEARCHABLE_TOKEN_LENGTH for form in forms)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Has taken a system from prototype to production within 2 years",
+        "Delivered a migration in under 6 months",
+        "Shipped a rewrite in less than 3 years",
+        "Onboards new engineers in up to 2 months",
+    ],
+)
+def test_a_bounded_period_is_not_read_as_a_minimum(text: str) -> None:
+    """A window is not a floor.
+
+    The evaluation set contains "…prototype to production within 2 years", which
+    the parser read as a two-year minimum and then reported a shortfall against
+    a fourteen-month CV — a verdict about a question the requirement never asked.
+    """
+    assert parse_required_months(text) is None
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("At least 5 years of professional experience", 60),
+        ("5+ years of backend engineering", 60),
+        ("2 yrs of production experience", 24),
+        ("18 months of relevant experience", 18),
+        ("3-5 years of experience", 36),
+    ],
+)
+def test_a_stated_minimum_still_parses_after_the_narrowing(text: str, expected: int) -> None:
+    """The fix must not cost the readings that were already correct."""
+    assert parse_required_months(text) == expected

@@ -25,7 +25,7 @@ const CUSTOM_TEXT = [
   "ipk di atas 3",
 ].join("\n");
 
-function description(rawText: string) {
+function description(rawText: string, injectionFlagCount = 0) {
   return {
     body: {
       id: "jd-1",
@@ -34,13 +34,20 @@ function description(rawText: string) {
       source_filename: null,
       raw_text: rawText,
       text_sha256: "abc",
+      injection_flag_count: injectionFlagCount,
       created_at: "2026-09-07T09:10:00Z",
     },
   };
 }
 
-function renderPanel(rawText: string, samples: typeof DEMO_SAMPLES.body | null) {
-  stubFetch({ "GET /api/jobs/job-1/description": description(rawText) });
+function renderPanel(
+  rawText: string,
+  samples: typeof DEMO_SAMPLES.body | null,
+  injectionFlagCount = 0,
+) {
+  stubFetch({
+    "GET /api/jobs/job-1/description": description(rawText, injectionFlagCount),
+  });
   return render(
     <JobDescriptionPanel jobId="job-1" confirmed={false} samples={samples} onSaved={() => {}} />,
   );
@@ -104,5 +111,31 @@ describe("demo mode and a custom job description", () => {
 
     expect(await screen.findByText(/lulusan univ top 10/)).toBeInTheDocument();
     expect(screen.queryByText(/cannot be analysed in demo mode/i)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * A job description is untrusted text in exactly the way a CV is: a person can
+ * paste anything into it, including a line addressed to the system rather than
+ * to a reader. The application never obeys such a line, but the recruiter is the
+ * one who confirms the requirements read out of this text, so they are told.
+ */
+describe("instruction-like text in a job description", () => {
+  it("tells the reviewer when passages read as instructions", async () => {
+    renderPanel(SAMPLE_TEXT, null, 2);
+
+    const callout = await screen.findByText(/contains instruction-like text/i);
+    const body = callout.closest(".callout") as HTMLElement;
+
+    expect(body).toHaveTextContent(/2 passages/i);
+    expect(body).toHaveTextContent(/never removed and never acted on/i);
+    expect(body).toHaveTextContent(/you still review and confirm every requirement/i);
+  });
+
+  it("says nothing about instructions for an ordinary description", async () => {
+    renderPanel(SAMPLE_TEXT, null);
+
+    expect(await screen.findByText(/Backend Engineer/i)).toBeInTheDocument();
+    expect(screen.queryByText(/instruction-like text/i)).not.toBeInTheDocument();
   });
 });

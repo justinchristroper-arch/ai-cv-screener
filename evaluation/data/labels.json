@@ -1,0 +1,112 @@
+{
+  "description": "The reference answer for every (candidate, requirement) pair, written by reading the CV text against the requirement and before running the pipeline. `layer` records which part of the system ought to settle the pair: DETERMINISTIC means ordinary code has enough to decide it, SEMANTIC means only a reader can. Disagreement on `layer` is as interesting as disagreement on `verdict` — code deciding a pair it should have left alone is the costliest error this system can make, because it produces a confident verdict with evidence attached.",
+  "verdict_values": ["MATCHED", "PARTIAL", "NO_EVIDENCE"],
+  "layer_values": ["DETERMINISTIC", "SEMANTIC"],
+  "candidates": {
+    "ada-whitfield": {
+      "a0": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "The CV states a BSc in Computer Science." },
+      "a1": { "verdict": "PARTIAL", "layer": "DETERMINISTIC", "why": "Listed roles total 55 months against a stated minimum of 60. Arithmetic settles it." },
+      "a2": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Python is listed among the skills." },
+      "a3": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "FastAPI is listed among the skills." },
+      "a4": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Postgres is listed; the alias table maps it to PostgreSQL." },
+      "a5": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Docker is listed among the skills." },
+      "a6": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "The CV says REST services were designed and operated in production." },
+      "a7": { "verdict": "PARTIAL", "layer": "SEMANTIC", "why": "A document pipeline is mentioned, but not as a system shipped and maintained." },
+      "a8": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Nothing in the CV describes explaining trade-offs to anyone." },
+      "a9": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Kubernetes is not mentioned." },
+      "a10": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No vector database or retrieval system is mentioned." },
+      "a11": { "verdict": "PARTIAL", "layer": "SEMANTIC", "why": "A document pipeline is named, but neither parsing nor OCR is described." },
+      "a12": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No postgraduate qualification is listed." }
+    },
+    "bao-nguyen-okafor": {
+      "a0": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "Identical to ada-whitfield by construction." },
+      "a1": { "verdict": "PARTIAL", "layer": "DETERMINISTIC", "why": "Identical to ada-whitfield by construction." },
+      "a2": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Identical to ada-whitfield by construction." },
+      "a3": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Identical to ada-whitfield by construction." },
+      "a4": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Identical to ada-whitfield by construction." },
+      "a5": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Identical to ada-whitfield by construction." },
+      "a6": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "Identical to ada-whitfield by construction." },
+      "a7": { "verdict": "PARTIAL", "layer": "SEMANTIC", "why": "Identical to ada-whitfield by construction." },
+      "a8": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Identical to ada-whitfield by construction." },
+      "a9": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Identical to ada-whitfield by construction." },
+      "a10": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Identical to ada-whitfield by construction." },
+      "a11": { "verdict": "PARTIAL", "layer": "SEMANTIC", "why": "Identical to ada-whitfield by construction." },
+      "a12": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Identical to ada-whitfield by construction." }
+    },
+    "priya-raman": {
+      "a0": { "verdict": "PARTIAL", "layer": "SEMANTIC", "why": "A master's in a related field is stated; the bachelor's the requirement names is not." },
+      "a1": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "Six years of listed experience exceeds the minimum, but whether it is backend work is a judgement." },
+      "a2": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Python is listed among the skills." },
+      "a3": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "FastAPI is not mentioned." },
+      "a4": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "SQL is listed; PostgreSQL is not, and one is not the other." },
+      "a5": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Docker is listed among the skills." },
+      "a6": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No REST or API work is described." },
+      "a7": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "Ranking models trained and deployed to internal tools is a machine-learning system." },
+      "a8": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Nothing describes explaining trade-offs to anyone." },
+      "a9": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Kubernetes is not mentioned." },
+      "a10": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No vector database or retrieval system is mentioned." },
+      "a11": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No document parsing or OCR work is described." },
+      "a12": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "An MSc in Machine Learning is a quantitative discipline." }
+    },
+    "sam-okonkwo": {
+      "a0": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "The CV has no education section." },
+      "a1": { "verdict": "PARTIAL", "layer": "DETERMINISTIC", "why": "Listed roles total 36 months against a stated minimum of 60." },
+      "a2": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Python is not mentioned." },
+      "a3": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "FastAPI is not mentioned." },
+      "a4": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "SQL is listed; PostgreSQL is not." },
+      "a5": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Docker is not mentioned." },
+      "a6": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No API work is described." },
+      "a7": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Weekly reporting is not a data-processing system in the sense meant." },
+      "a8": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Nothing describes explaining trade-offs to anyone." },
+      "a9": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Kubernetes is not mentioned." },
+      "a10": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No vector database or retrieval system is mentioned." },
+      "a11": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No document parsing or OCR work is described." },
+      "a12": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No postgraduate qualification is listed." }
+    },
+    "jordan-blake": {
+      "a0": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "The CV has no education section." },
+      "a1": { "verdict": "PARTIAL", "layer": "DETERMINISTIC", "why": "Three years of listed experience against a stated minimum of five, a gap wider than the year-precision margin." },
+      "a2": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Python is listed, and the supporting line is ordinary CV content." },
+      "a3": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "FastAPI is not mentioned." },
+      "a4": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "PostgreSQL is not mentioned." },
+      "a5": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Docker is not mentioned." },
+      "a6": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No API work is described." },
+      "a7": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Internal tooling is not a substantial data-processing system." },
+      "a8": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Nothing describes explaining trade-offs to anyone." },
+      "a9": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "A skill claimed only by an instruction planted in the document is not evidence of anything. Code must refuse it and leave the pair undecided." },
+      "a10": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No vector database or retrieval system is mentioned." },
+      "a11": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No document parsing or OCR work is described." },
+      "a12": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No postgraduate qualification is listed." }
+    },
+    "rina-costa": {
+      "b0": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "R is listed among the skills and the requirement names R." },
+      "b1": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Go is listed among the skills and the requirement names Go." },
+      "b2": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "Excel is listed among the skills and the requirement names Excel." },
+      "b3": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "The CV says nothing about distributed tracing or latency work. The word 'go' appears in this requirement as ordinary English, not as the language." },
+      "b4": { "verdict": "MATCHED", "layer": "DETERMINISTIC", "why": "C is listed among the skills and the requirement names C." },
+      "b5": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Nothing describes working under pressure. 'excel' here is a verb, and the requirement is not a technical skill." },
+      "b6": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "Five years of listed data engineering exceeds the minimum, but whether it is the right kind is a judgement." },
+      "b7": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "The CV says nothing about taking a system from prototype to production." }
+    },
+    "tom-becker": {
+      "b0": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "R is not mentioned." },
+      "b1": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Go is not mentioned." },
+      "b2": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Excel is not mentioned." },
+      "b3": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No distributed tracing or latency work is described." },
+      "b4": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "C is not mentioned." },
+      "b5": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Nothing describes working under pressure." },
+      "b6": { "verdict": "MATCHED", "layer": "SEMANTIC", "why": "Seven years of listed platform engineering exceeds the minimum, but whether it is data engineering is a judgement." },
+      "b7": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "The CV says nothing about taking a system from prototype to production." }
+    },
+    "lena-fischer": {
+      "b0": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "R is not mentioned." },
+      "b1": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Go is not mentioned." },
+      "b2": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Excel is not mentioned." },
+      "b3": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "No distributed tracing or latency work is described." },
+      "b4": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "C is not mentioned." },
+      "b5": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "Nothing describes working under pressure." },
+      "b6": { "verdict": "PARTIAL", "layer": "DETERMINISTIC", "why": "Fourteen months of listed experience against a stated minimum of four years. Arithmetic settles it." },
+      "b7": { "verdict": "NO_EVIDENCE", "layer": "SEMANTIC", "why": "This requirement mentions a period but does not state a minimum length of career. A shortfall verdict here would be a misreading, not an arithmetic fact." }
+    }
+  }
+}

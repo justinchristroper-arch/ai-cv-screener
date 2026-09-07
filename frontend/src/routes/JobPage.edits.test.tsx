@@ -50,6 +50,7 @@ const DESCRIPTION = {
     source_filename: null,
     raw_text: "Senior Backend Engineer at Northwind Analytics",
     text_sha256: "abc",
+    injection_flag_count: 0,
     created_at: "2026-09-07T09:10:00Z",
   },
 };

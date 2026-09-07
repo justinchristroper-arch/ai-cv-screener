@@ -1,0 +1,167 @@
+{
+  "description": "Jobs and their confirmed requirement sets for the evaluation dataset. These are authored by hand, exactly as HR may add requirements by hand through the API, and are deliberately NOT produced by running the extraction model. That matters: a requirement set generated from a recorded model reply and then labelled by the same author would measure nothing but that author's consistency. Here the requirements are the fixed input and the labels are an independent judgement about them.",
+  "as_of": "2026-09-07",
+  "jobs": [
+    {
+      "id": "job-backend",
+      "title": "Backend Engineer",
+      "note": "Mirrors the shape of the bundled demo job: a realistic set with a duration requirement, four named technologies, and several requirements only a reader can settle.",
+      "requirements": [
+        {
+          "id": "a0",
+          "text": "Bachelor's degree in Computer Science, Software Engineering or a related field",
+          "category": "EDUCATION",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a1",
+          "text": "At least 5 years of professional experience building backend services",
+          "category": "EXPERIENCE",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a2",
+          "text": "Strong experience with Python",
+          "category": "TECHNICAL_SKILL",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a3",
+          "text": "Strong experience with FastAPI",
+          "category": "TECHNICAL_SKILL",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a4",
+          "text": "Strong experience with PostgreSQL",
+          "category": "TECHNICAL_SKILL",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a5",
+          "text": "Strong experience with Docker",
+          "category": "TECHNICAL_SKILL",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a6",
+          "text": "Practical experience designing and operating REST APIs in production",
+          "category": "EXPERIENCE",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a7",
+          "text": "Shipped and maintained at least one substantial data-processing or machine-learning system",
+          "category": "PROJECT",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a8",
+          "text": "Able to explain technical trade-offs to non-technical stakeholders",
+          "category": "SOFT_SKILL_OTHER",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "a9",
+          "text": "Experience with Kubernetes",
+          "category": "TECHNICAL_SKILL",
+          "must_have": false,
+          "weight": "1.00"
+        },
+        {
+          "id": "a10",
+          "text": "Familiarity with vector databases or retrieval systems",
+          "category": "TECHNICAL_SKILL",
+          "must_have": false,
+          "weight": "1.00"
+        },
+        {
+          "id": "a11",
+          "text": "Prior work on document parsing or OCR pipelines",
+          "category": "PROJECT",
+          "must_have": false,
+          "weight": "1.00"
+        },
+        {
+          "id": "a12",
+          "text": "Master's degree in a quantitative discipline",
+          "category": "EDUCATION",
+          "must_have": false,
+          "weight": "1.00"
+        }
+      ]
+    },
+    {
+      "id": "job-data-platform",
+      "title": "Data Platform Engineer",
+      "note": "Written to stress the deterministic matchers. Several requirements name skills whose normalized form is one or two characters long (R, Go, C, Excel), and one requirement contains such a word as ordinary prose rather than as a technology. A recruiter would write requirements like these without thinking twice.",
+      "requirements": [
+        {
+          "id": "b0",
+          "text": "Strong experience with R",
+          "category": "TECHNICAL_SKILL",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "b1",
+          "text": "Strong experience with Go",
+          "category": "TECHNICAL_SKILL",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "b2",
+          "text": "Advanced Excel for financial data modelling",
+          "category": "TECHNICAL_SKILL",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "b3",
+          "text": "Experience with distributed tracing, and the ability to go deep on latency problems",
+          "category": "TECHNICAL_SKILL",
+          "must_have": false,
+          "weight": "1.00"
+        },
+        {
+          "id": "b4",
+          "text": "Experience with C",
+          "category": "TECHNICAL_SKILL",
+          "must_have": false,
+          "weight": "1.00"
+        },
+        {
+          "id": "b5",
+          "text": "Ability to excel under pressure in a fast-moving team",
+          "category": "SOFT_SKILL_OTHER",
+          "must_have": false,
+          "weight": "1.00"
+        },
+        {
+          "id": "b6",
+          "text": "At least 4 years of professional data engineering experience",
+          "category": "EXPERIENCE",
+          "must_have": true,
+          "weight": "3.00"
+        },
+        {
+          "id": "b7",
+          "text": "Has taken a system from prototype to production within 2 years",
+          "category": "EXPERIENCE",
+          "must_have": false,
+          "weight": "1.00"
+        }
+      ]
+    }
+  ]
+}

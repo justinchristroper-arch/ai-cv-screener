@@ -83,6 +83,22 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 
+def strip_control_characters(text: str) -> str:
+    """Remove characters that carry no meaning and cannot be stored.
+
+    A subset of `normalize_text`, for text that must otherwise be preserved
+    exactly. Pasted input picks up stray control bytes — a NUL survives a copy
+    out of some PDF viewers — and PostgreSQL refuses NUL in a text column, so
+    without this a recruiter's paste becomes an opaque server error instead of
+    being accepted.
+
+    Tab, newline and carriage return are kept: they are real layout, and the
+    caller's text is otherwise returned byte for byte. Nothing visible is
+    changed, so this cannot quietly alter what someone wrote.
+    """
+    return _CONTROL_CHARACTERS.sub("", text)
+
+
 def has_meaningful_text(text: str) -> bool:
     """True when the text contains anything beyond whitespace.
 

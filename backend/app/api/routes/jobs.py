@@ -14,6 +14,7 @@ from fastapi import APIRouter, status
 
 from app.api.deps import LlmClientDep, SessionDep
 from app.core.errors import NotFoundError
+from app.models.job import JobDescription
 from app.schemas.api.jobs import (
     ExtractionResponse,
     JobCreateRequest,
@@ -34,6 +35,18 @@ from app.schemas.api.ranking import (
 from app.services import jd_extraction, jobs, ranking, requirements
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+
+
+def _description_response(description: JobDescription) -> JobDescriptionResponse:
+    """Attach the injection flags, which are computed rather than stored."""
+    flags = jobs.injection_flags(description)
+    return JobDescriptionResponse(
+        **JobDescriptionResponse.model_validate(description).model_dump(
+            exclude={"injection_flags", "injection_flag_count"}
+        ),
+        injection_flags=flags,
+        injection_flag_count=len(flags),
+    )
 
 
 def _job_response(summary: jobs.JobSummary) -> JobResponse:
@@ -97,7 +110,7 @@ def set_description(
         source_type=payload.source_type,
         source_filename=payload.source_filename,
     )
-    return JobDescriptionResponse.model_validate(description)
+    return _description_response(description)
 
 
 @router.get(
@@ -111,7 +124,7 @@ def get_description(job_id: uuid.UUID, db: SessionDep) -> JobDescriptionResponse
     description = jobs.get_description(db, job_id)
     if description is None:
         raise NotFoundError("This job has no job description yet.")
-    return JobDescriptionResponse.model_validate(description)
+    return _description_response(description)
 
 
 @router.post(

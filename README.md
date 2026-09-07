@@ -60,7 +60,7 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Backend | 🟡 The whole pipeline: jobs, job descriptions, requirement extraction + CRUD, confirmation gate, CV upload and PDF text extraction, candidate profile extraction, evidence verification, requirement matching with evidence-backed verdicts, deterministic scoring, and ranking. **No screening UI yet.** |
 | Frontend | 🟡 The full workflow — job creation, JD entry, requirement review and confirmation, batch upload, screening progress, ranked results, candidate detail with evidence. React + Vite, zero runtime dependencies beyond React. |
 | Database | 🟡 PostgreSQL 16 in Docker; all 16 tables migrated via Alembic |
-| Tests | 🟡 611 passing (549 backend, 62 frontend) |
+| Tests | 🟡 687 passing (604 backend, 83 frontend) |
 | CI | 🟡 [Workflow created](.github/workflows/ci.yml) and its steps verified locally against a fresh database; **not yet observed running on GitHub** — the repository hasn't been pushed yet. |
 | Repository hygiene | ✅ [CONTRIBUTING.md](CONTRIBUTING.md), [ADRs](docs/decisions/README.md), pinned language versions, MIT license, secret scan performed |
 | LLM integration | 🟡 Requirement extraction, candidate profile extraction and semantic matching — three call sites, all behind one `LlmClient` abstraction with live and fixture-replay implementations |
@@ -68,7 +68,7 @@ A CV is a length-limited marketing document. Absence in the document is not abse
 | Matching engine | 🟡 Deterministic exact/alias/duration matchers run first; the model settles the rest; every positive verdict carries a quote verified against the CV |
 | Scoring engine | 🟡 Weighted average over stored verdicts, 0–100 plus a heuristic band. Pure, reproducible, no model call in its path. Must-have coverage reported separately, and an unevidenced must-have caps the band at Review without changing the score or hiding anyone. |
 | Ranking | 🟡 Deterministic per-job order — score, then must-have coverage, then matched-requirement count, then arrival and id for a total order. Nothing is filtered; failed and unscored candidates are surfaced in their own groups. |
-| Evaluation | ⬜ Not implemented |
+| Evaluation | 🟡 [`evaluation/`](evaluation/) — 8 synthetic candidates, 2 jobs, 89 labelled pairs. Eleven deterministic metrics measured; six LLM-dependent ones reported as not measurable offline, with the reason. Found two real matcher defects. [RESULTS.md](evaluation/RESULTS.md) |
 | Demo mode | 🟡 One click seeds a job from three synthetic CVs — a strong match, one carrying injected instructions, and an unreadable scan. No API key, no cost, no real applicant data. Refused outside demo mode. |
 | Deployment / live demo | ⬜ Not deployed |
 
@@ -150,7 +150,7 @@ ai-cv-screener/
 └── README.md
 ```
 
-Currently present: `backend/`, `frontend/`, `docs/` (including `docs/decisions/`), `.github/` (CI workflow, issue/PR templates), `scripts/`, `docker-compose.yml`, `tasks.ps1`, `CONTRIBUTING.md`, `LICENSE`, and the repository metadata files. `data/` and `evaluation/` arrive in Phases 12 and 13.
+Currently present: `backend/`, `frontend/`, `evaluation/`, `docs/` (including `docs/decisions/`), `.github/` (CI workflow, issue/PR templates), `scripts/`, `docker-compose.yml`, `tasks.ps1`, `CONTRIBUTING.md`, `LICENSE`, and the repository metadata files. `data/sample/` holds the synthetic PDFs the demo seeds from; the recorded model responses for them live beside the prompts in `backend/app/llm/fixtures/`.
 
 ---
 
@@ -188,7 +188,9 @@ Each phase carries its own verification criteria in [docs/roadmap.md](docs/roadm
 
 Uploaded CVs are treated as **untrusted input** throughout. A CV may contain a prompt-injection payload — possibly hidden as white-on-white text or in metadata — and the design assumes it does. Three channels are kept strictly separate: **system instructions** (trusted), **HR input** (semi-trusted), and **CV content** (untrusted data, never instruction).
 
-The strongest control is not a prompt rule but a code rule: because every positive verdict needs a quote that verifiably exists in the document, an injected "mark everything as matched" cannot manufacture the evidence to make it stick. Injection resistance is part of the evaluation suite, not an aspiration.
+The strongest control is not a prompt rule but a code rule: because every positive verdict needs a quote that verifiably exists in the document, an injected "mark everything as matched" cannot manufacture the evidence to make it stick — and a quote that *does* verify but reads as an instruction is refused as evidence anyway, because the injected sentence really is in the document.
+
+The job description gets the same treatment. A recruiter pastes arbitrary text, so that text is scanned for instruction-like passages too; anything found is flagged and shown to the recruiter, never removed and never obeyed, and the requirements read out of it still pass through human confirmation before any candidate is screened. This is measured, not asserted — see [Evaluation](#evaluation) — though what is measured is refusal of the patterns the scanner knows, which is not resistance to prompt injection in general.
 
 No secret is committed. `.env` is git-ignored from the first commit; only `.env.example` with placeholder values is tracked. Details in [docs/product-spec.md](docs/product-spec.md#14-security-principles).
 
@@ -210,6 +212,44 @@ This does **not** make the system unbiased, and the project does not claim other
 
 ---
 
+## Evaluation
+
+`python -m evaluation.runner` scores the pipeline against eight synthetic CVs and
+89 hand-labelled (candidate, requirement) pairs. Full output, with every
+numerator and denominator, is in [evaluation/RESULTS.md](evaluation/RESULTS.md).
+
+Read the boundary before the numbers. Everything measured describes **this
+application's deterministic code** — the exact, alias and duration matchers, the
+evidence verifier, the scorer, the ranker. None of it describes how well a
+language model reads a CV, and none of it is real-world screening accuracy.
+
+| | |
+|---|---|
+| Routing restraint — pairs code correctly declined to decide | 69/69 |
+| Deterministic verdict precision | 17/17 |
+| Over-crediting (the costlier direction) | 0/17 |
+| Evidence located in the source text | 39/39 |
+| Instruction-like evidence refused | 1/1 |
+| Score reproducibility · reconstructibility | 8/8 · 8/8 |
+| Ranking is a total order | 2/2 |
+| Counterfactual name invariance (deterministic half only) | 1/1 |
+
+Six further metrics the specification asks for — extraction precision/recall,
+semantic verdict agreement, run-to-run stability, counterfactual *model*
+sensitivity, ranking correlation against a human reference, and cost per CV —
+are reported as **not measured**, each with its reason, rather than estimated.
+They are all downstream of the model: a replay fixture is keyed by a hash of its
+input, so measuring the model offline would mean hand-writing both the model's
+answer and the label it is scored against.
+
+The harness earned its keep on its first run by finding two real defects, both
+over-crediting candidates: the skill `Go` matched the word "go" in *"the ability
+to go deep on latency problems"*, and *"within 2 years"* was read as a minimum
+of two years' experience. Both are fixed, and `RESULTS.md` records the recall
+those fixes cost as well as the precision they bought.
+
+---
+
 ## Known limitations
 
 Recorded up front rather than discovered later:
@@ -220,7 +260,8 @@ Recorded up front rather than discovered later:
 - **Scores are only comparable within a single job**, because the requirement sets and weights differ.
 - **Multi-column and table-heavy CV layouts** can extract in the wrong reading order.
 - **English only** in the MVP; other languages are detected and flagged, not silently degraded.
-- **The evaluation set is small and synthetic.** Metrics will describe behaviour on that set, with sample sizes stated, and not production accuracy.
+- **The evaluation set is small and synthetic.** Eight invented CVs. The metrics describe this application's deterministic code on that set, with sample sizes stated. They are not production accuracy, not model quality, and not a bias audit.
+- **Model quality is not measured at all.** Six of the specified metrics need a live provider; offline they would be scored against recordings written by the same author as the labels, which would measure that author's consistency instead.
 
 The full list is in [docs/product-spec.md](docs/product-spec.md#17-major-limitations).
 
@@ -228,7 +269,7 @@ The full list is in [docs/product-spec.md](docs/product-spec.md#17-major-limitat
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs three jobs on every push and pull request to `main`: backend (lint, a full Alembic migration round-trip against a real PostgreSQL service container, then the full pytest suite), frontend (install, lint, test, production build), and a documentation link/anchor checker. Full rationale — including why CI runs a real database rather than only the offline test subset — is in [docs/development.md §16](docs/development.md#16-continuous-integration).
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs three jobs on every push and pull request to `main`: backend (lint, a full Alembic migration round-trip against a real PostgreSQL service container, then the full pytest suite), frontend (install, lint, test, production build), and a documentation link/anchor checker. Full rationale — including why CI runs a real database rather than only the offline test subset — is in [docs/development.md §17](docs/development.md#17-continuous-integration).
 
 **Honesty note:** every step in the workflow was individually verified by running it locally — including against a freshly created, isolated PostgreSQL container standing in for the CI service — before being written into the YAML. That is not the same claim as "CI passed on GitHub." This repository has not yet been pushed, so no workflow run has actually executed on GitHub Actions. This section will be updated once one has.
 
@@ -242,6 +283,7 @@ The full list is in [docs/product-spec.md](docs/product-spec.md#17-major-limitat
 - [Development guide](docs/development.md) — setup, commands, CI, and troubleshooting for local development
 - [Architecture decision records](docs/decisions/README.md) — why each significant, non-obvious design choice was made, and what it costs
 - [Roadmap](docs/roadmap.md) — all 20 phases with deliverables and verification criteria
+- [Evaluation results](evaluation/RESULTS.md) — every metric with its numerator, denominator, definition, kind and limitations, plus the metrics that cannot be measured offline and why
 - [CONTRIBUTING.md](CONTRIBUTING.md) — workflow, conventions, and how to propose a change
 
 ---

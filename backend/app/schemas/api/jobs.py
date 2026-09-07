@@ -18,6 +18,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.enums import JdSourceType, RequirementCategory, RequirementOrigin
+from app.core.text import strip_control_characters
 
 MAX_TITLE_LENGTH = 200
 MAX_JD_LENGTH = 100_000
@@ -30,6 +31,23 @@ def _non_blank(value: str) -> str:
     if not stripped:
         raise ValueError("must not be blank")
     return stripped
+
+
+def _pasteable(value: str) -> str:
+    """Accept text a person pasted, minus characters that cannot be stored.
+
+    A job description arrives from a clipboard, and a clipboard carries whatever
+    the source document had in it — including NUL bytes out of some PDF viewers.
+    PostgreSQL refuses NUL in a text column, so before this the paste surfaced as
+    an opaque 500 with an error id, which tells a recruiter nothing and looks
+    like the product is broken.
+
+    Stripped rather than rejected: the characters are invisible, so removing
+    them changes nothing the person can see, whereas refusing the paste would
+    block a description that is otherwise entirely valid. Everything visible is
+    preserved byte for byte, and the blank check still applies afterwards.
+    """
+    return _non_blank(strip_control_characters(value))
 
 
 # --------------------------------------------------------------------------
@@ -72,7 +90,7 @@ class JobDescriptionRequest(BaseModel):
     source_type: JdSourceType = JdSourceType.PASTED
     source_filename: str | None = Field(default=None, max_length=255)
 
-    _validate_text = field_validator("raw_text")(_non_blank)
+    _validate_text = field_validator("raw_text")(_pasteable)
 
 
 class JobDescriptionResponse(BaseModel):
@@ -85,6 +103,18 @@ class JobDescriptionResponse(BaseModel):
     raw_text: str
     text_sha256: str
     created_at: datetime
+
+    injection_flags: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "Passages in the description that read as instructions to the system rather "
+            "than as a statement of what the role needs. Flagged and surfaced, never "
+            "removed and never acted on: the text is still used as the description, and "
+            "the recruiter still reviews and confirms every requirement before anything "
+            "is screened against it."
+        ),
+    )
+    injection_flag_count: int = 0
 
 
 # --------------------------------------------------------------------------

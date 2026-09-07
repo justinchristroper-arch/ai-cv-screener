@@ -149,6 +149,7 @@ export interface JobDescription {
   raw_text: string;
   text_sha256: string;
   created_at: string;
+  injection_flag_count: number;
 }
 
 export function listJobs(signal?: AbortSignal): Promise<Job[]> {
