@@ -76,16 +76,51 @@ def test_delete_removes_the_file_and_tolerates_a_missing_one(
     [
         "../escaped.pdf",
         "../../etc/passwd",
-        "..\\..\\windows\\system32\\config\\sam",
         "a/../../../outside.pdf",
     ],
 )
 def test_a_traversal_path_cannot_escape_the_storage_root(
     storage: DocumentStorage, hostile: str
 ) -> None:
-    """Paths are generated internally, so this defends against a tampered row."""
+    """Paths are generated internally, so this defends against a tampered row.
+
+    Every case here is a traversal under any path grammar: the separator is a
+    forward slash, which both Windows and POSIX read as one.
+    """
     with pytest.raises(StoragePathError):
         storage.resolve(hostile)
+
+
+def test_a_backslash_traversal_path_never_resolves_outside_the_root(
+    storage: DocumentStorage,
+) -> None:
+    """The same defence where the separator is a backslash, stated portably.
+
+    ``..\\..\\windows\\system32\\config\\sam`` is two different inputs depending
+    on who reads it. On Windows the backslash separates components, so it is a
+    traversal and ``resolve`` refuses it. On POSIX the backslash is an ordinary
+    filename character, so the whole string is a single -- bizarre, but legal --
+    component that never leaves the directory it was joined to.
+
+    Asserting that it raises therefore passes only on Windows, which is what
+    this test used to do, and why it went red the first time CI ran it on Linux.
+    Asserting that it does not raise would be just as wrong in the other
+    direction.
+
+    What holds on every platform is the guarantee the module exists to make:
+    however the operating system reads this string, ``resolve`` never returns a
+    location outside the storage root. Refusing the path and keeping it inside
+    are both safe outcomes; handing back something outside is the only failure.
+    """
+    hostile = "..\\..\\windows\\system32\\config\\sam"
+
+    try:
+        resolved = storage.resolve(hostile)
+    except StoragePathError:
+        return  # Refused outright -- the Windows reading of that string.
+
+    # The POSIX reading: one very odd filename, still under the root.
+    assert storage.root in resolved.parents
 
 
 def test_a_traversal_filename_cannot_reach_the_filesystem(
