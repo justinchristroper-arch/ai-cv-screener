@@ -106,10 +106,14 @@ switch ($Task) {
     }
 
     "lint" {
+        # ruff runs from backend/ so it picks up that pyproject's configuration,
+        # but it is pointed at scripts/ and evaluation/ too: they are Python this
+        # project owns, and leaving them unlinted is how four errors sat in
+        # scripts/check_docs.py unnoticed.
         Require-Venv
         Invoke-InDir $Backend {
-            & $Python -m ruff check .
-            & $Python -m ruff format --check .
+            & $Python -m ruff check . ../scripts ../evaluation
+            & $Python -m ruff format --check . ../scripts ../evaluation
         }
         Invoke-InDir $Frontend {
             npm run lint
@@ -119,12 +123,19 @@ switch ($Task) {
 
     "format" {
         Require-Venv
-        Invoke-InDir $Backend { & $Python -m ruff format . ; & $Python -m ruff check --fix . }
+        Invoke-InDir $Backend {
+            & $Python -m ruff format . ../scripts ../evaluation
+            & $Python -m ruff check --fix . ../scripts ../evaluation
+        }
         Invoke-InDir $Frontend { npm run format }
     }
 
     "check-docs" {
         python (Join-Path $Root "scripts\check_docs.py")
+    }
+
+    "check-contrast" {
+        python (Join-Path $Root "scripts\check_contrast.py") @Rest
     }
 
     "coverage" {
@@ -172,6 +183,7 @@ AI CV Screener — developer commands
   .\tasks.ps1 lint           Lint and format-check both halves
   .\tasks.ps1 format         Apply formatting to both halves
   .\tasks.ps1 check-docs     Check docs for broken relative links and anchors
+  .\tasks.ps1 check-contrast Check the UI palette against WCAG AA, both themes
   .\tasks.ps1 coverage       Backend tests with a coverage report
   .\tasks.ps1 audit          Scan Python and Node dependencies for known CVEs
   .\tasks.ps1 evaluate       Measure the pipeline and rewrite evaluation/RESULTS.md

@@ -280,7 +280,7 @@ cd backend
 .venv\Scripts\python.exe -m pytest
 ```
 
-or `.\tasks.ps1 test-backend`. Expected: **660 passed**.
+or `.\tasks.ps1 test-backend`. Expected: **661 passed**.
 
 The suite makes no network call and needs no API key: every LLM-backed test
 runs against recorded fixtures (§21).
@@ -309,7 +309,7 @@ cd frontend
 npm test
 ```
 
-or `.\tasks.ps1 test-frontend`. Expected: **90 passed** across 12 files.
+or `.\tasks.ps1 test-frontend`. Expected: **93 passed** across 12 files.
 `npm run test:watch` for watch mode.
 
 ---
@@ -360,12 +360,21 @@ every broken link with its file and line number.
 
 ---
 
-## 15. Coverage and dependency audits
+## 15. Coverage, contrast, and dependency audits
 
 ```powershell
 .\tasks.ps1 coverage        # backend tests plus a per-module coverage report
+.\tasks.ps1 check-contrast  # every colour pair against WCAG AA, in both themes
 .\tasks.ps1 audit           # pip-audit over Python, npm audit over Node
 ```
+
+`check-contrast` reads the custom properties straight out of
+`frontend/src/index.css`, so it cannot describe a palette the stylesheet no
+longer has. It checks 34 pairs across the light and dark themes at the two
+thresholds WCAG defines: 4.5:1 for text and 3:1 for the visual boundary of
+something you can click or type into. The second one found a real failure —
+the input border was at 1.63:1. It runs in CI alongside the link check, needs
+no browser, and is pure standard library.
 
 Coverage is **97% of `backend/app` by statement**. The weakest module is named
 rather than averaged away: `app/llm/client.py` at 78%, and every uncovered line
@@ -473,6 +482,7 @@ or two of the commands above.
 | `.\tasks.ps1 test` / `test-backend` / `test-frontend` | run tests |
 | `.\tasks.ps1 lint` / `format` | lint or format both halves |
 | `.\tasks.ps1 check-docs` | check docs for broken relative links and anchors |
+| `.\tasks.ps1 check-contrast` | check the UI palette against WCAG AA, both themes |
 | `.\tasks.ps1 evaluate` | run the evaluation harness (`--no-db` passes through) |
 | `.\tasks.ps1` | print this list |
 

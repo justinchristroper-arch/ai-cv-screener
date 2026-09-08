@@ -164,6 +164,59 @@ describe("CandidatePage", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("says the evidence-first framing once per gap, not twice", async () => {
+    /* The server already phrases an ordinary NO_EVIDENCE that way, and the UI
+       used to add its own copy underneath. Two near-identical sentences in a
+       row is how a reader learns to skip both. */
+    render(<CandidatePage candidateId="cand-1" />);
+
+    await screen.findByRole("heading", { name: /gaps/i });
+
+    expect(
+      screen.getAllByText(/statement about (this|the) document, not about the candidate/i),
+    ).toHaveLength(1);
+  });
+
+  it("still explains what NO_EVIDENCE means when the reason cannot", async () => {
+    /* A downgraded verdict's reason says why the quote was refused, which does
+       not carry the framing — so there the note earns its place. */
+    stubCandidate({
+      "GET /api/candidates/cand-1/matches": {
+        body: {
+          ...MATCHES,
+          results: [
+            {
+              ...MATCHES.results[1],
+              decided_by: "DOWNGRADED_UNVERIFIED",
+              downgraded: true,
+              raw_verdict: "MATCHED",
+              reason: "The proposed evidence could not be found in this CV.",
+            },
+          ],
+        },
+      },
+    });
+
+    render(<CandidatePage candidateId="cand-1" />);
+
+    expect(
+      await screen.findByText(/statement about the document, not about the candidate/i),
+    ).toBeInTheDocument();
+  });
+
+  it("puts the evidence above the arithmetic", async () => {
+    /* A recruiter who reads the number first reads the evidence as a
+       justification for it, rather than as the thing it came from. The badge
+       stays in the header so an arrival from the ranked list still knows who
+       they are looking at. */
+    render(<CandidatePage candidateId="cand-1" />);
+
+    const verdicts = await screen.findByRole("heading", { name: /requirement by requirement/i });
+    const scorePanel = screen.getByRole("heading", { name: /^score$/i });
+
+    expect(verdicts.compareDocumentPosition(scorePanel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   it("never says a candidate lacks or does not have a skill", async () => {
     const { container } = render(<CandidatePage candidateId="cand-1" />);
     await screen.findByText("82");

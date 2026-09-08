@@ -8,9 +8,9 @@ observation of real output. Controls that were only reasoned about are marked as
 such. So are the findings that were **accepted rather than fixed**, with the
 reason, because a review that lists only what it fixed is a marketing document.
 
-Last run against commit `1cfc19c` and the state of the working tree that follows
-it. Reproduce with `.\tasks.ps1 test`, `.\tasks.ps1 audit`, and
-`.\tasks.ps1 coverage`.
+Last run against the **Final completion** milestone. Reproduce with
+`.\tasks.ps1 test`, `.\tasks.ps1 audit`, `.\tasks.ps1 coverage` and
+`.\tasks.ps1 check-contrast`.
 
 ---
 

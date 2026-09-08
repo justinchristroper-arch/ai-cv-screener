@@ -130,8 +130,12 @@ export function CandidatePage({ candidateId }: { candidateId: string }) {
         </Callout>
       ) : null}
 
-      {score ? <ScorePanel score={score} /> : null}
-
+      {/* Evidence first, then the number.
+          The score badge is still in the header, because a reader arriving from
+          a ranked list needs to know which candidate they are looking at. But
+          the full arithmetic sits *below* the verdicts: a recruiter who reads
+          the number first tends to read the evidence as a justification for it
+          rather than as the thing the number came from. */}
       {matches ? (
         <section className="panel" aria-labelledby="verdicts-heading">
           <div className="panel__header">
@@ -155,6 +159,8 @@ export function CandidatePage({ candidateId }: { candidateId: string }) {
           </EmptyState>
         </section>
       )}
+
+      {score ? <ScorePanel score={score} /> : null}
 
       {profile ? <ProfilePanel profile={profile} /> : null}
     </div>
@@ -300,7 +306,12 @@ function VerdictGroup({ title, items }: { title: string; items: MatchResult[] })
                 </>
               ) : null}
             </p>
-            {item.verdict === "NO_EVIDENCE" ? (
+            {/* Only when the reason does not already carry the framing. An
+                ordinary NO_EVIDENCE arrives with the server's own evidence-first
+                wording; a downgraded one arrives with the reason its evidence
+                was refused, which needs this added. Printing both said the same
+                sentence twice and taught the reader to skip it. */}
+            {item.verdict === "NO_EVIDENCE" && item.downgraded ? (
               <p className="verdict-item__note">{VERDICT_MEANING.NO_EVIDENCE}</p>
             ) : null}
           </li>

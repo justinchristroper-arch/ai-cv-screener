@@ -25,6 +25,7 @@ import {
 } from "../api/client";
 import {
   BAND_CAVEAT,
+  BAND_LABEL,
   SCORE_CAVEAT,
   STATUS_LABEL,
   asPercent,
@@ -181,6 +182,16 @@ export function CandidatesPanel({ jobId, confirmed }: { jobId: string; confirmed
   );
 }
 
+/** One sentence naming a ranked row, for anyone who cannot see the card. */
+function rankedCardLabel(entry: JobRanking["ranked"][number]): string {
+  const who = entry.display_name ?? entry.original_filename ?? "Unnamed candidate";
+  const band = entry.band ? BAND_LABEL[entry.band] : "no band";
+  const score = entry.score === null ? "no score" : `score ${entry.score} of 100`;
+  const matched = `${entry.matched_count} requirement${entry.matched_count === 1 ? "" : "s"} matched`;
+  const coverage = `must-have coverage ${asPercent(entry.must_have_coverage)}`;
+  return `Position ${entry.position}, ${who}. ${score}, ${band}. ${matched}, ${coverage}.`;
+}
+
 function RankingView({ ranking }: { ranking: JobRanking }) {
   if (ranking.summary.total === 0) {
     return (
@@ -204,7 +215,15 @@ function RankingView({ ranking }: { ranking: JobRanking }) {
           <ol className="ranked-list">
             {ranking.ranked.map((entry) => (
               <li key={entry.candidate_id}>
-                <a className="ranked-card" href={href.candidate(entry.candidate_id)}>
+                {/* An explicit name, because the default one is every text node
+                    in the card run together: a screen reader announced
+                    "must-have coverage 50%38", with the score fused to the
+                    percentage before it. */}
+                <a
+                  className="ranked-card"
+                  href={href.candidate(entry.candidate_id)}
+                  aria-label={rankedCardLabel(entry)}
+                >
                   <span className="ranked-card__position">{entry.position}</span>
                   <span className="ranked-card__main">
                     <span className="ranked-card__name">

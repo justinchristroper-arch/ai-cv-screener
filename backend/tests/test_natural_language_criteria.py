@@ -310,3 +310,36 @@ def test_an_ordinary_requirement_carries_no_flags_over_http(api) -> None:
     )
 
     assert created.json()["protected_attribute_flags"] == []
+
+
+@pytest.mark.requires_db
+def test_the_refusal_reads_correctly_for_one_and_for_several(
+    db_session: Session, replay_client
+) -> None:
+    """A recruiter reads this message; "2 requirements asks" is not a sentence."""
+    job, _result = _extract(db_session, replay_client, "criteria_indonesian")
+    requirements.add_requirement(
+        db_session,
+        job.id,
+        text="Belum menikah",
+        category=RequirementCategory.SOFT_SKILL_OTHER,
+        must_have=True,
+    )
+
+    with pytest.raises(ConflictError) as one:
+        requirements.confirm_requirements(db_session, job.id)
+    assert "1 requirement asks about" in str(one.value)
+    assert "reword it" in str(one.value)
+
+    requirements.add_requirement(
+        db_session,
+        job.id,
+        text="Usia maksimal 25 tahun",
+        category=RequirementCategory.SOFT_SKILL_OTHER,
+        must_have=True,
+    )
+
+    with pytest.raises(ConflictError) as several:
+        requirements.confirm_requirements(db_session, job.id)
+    assert "2 requirements ask about" in str(several.value)
+    assert "reword them" in str(several.value)

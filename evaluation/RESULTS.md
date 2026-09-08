@@ -163,6 +163,8 @@ No other change was made to matching, scoring or ranking semantics.
 
 These are the metrics the product specification asks for that depend on a live model. They are listed rather than estimated, because an estimate drawn from a hand-written recording would be a number with no meaning behind it.
 
+**There is a path to them.** `python scripts/live_check.py` runs the same sample briefs against a configured provider and reports what came back — the requirements, whether each reply passed this application's own validation, the tokens and the latency, and with `--stability N` whether repeated runs agreed. It costs money, it is never run by CI, and it had not been run against a real key when these results were generated. Until it is, nothing below has a number.
+
 ### `requirement_extraction_precision_recall` — not measured
 
 - **Definition.** Agreement between extracted requirements and a reference requirement set.

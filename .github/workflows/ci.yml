@@ -81,13 +81,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
+      # Run from backend/ so ruff finds that pyproject's configuration, but
+      # pointed at scripts/ and evaluation/ too — they are Python this project
+      # owns, and leaving them unlinted is how four errors sat unnoticed in
+      # scripts/check_docs.py.
       - name: Lint (ruff check)
         working-directory: backend
-        run: ruff check .
+        run: ruff check . ../scripts ../evaluation
 
       - name: Format check (ruff format)
         working-directory: backend
-        run: ruff format --check .
+        run: ruff format --check . ../scripts ../evaluation
 
       - name: Apply migrations (upgrade)
         working-directory: backend
@@ -158,3 +162,9 @@ jobs:
 
       - name: Check relative links and anchors
         run: python scripts/check_docs.py -v
+
+      # Contrast is a claim the README makes, so CI checks it. Pure standard
+      # library, reads the palette straight out of the stylesheet, and needs
+      # neither a browser nor the frontend's dependencies.
+      - name: Check UI contrast against WCAG AA
+        run: python scripts/check_contrast.py -v

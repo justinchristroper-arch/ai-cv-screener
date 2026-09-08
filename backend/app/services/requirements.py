@@ -256,9 +256,9 @@ def confirm_requirements(db: Session, job_id: uuid.UUID) -> Job:
     if blocked:
         raise ConflictError(
             "This requirement set cannot be confirmed: "
-            f"{len(blocked)} requirement{'s' if len(blocked) > 1 else ''} "
-            "asks about a personal characteristic that must not be used to screen "
-            "anyone. Remove or reword it, then confirm again.",
+            f"{len(blocked)} {'requirements ask' if len(blocked) > 1 else 'requirement asks'} "
+            "about a personal characteristic that must not be used to screen anyone. "
+            f"Remove or reword {'them' if len(blocked) > 1 else 'it'}, then confirm again.",
             details={
                 "requirements": [
                     {

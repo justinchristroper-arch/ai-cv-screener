@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** Phases 0–7 and 9–12 complete, Phases 8 and 13 partially delivered — in both cases what remains needs a live model, not more code (Phase 3's CI-workflow-observed-passing criterion is also still pending the first push to GitHub — see the note under Phase 3). Phases 14–20 not started.
+**Status:** every phase delivered. Phases 0–7, 9–12 and 15–17 are complete. Five carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/live_check.py`); **3, 14 and 18** need the first push to GitHub, so CI can be observed and the repository's own metadata set; **19 and 20** need a hosting decision that belongs to the repository owner. Nothing is deployed and nothing has been pushed.
 **Last updated:** 2026-09-07
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -554,100 +554,135 @@ outstanding item Phase 3 carries, and it needs a push, not more code.
 
 ---
 
-## Phase 16 — UI/UX polish ⬜
+## Phase 16 — UI/UX polish ✅
+
+*Delivered as part of the **Final completion** milestone.*
 
 **Objective.** Make the interface clear enough that the evidence, not the score, is what a recruiter reads first.
 
 **Deliverables.**
-- Visual hierarchy that puts evidence above the number.
-- Consistent verdict styling, with a text label on every state rather than colour alone.
-- Responsive layout.
-- Keyboard accessibility, focus states, and sufficient contrast.
-- Copy review across the app for evidence-first wording and heuristic labeling.
-- Empty, loading, and error states finished.
+- Visual hierarchy that puts evidence above the number. ✅ The score badge stays in the candidate header for orientation; the full arithmetic moved *below* the verdicts, because a reader who meets the number first reads the evidence as a justification for it rather than as the thing it came from.
+- Consistent verdict styling, with a text label on every state rather than colour alone. ✅
+- Responsive layout. ✅ All three routes checked at 375px: no horizontal page scroll, and the requirement table scrolls inside its own container rather than pushing the page wide.
+- Keyboard accessibility, focus states, and sufficient contrast. ✅ See below — this found two real defects.
+- Copy review across the app for evidence-first wording and heuristic labeling. ✅ Including one removal: an ordinary `NO_EVIDENCE` was printing the same evidence-first sentence twice, which is how a reader learns to skip it.
+- Empty, loading, and error states finished. ✅
 
 **Verification criteria.**
-- Every workflow screen is reviewed in the browser at desktop and narrow widths.
-- Verdict states are distinguishable without colour.
-- Keyboard-only navigation reaches every interactive control.
-- Contrast meets WCAG AA on text; checked, not assumed.
-- No UI string implies a candidate lacks a skill where the system only lacks evidence.
+- Every workflow screen is reviewed in the browser at desktop and narrow widths. ✅ Against a real server, not a mock.
+- Verdict states are distinguishable without colour. ✅ Every verdict, band and flag carries a word.
+- Keyboard-only navigation reaches every interactive control. ✅ Verified by enumerating the live accessibility tree: 15 controls, all with `tabIndex` 0, none hidden, all with an accessible name.
+- Contrast meets WCAG AA on text; checked, not assumed. ✅ `python scripts/check_contrast.py` reads the palette out of the stylesheet and checks 34 pairs across both themes.
+- No UI string implies a candidate lacks a skill where the system only lacks evidence. ✅
+
+**Two defects this phase found, both only visible by looking:**
+
+- **The must-have checkboxes announced as "on".** They were named by a
+  visually-hidden span inside a wrapping `<label>`, which jsdom resolves and the
+  test suite was happy with — but Chrome's accessibility tree did not. Now an
+  explicit `aria-label`, matching the weight input beside it.
+- **Control borders failed WCAG 1.4.11 at 1.63:1.** `--border-strong` is the
+  border of every input, textarea, select and quiet button, and non-text
+  contrast wants 3:1. Darkened in light mode and lightened in dark until both
+  pass, and `scripts/check_contrast.py` exists so it cannot silently regress.
+
+A third, smaller one: a ranked row's accessible name was every text node in the
+card run together — "must-have coverage 50%38", with the score fused to the
+percentage. It now has a written-out label.
 
 ---
 
-## Phase 17 — Documentation ⬜
+## Phase 17 — Documentation 🚧
+
+*Delivered as part of the **Final completion** milestone.*
 
 **Objective.** Make the project understandable to a reader who has three minutes and no context.
 
 **Deliverables.**
-- README rewritten for a working system: what it does, screenshots or a recording, quickstart, demo link.
-- `docs/architecture.md` updated to describe what was actually built.
-- API documentation.
-- `docs/development.md`, `docs/evaluation.md`, `docs/security.md`, and a limitations page.
-- Decision records for the significant choices.
+- README rewritten for a working system. ✅ Opens with what a recruiter types and what comes back, then the product, the boundary, the two modes, and everything a reader might want to check. No screenshots — see below.
+- `docs/architecture.md` updated to describe what was actually built. ✅ Including §5.1, the job description as an untrusted channel.
+- API documentation. ✅ Generated from the code at `/docs`, with a prose description on every route — which is the version that cannot drift from the implementation.
+- `docs/development.md`, evaluation results, `docs/security.md`, and a limitations page. ✅ Plus [`docs/deployment.md`](deployment.md). Limitations live in the README and in product-spec §17 rather than in a page of their own, so a reader meets them without going looking.
+- Decision records for the significant choices. ✅ Ten ADRs; two written this milestone.
 
 **Verification criteria.**
-- Every command in the README is executed from a clean checkout and observed to work.
-- No documented feature is absent from the code, and no significant feature is undocumented.
-- Screenshots reflect the current UI.
-- Limitations and evaluation results are linked from the README, not buried.
+- Every command in the README is executed from a clean checkout and observed to work. 🚧 Every command was executed, and the Docker build was run from a clean context — but not from a fresh `git clone`, which is a step for the repository owner after the first push.
+- No documented feature is absent from the code, and no significant feature is undocumented. ✅
+- Screenshots reflect the current UI. ⬜ There are none. A screenshot in a README goes stale silently and this UI has changed under every milestone; the demo runs locally in two commands with no API key instead. Adding them is a good idea *after* the UI stops moving.
+- Limitations and evaluation results are linked from the README, not buried. ✅ Both have their own top-level section and appear in the table of contents.
 
 ---
 
-## Phase 18 — GitHub repository cleanup ⬜
+## Phase 18 — GitHub repository cleanup 🚧
+
+*Delivered as part of the **Final completion** milestone.*
 
 **Objective.** Make the repository itself part of the portfolio.
 
 **Deliverables.**
-- History reviewed for accidentally committed secrets or data.
-- Dead code, unused dependencies, and stale TODOs removed.
-- Consistent formatting and linting across the codebase.
-- License, description, topics, and a clean issue/PR template set.
-- Final `.gitignore` review.
+- History reviewed for accidentally committed secrets or data. ✅ `git log --all --full-history -- .env` returns nothing; a pattern scan over the tracked tree finds only the `.env.example` placeholder and a `sk-ant-not-a-real-key` literal in two test files.
+- Dead code, unused dependencies, and stale TODOs removed. ✅ No `TODO`, `FIXME`, `XXX` or `HACK` anywhere in `backend/app`, `frontend/src`, `evaluation` or `scripts`. One genuinely unused devDependency found and removed (`eslint-plugin-react-refresh`, referenced by no config). Runtime dependencies are two: React and ReactDOM.
+- Consistent formatting and linting across the codebase. ✅ Ruff now covers `scripts/` and `evaluation/` as well as `backend/`, which is how four pre-existing lint errors in `scripts/check_docs.py` were found and fixed.
+- License, description, topics, and a clean issue/PR template set. 🚧 MIT licence and templates are in the repository; the GitHub-side description and topics can only be set after the first push.
+- Final `.gitignore` review. ✅ `.env`, `var/`, `coverage.json` and the build outputs are all covered; a `.dockerignore` now keeps `.env` and uploaded CVs out of the image context too.
 
 **Verification criteria.**
-- A secret scan over the full history reports nothing.
-- A fresh clone builds, tests, and runs using only the README.
-- No real candidate data exists in any commit.
-- Lint and format checks pass across the whole repository.
-- The repository root is legible: no stray scratch files.
+- A secret scan over the full history reports nothing. 🚧 A pattern scan is clean, and nothing that needed removing was ever committed. Running a dedicated history scanner (`gitleaks`, `trufflehog`) is listed in the README as a pre-publication step for the repository owner.
+- A fresh clone builds, tests, and runs using only the README. 🚧 Every command in the README was executed, and the Docker image builds from a clean context — but not from an actual fresh `git clone`, which needs the push.
+- No real candidate data exists in any commit. ✅ Every CV, brief and profile in the repository is invented.
+- Lint and format checks pass across the whole repository. ✅
+- The repository root is legible: no stray scratch files. ✅
 
 ---
 
-## Phase 19 — Deployment ⬜
+## Phase 19 — Deployment 🚧
 
 **Objective.** Put a working demo online.
 
+**Nothing is deployed.** There is no public URL and no hosting account. What
+this milestone delivered is everything a deployment needs *before* one exists,
+written after building and running the image rather than from memory:
+[`docs/deployment.md`](deployment.md) and `backend/Dockerfile`.
+
 **Deliverables.**
-- Backend deployed with a managed PostgreSQL instance.
-- Frontend deployed and pointed at the backend.
-- Environment and secret configuration handled by the platform, never committed.
-- Demo mode enabled in production so the public demo costs nothing and stays deterministic.
-- Production migrations and seeding.
-- Basic uptime and error monitoring.
+- Backend deployed with a managed PostgreSQL instance. ⬜ The image exists, builds from the lock file, runs as a non-root user, carries a health check, and was verified locally answering `/health`, `/health/db` and `/api/demo/samples`.
+- Frontend deployed and pointed at the backend. ⬜ `npm run build` produces a static bundle; `VITE_API_BASE_URL` is baked in at build time, which is documented because it surprises people.
+- Environment and secret configuration handled by the platform, never committed. ✅ Documented; `.dockerignore` keeps `.env` out of the build context.
+- Demo mode enabled in production so the public demo costs nothing and stays deterministic. ✅ Documented as the default and the recommendation, with the reason: on a public URL with no authentication, live mode is an invitation to spend the operator's money.
+- Production migrations and seeding. ✅ Documented as a separate step — the image deliberately does *not* run `alembic upgrade` at start-up, because applying schema changes from every replica is a race.
+- Basic uptime and error monitoring. ⬜ Not wired to any vendor. The two health endpoints exist and are documented for liveness and readiness respectively.
 
 **Verification criteria.**
-- The public URL loads and the full workflow completes in the deployed environment.
-- The deployed app runs on demo fixtures; no live key is exposed to the browser.
-- CORS restricts the API to the deployed frontend origin.
-- A cold start is measured and reported honestly.
-- Rolling back to the previous deployment is possible and documented.
+- The public URL loads and the full workflow completes. ⬜ No URL exists.
+- The deployed app runs on demo fixtures; no live key is exposed to the browser. ✅ True of the design: the key is server-side only and the frontend has exactly one variable, which is an API base URL.
+- CORS restricts the API to the deployed frontend origin. ✅ An explicit allowlist, never `*`, with the deployment note saying so.
+- A cold start is measured and reported honestly. ⬜ Not measured. Reporting one would mean inventing it.
+- Rolling back to the previous deployment is possible and documented. 🚧 Documented, including the two caveats that belong to this codebase rather than to a platform: migrations are forward-only in practice, and a stored score names the config version it was computed under so a rollback cannot silently reinterpret old rows.
+
+**What remains for this phase:** an actual deployment, which is a decision for
+the repository owner and not something this milestone should make for them.
 
 ---
 
-## Phase 20 — Final end-to-end verification ⬜
+## Phase 20 — Final end-to-end verification 🚧
+
+*Delivered as part of the **Final completion** milestone, minus the parts that need a deployment.*
 
 **Objective.** Verify the whole system against this roadmap and the specification, and state plainly what is and is not true of it.
 
 **Deliverables.**
-- Full workflow executed on the deployed demo and recorded.
-- Every phase's verification criteria re-checked against the final build.
-- Final evaluation run with published results.
-- A closing summary: what was built, what was measured, what is limited, what would come next.
+- Full workflow executed and recorded. ✅ Locally, against a real uvicorn server and a real browser, not a mock: all four sample briefs seeded to a ranked list, the Indonesian one walked screen by screen, and the protected-attribute guard driven to its refusal through the UI.
+- Every phase's verification criteria re-checked against the final build. ✅ Every phase above now carries a per-criterion mark, including the ones that are still ⬜.
+- Final evaluation run with published results. ✅ A fresh run reproduces `evaluation/RESULTS.md` byte for byte.
+- A closing summary: what was built, what was measured, what is limited, what would come next. ✅ [`README.md`](../README.md), whose "Current status" and "Known limitations" sections are that summary.
 
 **Verification criteria.**
-- The complete workflow succeeds on the deployed URL.
-- Every claim in the README is checked against observed behaviour, and any that no longer holds is corrected.
-- The full test suite passes on the final commit.
-- Published evaluation numbers match a fresh run.
-- Every unimplemented item is listed as unimplemented, in the README rather than only here.
+- The complete workflow succeeds on the deployed URL. ⬜ No deployment exists. It succeeds locally.
+- Every claim in the README is checked against observed behaviour, and any that no longer holds is corrected. ✅ Two corrections came out of it: the security review's claim that uploads check content type (they check magic bytes; the filename and declared type are untrusted labels), and the "Live AI mode works" framing, which is now stated as implemented-and-structurally-verified rather than measured.
+- The full test suite passes on the final commit. ✅
+- Published evaluation numbers match a fresh run. ✅
+- Every unimplemented item is listed as unimplemented, in the README rather than only here. ✅
+
+**What remains for this phase:** the deployed half, which is Phase 19's
+remaining half too. Both need a hosting decision that belongs to the repository
+owner.

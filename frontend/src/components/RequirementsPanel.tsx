@@ -275,11 +275,18 @@ function RequirementRow({
       </td>
       <td>{CATEGORY_LABEL[requirement.category]}</td>
       <td>
+        {/* aria-label rather than the wrapping label alone. A visually-hidden
+            span inside a <label> names the input in jsdom, and the test suite
+            was happy with it — but reading the real accessibility tree in a
+            browser showed the checkbox announced as "on". The weight input next
+            to it already used aria-label; this one now matches. The span stays
+            so the whole cell remains a click target. */}
         <label className="switch">
           <input
             type="checkbox"
             checked={requirement.must_have}
             disabled={busy}
+            aria-label={`Must have: ${requirement.text}`}
             onChange={(event) => onUpdate({ must_have: event.target.checked })}
           />
           <span className="visually-hidden">Must have: {requirement.text}</span>
