@@ -281,7 +281,7 @@ cd backend
 .venv\Scripts\python.exe -m pytest
 ```
 
-or `.\tasks.ps1 test-backend`. Expected: **662 passed**.
+or `.\tasks.ps1 test-backend`. Expected: **694 passed**.
 
 The suite makes no network call and needs no API key: every LLM-backed test
 runs against recorded fixtures (§23).
@@ -310,7 +310,7 @@ cd frontend
 npm test
 ```
 
-or `.\tasks.ps1 test-frontend`. Expected: **93 passed** across 12 files.
+or `.\tasks.ps1 test-frontend`. Expected: **98 passed** across 12 files.
 `npm run test:watch` for watch mode.
 
 ---

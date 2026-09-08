@@ -242,11 +242,36 @@ depends on absolutely), it handles Indonesian as well as English, and 7B at
 the alternatives considered: [ADR-0011](docs/decisions/0011-local-model-by-default.md).
 
 **Hardware.** About **8 GB of free RAM** for the 7B model on CPU, or a GPU with
-6 GB+ of VRAM for a large speed-up. Expect seconds to tens of seconds per call
-on CPU — screening a batch of CVs is a wait, not an instant. On a smaller
-machine use `OLLAMA_MODEL=qwen2.5:3b-instruct` (~1.9 GB): it runs on much less
-and is measurably worse at returning a reply that survives schema validation,
-which is a real trade rather than a free one.
+6 GB+ of VRAM for a large speed-up. On a smaller machine use
+`OLLAMA_MODEL=qwen2.5:3b-instruct` (~1.9 GB): it runs on much less and is
+measurably worse at returning a reply that survives schema validation, which is
+a real trade rather than a free one.
+
+**Measured on an ordinary Windows laptop, CPU only:**
+
+| | |
+|---|---|
+| Requirement extraction from informal Indonesian criteria | ~6 s |
+| Full screening of one CV (profile + matching + score) | ~22–27 s |
+
+Screening a batch is a wait, not an instant. That is the price of the model
+being yours.
+
+**What a real run showed, including the part that is not flattering.** On the
+bundled CV that carries injected instructions, the model returned `MATCHED` for
+*"bisa bahasa Inggris"* and offered, as its evidence, the requirement's own
+text — a string that appears nowhere in that document. The verifier could not
+find it, so the verdict was downgraded to `NO_EVIDENCE` and the refusal was
+recorded. **A real hallucination from a real small model, caught by ordinary
+code rather than by a prompt.** On the strong CV, the same requirement was
+matched to *"Backend engineer working on document-processing services."* — a
+quote that genuinely is in the document, supporting an inference that is thin.
+The answer to that is not a better prompt: it is that you see the quote next to
+the verdict and can disagree with it.
+
+A smaller model makes both of those more likely, which is an argument for the
+architecture rather than against the model. Full detail:
+[ADR-0011](docs/decisions/0011-local-model-by-default.md).
 
 ### Cloud AI mode (`DEMO_MODE=false`, `LLM_PROVIDER=anthropic`)
 
@@ -424,12 +449,13 @@ The frontend reads one variable of its own, `VITE_API_BASE_URL` (see
 Everything below runs offline, with no API key.
 
 ```powershell
-.\tasks.ps1 test          # 755 tests: 662 backend, 93 frontend
+.\tasks.ps1 test          # 792 tests: 694 backend, 98 frontend
 .\tasks.ps1 lint          # ruff + eslint + prettier, both halves
 .\tasks.ps1 coverage      # 97% of backend/app by statement
 .\tasks.ps1 audit         # pip-audit + npm audit
 .\tasks.ps1 check-docs    # every relative link and anchor in the docs
 .\tasks.ps1 check-contrast # every colour pair against WCAG AA, both themes
+.\tasks.ps1 check-llm --preflight   # is the configured AI provider ready? (runs no model)
 .\tasks.ps1 evaluate      # regenerates evaluation/RESULTS.md
 ```
 
@@ -590,10 +616,10 @@ The full list is in
 | Demo mode | ✅ Four sample briefs and three synthetic CVs, each walkable end to end. No API key, no cost, no real applicant data. |
 | Local AI mode | ✅ Ollama, `qwen2.5:7b-instruct`, the default when demo mode is off. No account, no key, no per-call cost. |
 | Cloud AI mode | 🟡 Anthropic, opt-in via `LLM_PROVIDER=anthropic`. Implemented and wired; **never exercised against a real key in this repository**, so no claim about it is made. |
-| Tests | ✅ 755 passing (662 backend, 93 frontend), 97% backend coverage. |
+| Tests | ✅ 792 passing (694 backend, 98 frontend), 97% backend coverage. |
 | Evaluation | ✅ [`evaluation/`](evaluation/) — 8 synthetic candidates, 89 labelled pairs, 11 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
-| Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, 10 ADRs. |
+| Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, deployment, 11 ADRs. |
 | CI | 🟡 [Workflow created](.github/workflows/ci.yml) and its steps verified locally against a fresh database; **not yet observed running on GitHub** — the repository has not been pushed. |
 | Deployment | ⬜ Not deployed. Configuration guidance is in [docs/deployment.md](docs/deployment.md); no public URL exists. |
 

@@ -460,7 +460,7 @@ Stated plainly, because a specification that hides these is not credible.
 
 **Engineering**
 - The evaluation set is small and synthetic; the metrics indicate this application's deterministic behaviour on that set, not production accuracy, not model quality, and not fairness.
-- **Model quality is not measured at all.** Six of the metrics in section 16 need a live provider; offline they would be scored against recordings written by the same author as the labels. `scripts/check_llm.py` is the path to them and has not been run against a real key.
+- **Model quality is not measured at all.** Six of the metrics in section 16 need a real provider; offline they would be scored against recordings written by the same author as the labels. `scripts/check_llm.py` has been run against a local `qwen2.5:7b-instruct` and shows the pipeline works end to end, but it produces samples rather than metrics — and a number from one model on one machine would describe that model, not this application.
 - **The per-client rate limit is in-process.** Two workers means two independent allowances, and the client address is spoofable. A brake, not a wall ([security.md §8](security.md#8-rate-limiting-and-request-size)).
 - Single workspace; no authentication or multi-tenancy in the MVP.
 - Not load-tested; batch sizes are modest.

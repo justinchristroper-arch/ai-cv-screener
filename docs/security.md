@@ -399,6 +399,16 @@ attributes to that module.
   reach the API can do anything it does. That is a deliberate scope decision for
   a local portfolio tool and it is the single largest reason this must not be
   deployed as-is with real applicant data.
+- **"Runs locally" is a statement about where the model runs, not a privacy
+  guarantee.** Documents still travel from the browser to the backend, and if
+  the backend is on another machine so is the model. The improvement is real and
+  narrow: candidate CVs are not sent to a third-party AI service. Everything
+  else about the deployment still applies.
+- **Ollama itself was not reviewed.** It is a third-party server this project
+  posts to. It has no authentication of its own, and a machine that exposes port
+  11434 to an untrusted network is exposing an unauthenticated model server —
+  which is Ollama's concern to document and the operator's to configure, not
+  something this application can fix from its side.
 
 ---
 

@@ -96,13 +96,51 @@ account and no spending. Candidate documents stay on the machine running the
 backend. The provider seam is now demonstrably a seam. The dependency footprint
 went down rather than up.
 
+### What one real run showed
+
+Run against `qwen2.5:7b-instruct` on an ordinary Windows laptop (CPU), driving
+the API over HTTP exactly as the UI does. Recorded because a decision like this
+should not rest on expectations.
+
+| | |
+|---|---|
+| Requirement extraction, informal Indonesian | 6.2 s, valid on the **first** attempt |
+| Full screening per CV (profile + semantic match + score) | 22–27 s |
+| Sample briefs surviving schema validation | 4 / 4, first attempt |
+
+The pipeline behaved as designed, including in the way that matters most. On the
+CV carrying injected instructions, the model returned `MATCHED` for
+*"bisa bahasa Inggris"* and cited, as its evidence, the string
+`"bisa bahasa Inggris"` — the **requirement's own text**, which appears nowhere
+in that document. The verifier could not find it, the verdict was downgraded to
+`NO_EVIDENCE`, and the refusal was recorded as `DOWNGRADED_UNVERIFIED`.
+
+That is a real hallucination, from a real small model, caught by ordinary code
+rather than by a prompt. It is the clearest evidence this project has produced
+that the evidence-first rule ([ADR-0002](0002-evidence-first-evaluation.md)) is
+load-bearing rather than decorative — and it is exactly the failure mode a
+smaller model makes more likely.
+
+The same run also showed the quality cost honestly. On the *strong* CV the model
+matched *"bisa bahasa Inggris"* to the sentence *"Backend engineer working on
+document-processing services."* — a quote that verifies, because it really is in
+the document, supporting an inference that is thin at best. The system's answer
+to that is not a better prompt: it is that the recruiter sees the quote next to
+the verdict and can disagree with it.
+
 **Costs, stated plainly:**
 
-- **Model quality is different, and unmeasured.** A 7B local model is not a
-  frontier hosted model, and this repository makes no claim about how the two
-  compare. The distinction the evaluation harness already draws — deterministic
-  correctness measured, model quality not measurable offline — applies unchanged,
-  and `scripts/check_llm.py` is the only path to a number.
+- **Model quality is different, and still unmeasured.** A 7B local model is not
+  a frontier hosted model, and this repository makes no claim about how the two
+  compare. The run above is a *sample*, not a measurement: it says the provider
+  works and shows two examples of how the model behaves, and it produces no
+  metric. The distinction the evaluation harness draws — deterministic
+  correctness measured, model quality not measurable offline — applies unchanged.
+  A concrete example of the gap, from the same run: on the mixed-language brief
+  the model marked *"minimal 2 tahun pengalaman"* as **not** a must-have, though
+  `minimal` is listed in the prompt as a hard-requirement word and the
+  hand-written expectation has it as one. The confirmation gate exists partly
+  for errors of exactly this size.
 - **It is slower.** Seconds to tens of seconds per call on CPU, against under a
   second for a hosted API. Screening a batch of CVs is now a wait.
 - **It needs software this repository cannot install.** Demo mode is unaffected —
