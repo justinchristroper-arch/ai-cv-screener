@@ -186,9 +186,9 @@ placeholder in `.env.example` and the string `sk-ant-not-a-real-key` in two test
 files.
 
 **Accepted, not fixed:** the *history* has not been rewritten, because nothing
-was ever committed that needed removing. A scan of the full history is a
-pre-publication step for the repository owner — see
-[README.md](../README.md#before-you-publish-this-repository).
+was ever committed that needed removing. The full history was scanned before
+publication and is worth re-scanning whenever it changes — see
+[README.md](../README.md#publication-and-maintenance-checklist).
 
 ---
 

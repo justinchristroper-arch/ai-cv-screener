@@ -1,5 +1,7 @@
 # AI CV Screener
 
+[![CI](https://github.com/justinchristroper-arch/ai-cv-screener/actions/workflows/ci.yml/badge.svg)](https://github.com/justinchristroper-arch/ai-cv-screener/actions/workflows/ci.yml)
+
 Decision support for CV screening. A recruiter says what they are looking for —
 in their own words, in their own language — and gets back a ranked shortlist
 where **every finding quotes the document it came from**.
@@ -42,7 +44,7 @@ responses, so the whole workflow can be walked at zero cost.
 - [Fairness — and its limits](#fairness-and-its-limits)
 - [Known limitations](#known-limitations)
 - [Current status](#current-status)
-- [Before you publish this repository](#before-you-publish-this-repository)
+- [Publication and maintenance checklist](#publication-and-maintenance-checklist)
 - [Documentation](#documentation)
 
 ---
@@ -376,7 +378,7 @@ Three properties are worth calling out:
 | Backend | Python, FastAPI | Pydantic models map directly onto the structured-output discipline this project depends on. |
 | Frontend | React, Vite | **Zero runtime dependencies beyond React** — hand-rolled resource hooks and a 30-line hash router. The smallest supply-chain surface a web app can have. |
 | Database | PostgreSQL 16 | Relational data with a real audit trail. pgvector evaluated and deferred ([ADR-0005](docs/decisions/0005-pgvector-deferred.md)). |
-| LLM | Anthropic Claude | Server-side only; structured outputs; model and prompt version recorded with every call. |
+| LLM | Ollama + `qwen2.5:7b-instruct` (default); Anthropic Claude (optional) | Server-side only; structured outputs; model and prompt version recorded with every call. A local model is the default so a fresh clone needs no account and no CV leaves the machine ([ADR-0011](docs/decisions/0011-local-model-by-default.md)); Anthropic is opt-in via `LLM_PROVIDER=anthropic` and has never been exercised against a real key here. |
 | PDF | pypdf | Text-layer extraction with page and character offsets, so evidence cites a location. BSD-3, pure Python, no system libraries. |
 
 Full detail: [docs/architecture.md](docs/architecture.md),
@@ -449,7 +451,7 @@ The frontend reads one variable of its own, `VITE_API_BASE_URL` (see
 Everything below runs offline, with no API key.
 
 ```powershell
-.\tasks.ps1 test          # 792 tests: 694 backend, 98 frontend
+.\tasks.ps1 test          # 824 passing: 726 backend, 98 frontend
 .\tasks.ps1 lint          # ruff + eslint + prettier, both halves
 .\tasks.ps1 coverage      # 97% of backend/app by statement
 .\tasks.ps1 audit         # pip-audit + npm audit
@@ -459,9 +461,15 @@ Everything below runs offline, with no API key.
 .\tasks.ps1 evaluate      # regenerates evaluation/RESULTS.md
 ```
 
+The backend suite collects 727 tests and skips one: an opt-in live-Ollama check
+that needs a running model server, enabled with `OLLAMA_LIVE_TEST=1`. Everything
+else runs with no provider configured at all.
+
 CI runs the backend suite against a real PostgreSQL service container, the
 frontend suite and production build, and the documentation link checker
-([docs/development.md §19](docs/development.md#19-continuous-integration)).
+([docs/development.md §19](docs/development.md#19-continuous-integration)). It
+runs on GitHub Actions on every push to `main`, and is green on the current
+commit.
 
 ---
 
@@ -616,28 +624,30 @@ The full list is in
 | Demo mode | ✅ Four sample briefs and three synthetic CVs, each walkable end to end. No API key, no cost, no real applicant data. |
 | Local AI mode | ✅ Ollama, `qwen2.5:7b-instruct`, the default when demo mode is off. No account, no key, no per-call cost. |
 | Cloud AI mode | 🟡 Anthropic, opt-in via `LLM_PROVIDER=anthropic`. Implemented and wired; **never exercised against a real key in this repository**, so no claim about it is made. |
-| Tests | ✅ 792 passing (694 backend, 98 frontend), 97% backend coverage. |
+| Tests | ✅ 824 passing (726 backend, 98 frontend), 97% backend coverage. The backend suite collects 727; the single skip is the opt-in live-Ollama check, which needs a running model server. |
 | Evaluation | ✅ [`evaluation/`](evaluation/) — 8 synthetic candidates, 89 labelled pairs, 11 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
 | Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, deployment, 11 ADRs. |
-| CI | 🟡 [Workflow created](.github/workflows/ci.yml) and its steps verified locally against a fresh database; **not yet observed running on GitHub** — the repository has not been pushed. |
+| CI | ✅ [Running on GitHub Actions](https://github.com/justinchristroper-arch/ai-cv-screener/actions/workflows/ci.yml) on every push to `main` — [three jobs](.github/workflows/ci.yml): backend against a real PostgreSQL service container, frontend suite and production build, documentation checks. Green on the current commit. |
 | Deployment | ⬜ Not deployed. Configuration guidance is in [docs/deployment.md](docs/deployment.md); no public URL exists. |
 
 Phase-by-phase detail: [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
-## Before you publish this repository
+## Publication and maintenance checklist
 
-This repository has never been pushed. Four things are worth doing first, and
-none of them can be done for you:
+The source is public; **the application is not deployed anywhere**. GitHub hosts
+this repository and nothing else. The four checks below were run before the
+first push, and each stays worth repeating — before a fork, before a deployment,
+and whenever history is rewritten:
 
 1. **Scan the full history for secrets.** Nothing that needed removing was ever
-   committed, and a working-tree scan is clean — but a history scan is cheap
-   insurance before a repository becomes public. `gitleaks detect` or
-   `trufflehog git file://.` both do it.
+   committed, and both the working tree and every commit were scanned before
+   publication — but a history scan is cheap insurance any time that changes.
+   `gitleaks detect` or `trufflehog git file://.` both do it.
 2. **Confirm `.env` is absent from every commit**, not only from the working
-   tree: `git log --all --full-history -- .env` should print nothing.
+   tree: `git log --all --full-history -- .env` should print nothing. It does.
 3. **Decide what the repository says about deployment.** There is no public
    demo. If you deploy one, keep `DEMO_MODE=true` in production so it costs
    nothing and stays deterministic, and restrict `CORS_ALLOWED_ORIGINS` to the

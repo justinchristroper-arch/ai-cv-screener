@@ -215,5 +215,5 @@ caveats that are properties of this codebase rather than of any platform:
 
 **See also:** [development.md](development.md) for local setup,
 [security.md](security.md) for what the controls do and do not cover,
-[README](../README.md#before-you-publish-this-repository) for the checks worth
-running before this repository becomes public.
+[README](../README.md#publication-and-maintenance-checklist) for the checks
+worth repeating before a fork or a deployment.

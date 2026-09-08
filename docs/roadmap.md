@@ -1,7 +1,7 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** every phase delivered. Phases 0–7, 9–12 and 15–17 are complete. Five carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/check_llm.py`); **3, 14 and 18** need the first push to GitHub, so CI can be observed and the repository's own metadata set; **19 and 20** need a hosting decision that belongs to the repository owner. Nothing is deployed and nothing has been pushed.
-**Last updated:** 2026-09-07
+**Status:** every phase delivered. Phases 0–7, 9–12 and 14–16 are complete. Six carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/check_llm.py`); **17 and 18** need the README walked from a fresh clone and the repository's GitHub-side metadata set; **19 and 20** need a hosting decision that belongs to the repository owner. The repository is published and CI is green on GitHub Actions, which closed the items Phases 3 and 14 were carrying. Nothing is deployed.
+**Last updated:** 2026-09-08
 **Product definition:** [product-spec.md](product-spec.md)
 
 ---
@@ -63,7 +63,7 @@ rates over a sample set — which needs the evaluation harness from Phase 13.
 | 0 | Product definition and project specification | ✅ |
 | 1 | Architecture and data model | ✅ |
 | 2 | Local development environment | ✅ |
-| 3 | Git repository setup | ✅ (see note) |
+| 3 | Git repository setup | ✅ |
 | 4 | Job description processing | ✅ |
 | 5 | CV upload and PDF parsing | ✅ |
 | 6 | Candidate profile extraction | ✅ |
@@ -73,14 +73,14 @@ rates over a sample set — which needs the evaluation harness from Phase 13.
 | 10 | Candidate ranking | ✅ |
 | 11 | Frontend application | ✅ |
 | 12 | Demo mode with synthetic candidates | ✅ |
-| 13 | Evaluation and benchmark | ⬜ |
-| 14 | Automated testing | ⬜ |
-| 15 | Security and reliability review | ⬜ |
-| 16 | UI/UX polish | ⬜ |
-| 17 | Documentation | ⬜ |
-| 18 | GitHub repository cleanup | ⬜ |
-| 19 | Deployment | ⬜ |
-| 20 | Final end-to-end verification | ⬜ |
+| 13 | Evaluation and benchmark | 🚧 |
+| 14 | Automated testing | ✅ |
+| 15 | Security and reliability review | ✅ |
+| 16 | UI/UX polish | ✅ |
+| 17 | Documentation | 🚧 |
+| 18 | GitHub repository cleanup | 🚧 |
+| 19 | Deployment | 🚧 |
+| 20 | Final end-to-end verification | 🚧 |
 
 ---
 
@@ -149,7 +149,7 @@ rates over a sample set — which needs the evaluation harness from Phase 13.
 
 ---
 
-## Phase 3 — Git repository setup ✅ (one criterion pending push)
+## Phase 3 — Git repository setup ✅
 
 **Objective.** Establish repository hygiene and the conventions that keep the history reviewable.
 
@@ -169,7 +169,7 @@ Also delivered, beyond the original list, because they turned out to be needed t
 
 **Verification criteria.**
 - A fresh `git clone` into a new directory contains no secrets, no virtualenv, no `node_modules`, no uploaded files, and no database data. ✅ Verified: full git-history scan (not just the working tree) found no `.env`, no real-secret-shaped string, and no accidentally committed dependency directory in any commit.
-- CI runs and passes on the current commit — observed in the CI output. **⬜ NOT YET MET.** Every job's steps were run locally and pass, including the backend job's full sequence against a freshly created, isolated PostgreSQL container — but this repository has not yet been pushed to GitHub, so no workflow run has actually executed on GitHub Actions. "The workflow file is correct and its steps pass locally" and "CI passed on GitHub" are different claims; only the first is true as of this phase. This will be updated to ✅ with a link to the passing run once the repository is pushed.
+- CI runs and passes on the current commit — observed in the CI output. ✅ The repository was published on 2026-09-08 and [the workflow now runs on GitHub Actions](https://github.com/justinchristroper-arch/ai-cv-screener/actions/workflows/ci.yml). Worth recording that the distinction this criterion insisted on — "the steps pass locally" and "CI passed on GitHub" are different claims — was immediately vindicated: the first run went red. A path-traversal test asserted Windows separator semantics for a backslash string that is an ordinary filename on the Linux runner, so it failed on a platform nobody had run it on. The test was made platform-independent and all three jobs are green.
 - `git status` is clean after a full local build and test run, proving the ignore rules cover every generated artifact. ✅
 
 ---
@@ -505,7 +505,7 @@ the natural companion to enabling Live AI Mode, which has not been done yet.
 
 ---
 
-## Phase 14 — Automated testing 🚧
+## Phase 14 — Automated testing ✅
 
 *Delivered as part of the **Final completion** milestone.*
 
@@ -516,18 +516,18 @@ the natural companion to enabling Live AI Mode, which has not been done yet.
 - Integration tests for the API endpoints against a test database. ✅
 - One end-to-end test covering criteria → requirements → upload → score → ranking in demo mode. ✅ One per sample brief, in fact: `test_demo.py::test_every_sample_brief_can_be_walked_end_to_end`.
 - Security regression tests: injection set, path traversal, oversized upload, XSS payload in CV text. ✅ `test_hardening.py` (43), `test_limits.py` (14), `test_cv_prompt_injection.py`, `test_prompt_injection.py`, `test_storage.py`, plus an ESLint rule that makes `dangerouslySetInnerHTML` a build failure.
-- Coverage reporting. ✅ `.	asks.ps1 coverage` — 97% of `backend/app` by statement.
-- CI running the full suite. 🚧 The workflow runs it; it has still never been observed on GitHub, because the repository has not been pushed.
+- Coverage reporting. ✅ `.\tasks.ps1 coverage` — 97% of `backend/app` by statement.
+- CI running the full suite. ✅ Observed on GitHub Actions: the backend job runs it against a real PostgreSQL service container on every push to `main`.
 
 **Verification criteria.**
-- The entire suite runs and passes, with the output shown. ✅ 662 backend, 93 frontend.
+- The entire suite runs and passes, with the output shown. ✅ 662 backend, 93 frontend when this phase was verified; the README carries the current count.
 - The suite runs offline with no API key. ✅
-- Coverage is measured and reported honestly, including any weak areas. ✅ The weakest module is named rather than averaged away: `app/llm/client.py` at 78%, all of it inside `LiveLlmClient`, which cannot run offline.
+- Coverage is measured and reported honestly, including any weak areas. ✅ The weakest module is named rather than averaged away: `app/llm/client.py` at 78%, all of it inside `AnthropicLlmClient`, which cannot run offline.
 - Every test asserts a specific behaviour; no test passes trivially. ✅
-- CI is green on the current commit. ⬜ Unobservable until the first push.
+- CI is green on the current commit. ✅ All three jobs, observed on GitHub Actions.
 
-**What remains for this phase:** watching CI actually run. That is the same
-outstanding item Phase 3 carries, and it needs a push, not more code.
+**What remains for this phase:** nothing. CI has run on GitHub Actions and is
+green, which closed the item this phase shared with Phase 3.
 
 ---
 
@@ -547,7 +547,7 @@ outstanding item Phase 3 carries, and it needs a push, not more code.
 
 **Verification criteria.**
 - Each control is tested by attempting to break it, and the attempt is shown to fail. ✅
-- A dependency vulnerability scan runs, and its findings are triaged in writing. ✅ `pip-audit` + `npm audit` via `.	asks.ps1 audit`. The first run found 8 advisories across 2 development-only packages; both were fixed, and the triage is in [`docs/security.md` §13](security.md#13-dependency-vulnerabilities). Both scans now report nothing.
+- A dependency vulnerability scan runs, and its findings are triaged in writing. ✅ `pip-audit` + `npm audit` via `.\tasks.ps1 audit`. The first run found 8 advisories across 2 development-only packages; both were fixed, and the triage is in [`docs/security.md` §13](security.md#13-dependency-vulnerabilities). Both scans now report nothing.
 - No secret appears in logs; verified by inspecting real log output. ✅
 - The API returns a sane error, not a stack trace, when the provider is unreachable — verified by simulating the failure. ✅ And by an unsimulated one: `scripts/check_llm.py` against a placeholder key reports `provider returned HTTP 401` without printing the key.
 - Findings are recorded even where they are accepted rather than fixed, with the reason. ✅ Six of them, including the two that matter most — no authentication at all, and a rate limiter that is a brake rather than a wall.
