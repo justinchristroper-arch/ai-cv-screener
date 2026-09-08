@@ -1,6 +1,6 @@
 # Development Guide
 
-**Status:** Phase 3 — repository workflow and CI.
+**Status:** current as of the completion milestone — every command below was run.
 **Companion documents:** [architecture.md](architecture.md) · [data-model.md](data-model.md) · [roadmap.md](roadmap.md) · [CONTRIBUTING.md](../CONTRIBUTING.md) · [decisions/](decisions/README.md)
 
 Every command below was executed — on Windows 11 with PowerShell for the local workflow, and additionally against a fresh, isolated PostgreSQL container for anything CI also runs — while writing this document. Nothing here is aspirational; if a command is listed, it ran and its real output is what's described.
@@ -105,12 +105,13 @@ backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.lock.txt
 
 Versions verified: FastAPI 0.141.1, Uvicorn 0.52.4, Pydantic 2.13.5,
 pydantic-settings 2.15.0, SQLAlchemy 2.0.52, Alembic 1.19.2, psycopg 3.3.5,
-anthropic 1.4.0, pypdf 6.17.0, python-multipart 0.0.32, pytest 8.4.2,
-httpx2 2.12.0, reportlab 5.0.1 (test-only), ruff 0.16.6.
+anthropic 1.4.0, pypdf 6.17.0, python-multipart 0.0.32, pytest 9.1.1,
+pytest-cov 7.1.0, pip-audit 2.10.1, httpx2 2.12.0, reportlab 5.0.1
+(test-only), ruff 0.16.6.
 
 The `anthropic` SDK is imported **only** inside `backend/app/llm/` — every
 service above that layer depends on the `LlmClient` protocol instead. In demo
-mode it is never called at all; see §20.
+mode it is never called at all; see §22.
 
 > **Why `httpx2`, not `httpx`:** `starlette.testclient` (used via
 > `fastapi.testclient.TestClient` in every backend test) tries
@@ -228,7 +229,7 @@ models do not describe.
 > written at the top of the file. Expect to make the same correction if a future
 > migration introduces a new enum.
 >
-> CI (§16) now exercises `upgrade → downgrade → upgrade` on every push against a
+> CI (§18) now exercises `upgrade → downgrade → upgrade` on every push against a
 > fresh database specifically to catch a regression of this class before merge —
 > a plain `upgrade head` alone would not have caught it the first time.
 
@@ -279,10 +280,10 @@ cd backend
 .venv\Scripts\python.exe -m pytest
 ```
 
-or `.\tasks.ps1 test-backend`. Expected: **249 passed**.
+or `.\tasks.ps1 test-backend`. Expected: **660 passed**.
 
 The suite makes no network call and needs no API key: every LLM-backed test
-runs against recorded fixtures (§20).
+runs against recorded fixtures (§21).
 
 Tests are split by what they need:
 
@@ -290,8 +291,8 @@ Tests are split by what they need:
   schema assertions need no database.
 - Tests marked `requires_db` are **skipped with a stated reason** when
   PostgreSQL is unreachable, naming the connection string it tried. They are
-  never silently passed. CI always has a database available (§16), so all
-  32 tests — the full suite, `requires_db` included — run there on every push.
+  never silently passed. CI always has a database available (§17), so all
+  test — the full suite, `requires_db` included — runs there on every push.
 
 Run only the offline set:
 
@@ -308,7 +309,7 @@ cd frontend
 npm test
 ```
 
-or `.\tasks.ps1 test-frontend`. Expected: **15 passed** across 3 files.
+or `.\tasks.ps1 test-frontend`. Expected: **90 passed** across 12 files.
 `npm run test:watch` for watch mode.
 
 ---
@@ -359,7 +360,28 @@ every broken link with its file and line number.
 
 ---
 
-## 15. Run the evaluation harness
+## 15. Coverage and dependency audits
+
+```powershell
+.\tasks.ps1 coverage        # backend tests plus a per-module coverage report
+.\tasks.ps1 audit           # pip-audit over Python, npm audit over Node
+```
+
+Coverage is **97% of `backend/app` by statement**. The weakest module is named
+rather than averaged away: `app/llm/client.py` at 78%, and every uncovered line
+is inside `LiveLlmClient` — code that cannot run offline by construction.
+Mocking it deeply enough to cover would raise the number without raising the
+confidence; `scripts/live_check.py` exercises it for real instead.
+
+The audit is not wired into CI on purpose. A new upstream advisory would turn CI
+red on a commit that changed nothing, which trains people to ignore it. It is a
+verification step with a written triage in
+[`docs/security.md` §13](security.md#13-dependency-vulnerabilities) instead —
+a scan whose output nobody reads is not a control.
+
+---
+
+## 16. Run the evaluation harness
 
 ```powershell
 cd C:\path	oi-cv-screener
@@ -388,7 +410,7 @@ holds the measurements.
 
 ---
 
-## 16. Stop the development environment
+## 17. Stop the development environment
 
 ```powershell
 # Ctrl+C in each dev-server terminal, then:
@@ -400,7 +422,7 @@ docker compose down -v       # stop PostgreSQL and DELETE all data
 
 ---
 
-## 17. Continuous integration
+## 18. Continuous integration
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push
 and pull request to `main`, as three independent jobs:
@@ -436,7 +458,7 @@ as two different claims; only the first is currently true.
 
 ---
 
-## 18. Task script reference
+## 19. Task script reference
 
 `tasks.ps1` is a thin PowerShell wrapper, not a build system — every task is one
 or two of the commands above.
@@ -464,7 +486,7 @@ or just use the underlying commands — nothing depends on the script.
 
 ---
 
-## 19. Troubleshooting
+## 20. Troubleshooting
 
 **`ModuleNotFoundError: No module named 'psycopg2'`**
 `DATABASE_URL` is missing the driver suffix. Use `postgresql+psycopg://`.
@@ -500,24 +522,33 @@ if you have nvm installed.
 
 ---
 
-## 20. What is not set up yet
+## 21. What is not set up
 
-Deliberately absent, arriving in the phase named:
+Deliberately absent, with the reason:
 
-- Candidate profile extraction (Phase 6), matching (Phase 7), semantic
-  evaluation (Phase 8), scoring (Phase 9), ranking (Phase 10).
+- **Authentication and authorisation.** None, anywhere. Anyone who can reach the
+  API can do anything it does. A scope decision for a local tool, and the single
+  largest reason not to deploy this with real applicant data
+  ([security.md §1](security.md#1-what-this-system-is-for-threat-modelling-purposes)).
 - **OCR.** Scanned or image-only PDFs have no text layer and are recorded as
-  failures (`NO_TEXT_LAYER`); nothing recovers text from them. See §21.
-- Language detection. `parsed_document.language_detected` is always NULL and
+  failures (`NO_TEXT_LAYER`); nothing recovers text from them. See §23.
+- **Language detection.** `parsed_document.language_detected` is always NULL and
   the `UNSUPPORTED_LANGUAGE` failure reason is reserved but never raised.
-- Authentication, rate limiting, structured request logging (Phase 15).
-- Frontend routing and the screening UI (Phase 11) — the current page is a shell
-  that reports backend connectivity and nothing more.
-- Deployment (Phase 19) — CI (§16) validates the code; it does not deploy it.
+  Multilingual *criteria* are supported ([ADR-0009](decisions/0009-natural-language-screening-criteria.md));
+  detecting a CV's own language is a different feature and is not one of them.
+- **A shared rate limit.** There is a per-client one, but its counters live in
+  this process's memory — a brake, not a wall. A real limit belongs in a proxy
+  ([security.md §8](security.md#8-rate-limiting-and-request-size)).
+- **A deployment.** The backend has a Dockerfile and the frontend builds to
+  static files; nothing is hosted. CI (§18) validates the code, it does not
+  deploy it. See [deployment.md](deployment.md).
+- **A live-model measurement.** Live AI Mode is implemented and can be exercised
+  with `scripts/live_check.py`, but it has not been run against a real key in
+  this repository, so no claim about live model quality is made.
 
 ---
 
-## 21. The LLM layer, demo mode, and fixtures
+## 22. The LLM layer, demo mode, and fixtures
 
 Everything that talks to a language model sits behind one protocol in
 `backend/app/llm/client.py`:
@@ -588,7 +619,7 @@ and is never logged or returned in a response.
 
 ---
 
-## 22. CV upload and PDF parsing
+## 23. CV upload and PDF parsing
 
 Uploading a CV runs a fixed, deterministic pipeline. No language model is
 involved: turning a PDF into text is mechanical, and keeping it mechanical is

@@ -7,9 +7,10 @@ routes.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
 from app.api.deps import LlmClientDep, SessionDep, SettingsDep, StorageDep
+from app.api.limits import model_calls
 from app.schemas.api.demo import (
     DemoSamplesResponse,
     DemoSeedResponse,
@@ -60,6 +61,7 @@ def get_samples(settings: SettingsDep) -> DemoSamplesResponse:
     "/jobs",
     response_model=DemoSeedResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(model_calls)],
     summary="Seed a ready-to-browse demo job",
     description=(
         "Runs the whole pipeline over the synthetic samples: create the job, attach "

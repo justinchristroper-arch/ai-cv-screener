@@ -68,6 +68,22 @@ def _reset_llm_client_cache() -> Iterator[None]:
     reset_llm_client_cache()
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> Iterator[None]:
+    """Rate-limit counters live in module state and every test shares a client IP.
+
+    Without this the suite is one client making several hundred requests a
+    minute, and the tests that happen to run late start failing with 429s that
+    have nothing to do with what they assert. The limiter itself is tested
+    explicitly in `test_limits.py`.
+    """
+    from app.api.limits import reset_all_rate_limits
+
+    reset_all_rate_limits()
+    yield
+    reset_all_rate_limits()
+
+
 @pytest.fixture()
 def settings_factory():
     """Build a `Settings` without reading a developer's `.env`.

@@ -1,7 +1,9 @@
 # Development and test dependencies.
 #     python -m pip install -r requirements.txt -r requirements-dev.txt
 
-pytest>=8.3,<9.0
+# 9.0.3 is the floor, not a preference: 8.4.2 carries PYSEC-2026-1845, and
+# pip-audit is part of this project's verification (docs/security.md).
+pytest>=9.0.3,<10.0
 
 # starlette.testclient (used via fastapi.testclient.TestClient) tries
 # `import httpx2 as httpx` first and falls back to the older `httpx` package
@@ -19,3 +21,11 @@ ruff>=0.8,<1.0            # linter AND formatter — one tool, not two
 # committing binary PDFs keeps their content readable in a diff and makes it
 # obvious that every identity in them is fictional. BSD licensed.
 reportlab>=4.0,<6.0
+
+# Coverage reporting. Measured and published rather than assumed: see
+# docs/security.md and the figure in README.md.
+pytest-cov>=7.0,<8.0
+
+# Dependency vulnerability scanning, run as part of verification rather than
+# once and forgotten. Its findings are triaged in writing in docs/security.md.
+pip-audit>=2.10,<3.0

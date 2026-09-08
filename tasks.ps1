@@ -127,6 +127,23 @@ switch ($Task) {
         python (Join-Path $Root "scripts\check_docs.py")
     }
 
+    "coverage" {
+        Require-Venv
+        Invoke-InDir $Backend {
+            & $Python -m pytest --cov=app --cov-report=term-missing:skip-covered @Rest
+        }
+    }
+
+    "audit" {
+        # Both halves. Findings are triaged in writing in docs/security.md —
+        # a scan whose output nobody reads is not a control.
+        Require-Venv
+        Write-Host "==> Python dependencies" -ForegroundColor Cyan
+        Invoke-InDir $Backend { & $Python -m pip_audit --progress-spinner off }
+        Write-Host "==> Node dependencies" -ForegroundColor Cyan
+        Invoke-InDir $Frontend { npm audit }
+    }
+
     "evaluate" {
         # Run from the repository root: the package is `evaluation`, and the
         # runner puts backend\ on sys.path itself. Extra arguments pass through,
@@ -155,6 +172,8 @@ AI CV Screener — developer commands
   .\tasks.ps1 lint           Lint and format-check both halves
   .\tasks.ps1 format         Apply formatting to both halves
   .\tasks.ps1 check-docs     Check docs for broken relative links and anchors
+  .\tasks.ps1 coverage       Backend tests with a coverage report
+  .\tasks.ps1 audit          Scan Python and Node dependencies for known CVEs
   .\tasks.ps1 evaluate       Measure the pipeline and rewrite evaluation/RESULTS.md
                              (add --no-db to run without PostgreSQL)
 

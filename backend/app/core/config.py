@@ -61,6 +61,17 @@ class Settings(BaseSettings):
     max_files_per_batch: int = 25
     max_pdf_pages: int = 20
 
+    # A ceiling on the whole request, checked from Content-Length before the
+    # body is read. Sized to hold a full batch of maximum-size CVs plus
+    # multipart overhead, so it never refuses a request the per-file limits
+    # would have accepted.
+    max_request_body_mb: int = 300
+
+    # A per-client cap on the endpoints that cost money or write files. In-process
+    # only: see app/api/limits.py for what that does and does not buy.
+    rate_limit_enabled: bool = True
+    rate_limit_per_minute: int = 30
+
     # Where uploaded CV files are written. Outside any tracked source directory
     # and git-ignored: uploaded documents are personal data and must never
     # reach the repository. Stored paths in the database are relative to this
@@ -70,6 +81,10 @@ class Settings(BaseSettings):
     @property
     def max_upload_size_bytes(self) -> int:
         return self.max_upload_size_mb * 1024 * 1024
+
+    @property
+    def max_request_body_bytes(self) -> int:
+        return self.max_request_body_mb * 1024 * 1024
 
     @property
     def cors_origins(self) -> list[str]:

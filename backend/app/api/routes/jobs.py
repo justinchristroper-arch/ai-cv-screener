@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
 from app.api.deps import LlmClientDep, SessionDep
+from app.api.limits import model_calls
 from app.core.errors import NotFoundError
 from app.models.job import JobDescription
 from app.schemas.api.jobs import (
@@ -130,6 +131,7 @@ def get_description(job_id: uuid.UUID, db: SessionDep) -> JobDescriptionResponse
 @router.post(
     "/{job_id}/requirements/extract",
     response_model=ExtractionResponse,
+    dependencies=[Depends(model_calls)],
     summary="Extract requirements from the job description",
     description=(
         "Runs the language model over the job description and replaces the job's "

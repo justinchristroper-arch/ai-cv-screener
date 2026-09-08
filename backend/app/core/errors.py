@@ -92,6 +92,29 @@ def register_exception_handlers(app: FastAPI) -> None:
             body["details"] = exc.details
         return JSONResponse(status_code=exc.status_code, content=body)
 
+    # Imported here rather than at module scope: `api.limits` imports Starlette
+    # middleware, and `core` is the layer everything else depends on, so it must
+    # not depend on the API layer at import time.
+    from app.api.limits import RateLimitedError
+
+    @app.exception_handler(RateLimitedError)
+    async def _rate_limited_handler(_: Request, exc: RateLimitedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+            content={
+                "code": "rate_limited",
+                "message": (
+                    f"Too many requests. This endpoint allows {exc.limit} per minute; "
+                    f"try again in about {exc.retry_after_seconds} seconds."
+                ),
+                "details": {
+                    "limit_per_minute": exc.limit,
+                    "retry_after_seconds": exc.retry_after_seconds,
+                },
+            },
+        )
+
     @app.exception_handler(Exception)
     async def _unhandled_error_handler(_: Request, exc: Exception) -> JSONResponse:
         # An error id correlates the opaque client response with the full

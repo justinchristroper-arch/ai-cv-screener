@@ -20,9 +20,7 @@ function renderPanel(requirements: ReturnType<typeof requirement>[]) {
       body: { job_id: "job-1", requirements_confirmed_at: null, requirements },
     },
   });
-  return render(
-    <RequirementsPanel jobId="job-1" hasDescription onChanged={() => {}} />,
-  );
+  return render(<RequirementsPanel jobId="job-1" hasDescription onChanged={() => {}} />);
 }
 
 const AGE_FLAG = {

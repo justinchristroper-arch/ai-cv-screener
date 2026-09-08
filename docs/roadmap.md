@@ -505,45 +505,52 @@ the natural companion to enabling Live AI Mode, which has not been done yet.
 
 ---
 
-## Phase 14 — Automated testing ⬜
+## Phase 14 — Automated testing 🚧
+
+*Delivered as part of the **Final completion** milestone.*
 
 **Objective.** Bring the suite to the level where a regression is caught by tests rather than by a demo failing.
 
 **Deliverables.**
-- Unit tests for parsing, normalization, evidence verification, deterministic matching, scoring, band mapping, and ranking.
-- Integration tests for the API endpoints against a test database.
-- One end-to-end test covering JD → requirements → upload → score → ranking in demo mode.
-- Security regression tests: injection set, path traversal, oversized upload, XSS payload in CV text.
-- Coverage reporting.
-- CI running the full suite.
+- Unit tests for parsing, normalization, evidence verification, deterministic matching, scoring, band mapping, and ranking. ✅
+- Integration tests for the API endpoints against a test database. ✅
+- One end-to-end test covering criteria → requirements → upload → score → ranking in demo mode. ✅ One per sample brief, in fact: `test_demo.py::test_every_sample_brief_can_be_walked_end_to_end`.
+- Security regression tests: injection set, path traversal, oversized upload, XSS payload in CV text. ✅ `test_hardening.py` (42), `test_limits.py` (14), `test_cv_prompt_injection.py`, `test_prompt_injection.py`, `test_storage.py`, plus an ESLint rule that makes `dangerouslySetInnerHTML` a build failure.
+- Coverage reporting. ✅ `.	asks.ps1 coverage` — 97% of `backend/app` by statement.
+- CI running the full suite. 🚧 The workflow runs it; it has still never been observed on GitHub, because the repository has not been pushed.
 
 **Verification criteria.**
-- The entire suite runs and passes, with the output shown.
-- The suite runs offline with no API key.
-- Coverage is measured and reported honestly, including any weak areas.
-- Every test asserts a specific behaviour; no test passes trivially.
-- CI is green on the current commit.
+- The entire suite runs and passes, with the output shown. ✅ 660 backend, 90 frontend.
+- The suite runs offline with no API key. ✅
+- Coverage is measured and reported honestly, including any weak areas. ✅ The weakest module is named rather than averaged away: `app/llm/client.py` at 78%, all of it inside `LiveLlmClient`, which cannot run offline.
+- Every test asserts a specific behaviour; no test passes trivially. ✅
+- CI is green on the current commit. ⬜ Unobservable until the first push.
+
+**What remains for this phase:** watching CI actually run. That is the same
+outstanding item Phase 3 carries, and it needs a push, not more code.
 
 ---
 
-## Phase 15 — Security and reliability review ⬜
+## Phase 15 — Security and reliability review ✅
+
+*Delivered as part of the **Final completion** milestone.*
 
 **Objective.** Deliberately attack the system, then fix what the attack finds.
 
 **Deliverables.**
-- A written review covering the three-channel trust boundary, upload validation, secret handling, dependency vulnerabilities, error-message leakage, and CORS.
-- Adversarial testing against the injection corpus.
-- Rate limiting and request size limits.
-- Structured logging that never logs secrets or full CV content.
-- Graceful degradation when the LLM provider is unavailable.
-- Fixes for every issue found.
+- A written review covering the three-channel trust boundary, upload validation, secret handling, dependency vulnerabilities, error-message leakage, and CORS. ✅ [`docs/security.md`](security.md), 15 sections.
+- Adversarial testing against the injection corpus. ✅ An injected CV is screened by the demo on every run; a quote that verifies but reads as an instruction is refused separately, because verification alone cannot catch it.
+- Rate limiting and request size limits. ✅ `app/api/limits.py`, with both limits' ceilings documented and one of them pinned by a test named after the limitation it records.
+- Structured logging that never logs secrets or full CV content. ✅ Verified by running a full screening at DEBUG and asserting the candidate's name, email, phone, address and CV text are absent from every record.
+- Graceful degradation when the LLM provider is unavailable. ✅ 503/502 with a plain-language message, nothing partial written, and the candidate recorded as FAILED with a reason rather than vanishing.
+- Fixes for every issue found. ✅
 
 **Verification criteria.**
-- Each control is tested by attempting to break it, and the attempt is shown to fail.
-- A dependency vulnerability scan runs, and its findings are triaged in writing.
-- No secret appears in logs; verified by inspecting real log output.
-- The API returns a sane error, not a stack trace, when the provider is unreachable — verified by simulating the failure.
-- Findings are recorded even where they are accepted rather than fixed, with the reason.
+- Each control is tested by attempting to break it, and the attempt is shown to fail. ✅
+- A dependency vulnerability scan runs, and its findings are triaged in writing. ✅ `pip-audit` + `npm audit` via `.	asks.ps1 audit`. The first run found 8 advisories across 2 development-only packages; both were fixed, and the triage is in [`docs/security.md` §13](security.md#13-dependency-vulnerabilities). Both scans now report nothing.
+- No secret appears in logs; verified by inspecting real log output. ✅
+- The API returns a sane error, not a stack trace, when the provider is unreachable — verified by simulating the failure. ✅ And by an unsimulated one: `scripts/live_check.py` against a placeholder key reports `provider returned HTTP 401` without printing the key.
+- Findings are recorded even where they are accepted rather than fixed, with the reason. ✅ Six of them, including the two that matter most — no authentication at all, and a rate limiter that is a brake rather than a wall.
 
 ---
 

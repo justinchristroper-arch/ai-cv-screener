@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.api.limits import MaxBodySizeMiddleware
 from app.api.routes import candidates, demo, health, jobs, requirements
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
@@ -36,6 +37,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ),
     )
 
+    # Outermost of the two, so an oversized body is refused before CORS or any
+    # route sees it.
+    app.add_middleware(MaxBodySizeMiddleware, max_bytes=settings.max_request_body_bytes)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -43,6 +48,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # The rate limiter reads its configuration from here rather than from a
+    # module-level import, so a test can build an app with limits off without
+    # touching global state.
+    app.state.settings = settings
 
     # Business-rule failures become structured responses here, so no route has
     # to translate a domain error into HTTP itself.

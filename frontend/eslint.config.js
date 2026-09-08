@@ -24,6 +24,30 @@ export default tseslint.config(
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+
+      // The XSS control for untrusted document content, enforced rather than
+      // remembered (docs/architecture.md section 13). Every string this app
+      // renders — a CV quote, a skill name, a role title, a recruiter's
+      // criteria — came from a file someone uploaded or a box someone typed
+      // into, and React escapes all of it as long as nobody reaches for the
+      // one API that opts out. `no-restricted-syntax` rather than a React
+      // plugin rule so it fires on the JSX attribute *and* on a props object
+      // built somewhere else and spread in.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+          message:
+            "dangerouslySetInnerHTML renders untrusted CV and criteria text as HTML. " +
+            "Render it as text instead.",
+        },
+        {
+          selector: "Property[key.name='dangerouslySetInnerHTML']",
+          message:
+            "dangerouslySetInnerHTML renders untrusted CV and criteria text as HTML. " +
+            "Render it as text instead.",
+        },
+      ],
     },
   },
 );

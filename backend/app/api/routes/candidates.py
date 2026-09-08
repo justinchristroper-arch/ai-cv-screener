@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import LlmClientDep, SessionDep, SettingsDep, StorageDep
+from app.api.limits import model_calls, uploads
 from app.core.enums import MatchMethod, MatchVerdict
 from app.core.errors import ConflictError, NotFoundError
 from app.models.candidate import Candidate
@@ -93,6 +94,7 @@ def _candidate_response(db: Session, candidate: Candidate) -> CandidateResponse:
     "/api/jobs/{job_id}/candidates",
     response_model=UploadBatchResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(uploads)],
     summary="Upload CV PDFs for a job",
     description=(
         "Accepts one or more PDF files. Each file is validated and parsed "
@@ -342,6 +344,7 @@ def _match_results_response(db: Session, candidate: Candidate) -> MatchResultsRe
     "/api/candidates/{candidate_id}/profile",
     response_model=ProfileExtractionResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(model_calls)],
     summary="Extract a structured profile from the candidate's CV",
     description=(
         "Reads the parsed CV text and stores the skills, roles, qualifications and "
@@ -391,6 +394,7 @@ def get_candidate_profile(candidate_id: uuid.UUID, db: SessionDep) -> CandidateP
     "/api/candidates/{candidate_id}/matches",
     response_model=MatchingRunResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(model_calls)],
     summary="Match the candidate against the job's confirmed requirements",
     description=(
         "Requires the job's requirements to be confirmed: matching against a draft "

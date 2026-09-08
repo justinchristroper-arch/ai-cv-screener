@@ -1,0 +1,30 @@
+# What must not reach the build context.
+#
+# Two categories, and the first one is the important one: `.env` holds a real
+# API key on a developer's machine, and `var/` holds uploaded CVs, which are
+# personal data. Neither belongs in an image layer, and a COPY of the whole
+# directory would put both there.
+
+.env
+.env.*
+!.env.example
+var/
+**/uploads/
+
+# Local environments and caches — large, platform-specific, and rebuilt in the
+# image anyway.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.json
+coverage.xml
+htmlcov/
+
+# Not needed at runtime. Tests are run in CI against the source tree, not
+# against the image; shipping them would enlarge it for no benefit.
+tests/
