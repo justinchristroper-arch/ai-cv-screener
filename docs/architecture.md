@@ -329,6 +329,9 @@ Settings load from the environment into a typed settings object at startup. **Th
 | Score storage | Store inputs **and** result | Store only the final score | Reconstructibility is a stated requirement; recomputation from stored rows must reproduce the value exactly. |
 | Demo/live fallback | Never, in either direction | Fall back on missing fixture | One direction spends money silently; the other presents recorded output as a fresh result. |
 | Frontend state | Server-state query lib | Redux/global store | Nearly all state here is server state. |
+| Stage 2's input | Whatever the recruiter typed, in any language | A formal job description | The rest of the pipeline never cared what shape the input had; only the prompt did. Requiring a document first was a barrier with nothing behind it ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)). |
+| A criterion naming a protected characteristic | Refused at the confirmation gate | Neutralised later at screening | Silently scoring it "no evidence" for everybody teaches the recruiter nothing and overrules them without saying so. Refusing names the line and hands the decision back ([ADR-0010](decisions/0010-protected-attribute-guard.md)). |
+| Rate limiting | In-process, per client, on the paid endpoints | A shared store; nothing at all | A brake on accidental hammering that costs one file and no dependency. Its ceilings are documented rather than oversold; a real limit belongs in a proxy. |
 
 ---
 
@@ -342,3 +345,5 @@ Recorded so these are known gaps rather than later surprises:
 - **No data retention or deletion workflow.** A blocker for real personal data, and a stated limitation of the product.
 - **No OCR path.** Image-only PDFs fail honestly rather than being scored.
 - **No cross-job querying of candidates.** Each job is an island by design in the MVP.
+- **No language detection on a CV.** Screening criteria may be written in any language; a CV in one other than English has never been evaluated, and nothing flags it.
+- **No shared rate limit.** The per-client one lives in this process's memory, so it does not survive a restart and does not see another worker's traffic.

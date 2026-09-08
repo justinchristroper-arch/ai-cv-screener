@@ -280,7 +280,7 @@ cd backend
 .venv\Scripts\python.exe -m pytest
 ```
 
-or `.\tasks.ps1 test-backend`. Expected: **661 passed**.
+or `.\tasks.ps1 test-backend`. Expected: **662 passed**.
 
 The suite makes no network call and needs no API key: every LLM-backed test
 runs against recorded fixtures (§21).

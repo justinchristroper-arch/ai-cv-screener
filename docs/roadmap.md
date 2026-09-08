@@ -515,12 +515,12 @@ the natural companion to enabling Live AI Mode, which has not been done yet.
 - Unit tests for parsing, normalization, evidence verification, deterministic matching, scoring, band mapping, and ranking. ✅
 - Integration tests for the API endpoints against a test database. ✅
 - One end-to-end test covering criteria → requirements → upload → score → ranking in demo mode. ✅ One per sample brief, in fact: `test_demo.py::test_every_sample_brief_can_be_walked_end_to_end`.
-- Security regression tests: injection set, path traversal, oversized upload, XSS payload in CV text. ✅ `test_hardening.py` (42), `test_limits.py` (14), `test_cv_prompt_injection.py`, `test_prompt_injection.py`, `test_storage.py`, plus an ESLint rule that makes `dangerouslySetInnerHTML` a build failure.
+- Security regression tests: injection set, path traversal, oversized upload, XSS payload in CV text. ✅ `test_hardening.py` (43), `test_limits.py` (14), `test_cv_prompt_injection.py`, `test_prompt_injection.py`, `test_storage.py`, plus an ESLint rule that makes `dangerouslySetInnerHTML` a build failure.
 - Coverage reporting. ✅ `.	asks.ps1 coverage` — 97% of `backend/app` by statement.
 - CI running the full suite. 🚧 The workflow runs it; it has still never been observed on GitHub, because the repository has not been pushed.
 
 **Verification criteria.**
-- The entire suite runs and passes, with the output shown. ✅ 660 backend, 90 frontend.
+- The entire suite runs and passes, with the output shown. ✅ 662 backend, 93 frontend.
 - The suite runs offline with no API key. ✅
 - Coverage is measured and reported honestly, including any weak areas. ✅ The weakest module is named rather than averaged away: `app/llm/client.py` at 78%, all of it inside `LiveLlmClient`, which cannot run offline.
 - Every test asserts a specific behaviour; no test passes trivially. ✅

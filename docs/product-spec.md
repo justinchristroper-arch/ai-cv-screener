@@ -9,7 +9,7 @@
 
 ## 1. Product overview
 
-AI CV Screener is a **decision-support tool for recruiters and HR staff**. Given one job description (JD) and a batch of candidate CVs, it produces, for every candidate, a structured and auditable answer to a single question:
+AI CV Screener is a **decision-support tool for recruiters and HR staff**. Given one set of screening criteria — a job description, or a few lines a recruiter typed in their own language ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)) — and a batch of candidate CVs, it produces, for every candidate, a structured and auditable answer to a single question:
 
 > For each requirement of this job, what evidence does this CV contain, and what evidence is missing?
 
@@ -55,7 +55,7 @@ Candidates are **not** users of this system, but they are affected by it. That a
 The MVP implements this loop end to end:
 
 1. HR creates a **job**.
-2. HR pastes or uploads a **job description**.
+2. HR writes or pastes their **screening criteria**. A job description works; so does a few informal lines, in any language.
 3. The system extracts **structured requirements** from the JD.
 4. HR **reviews and edits** the extracted requirements — wording, category, must-have flag, weight — and may add or delete requirements.
 5. HR **confirms** the requirement set. This is a hard gate: no candidate is scored against unconfirmed requirements.
@@ -332,12 +332,14 @@ Binding rules:
 4. **Consistent criteria across a job.** Every candidate in a job is evaluated against the identical confirmed requirement set with identical weights.
 5. **Auditability.** Requirements, weights, verdicts, evidence, and model and prompt versions are all persisted, so a screening result can be reconstructed and questioned after the fact.
 6. **No autonomous adverse action.** No candidate is filtered, rejected, or hidden by the system.
+7. **A protected characteristic cannot become a screening criterion.** Free-text criteria can ask for one — "wanita, maksimal 25 tahun" is a sentence people type — and some CVs print one, so the matcher could have found "evidence" for it. A requirement naming age, gender, marital status, religion, ethnicity, nationality, appearance or health is flagged, and the confirmation gate refuses the set until it is removed or reworded. Because every screening stage passes through that gate, such a requirement can never reach a candidate. Nothing is rewritten and nobody is filtered; the recruiter edits one line ([ADR-0010](decisions/0010-protected-attribute-guard.md)).
 
 **Residual risks these controls do not remove** — stated because pretending otherwise would be the more dangerous error:
 
 - **Proxy variables.** Name, university, employer, career gaps, and phrasing all correlate with protected attributes and are legitimately part of a CV. Removing explicit fields does not remove the signal.
 - **Model bias.** The LLM's judgement of what "counts" as evidence is shaped by its training data.
-- **Requirement bias.** A JD demanding an irrelevant degree encodes bias upstream of anything the system does.
+- **Requirement bias.** A brief demanding an irrelevant degree encodes bias upstream of anything the system does. The guard above catches a criterion that *names* a protected characteristic; it cannot catch one that merely correlates with it.
+- **The guard reads two languages.** Its patterns cover Indonesian and English, and are deliberately narrow so that "minimal 2 tahun pengalaman" and "bisa bahasa Inggris" pass untouched. A paraphrase — "someone young and energetic" — goes through.
 - **Automation bias.** Recruiters over-trust ranked lists. Presenting evidence rather than bare verdicts is a mitigation, not a solution.
 - **No demographic testing.** This project runs no disparate-impact analysis, because it has no demographic data and will not collect any. Section 16 defines a *counterfactual* bias probe (identical CV, varied name and gender markers, compare verdicts) as a cheaper proxy — it detects sensitivity, not real-world impact.
 
@@ -433,7 +435,7 @@ Stated plainly, because a specification that hides these is not credible.
 **Document processing**
 - Scanned or image-only PDFs contain no text layer; without OCR they cannot be read. The system reports this rather than scoring an empty CV.
 - Multi-column layouts, tables, headers, and text boxes can extract in the wrong reading order, degrading extraction quality in ways that are hard to detect automatically.
-- PDF only; non-English CVs are out of scope and flagged.
+- PDF only. **Screening criteria** may be written in any language, and Indonesian, English and mixed input are exercised by tests ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)); a **CV** in a language other than English has never been evaluated, and `language_detected` is always NULL, so nothing detects or flags one.
 
 **Language model**
 - LLMs can fabricate. Evidence verification catches invented quotes; it does not catch a plausible-looking misreading of real text.
@@ -458,6 +460,8 @@ Stated plainly, because a specification that hides these is not credible.
 
 **Engineering**
 - The evaluation set is small and synthetic; the metrics indicate this application's deterministic behaviour on that set, not production accuracy, not model quality, and not fairness.
+- **Model quality is not measured at all.** Six of the metrics in section 16 need a live provider; offline they would be scored against recordings written by the same author as the labels. `scripts/live_check.py` is the path to them and has not been run against a real key.
+- **The per-client rate limit is in-process.** Two workers means two independent allowances, and the client address is spoofable. A brake, not a wall ([security.md §8](security.md#8-rate-limiting-and-request-size)).
 - Single workspace; no authentication or multi-tenancy in the MVP.
 - Not load-tested; batch sizes are modest.
 - No data-retention or deletion workflow — a blocker for handling real personal data.
@@ -472,10 +476,10 @@ Ordered roughly by value per unit of effort, and deliberately **not** part of th
 2. **DOCX support** — the second most common CV format.
 3. **Recruiter feedback loop** — record HR's corrections to verdicts, turn them into a growing evaluation set, and report agreement over time.
 4. **Threshold calibration** — replace the invented bands with values derived from recorded recruiter behaviour.
-5. **Requirement templates** per role family, to reduce JD-quality variance.
+5. **Requirement templates** per role family, to reduce variance in the quality of the brief.
 6. **Semantic skill graph** — embeddings plus a curated alias/ontology layer, reducing LLM calls and improving consistency for common equivalences.
 7. **Bias audit tooling** — expand the counterfactual probe into a reportable dashboard.
-8. **Multilingual support** with per-language evaluation.
+8. **Per-language evaluation.** Multilingual *criteria* now work ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)); what is missing is a measurement of how well a live model handles them, and any support for a CV that is not in English.
 9. **Authentication, roles, multi-tenancy, retention and deletion workflows** — prerequisites for handling real candidate data.
 10. **Explanation quality evaluation** — measure whether recruiters can verify a finding from the evidence shown, which is the real product goal.
 11. **Cross-job candidate matching** and talent-pool reuse.

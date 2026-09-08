@@ -381,7 +381,7 @@ The frontend reads one variable of its own, `VITE_API_BASE_URL` (see
 Everything below runs offline, with no API key.
 
 ```powershell
-.\tasks.ps1 test          # 754 tests: 661 backend, 93 frontend
+.\tasks.ps1 test          # 755 tests: 662 backend, 93 frontend
 .\tasks.ps1 lint          # ruff + eslint + prettier, both halves
 .\tasks.ps1 coverage      # 97% of backend/app by statement
 .\tasks.ps1 audit         # pip-audit + npm audit
@@ -545,7 +545,7 @@ The full list is in
 | Database | ✅ PostgreSQL 16 in Docker; all 16 tables migrated via Alembic. |
 | Demo mode | ✅ Four sample briefs and three synthetic CVs, each walkable end to end. No API key, no cost, no real applicant data. |
 | Live AI mode | 🟡 Implemented and wired; verifiable with `scripts/live_check.py`. **Not yet exercised against a real key in this repository**, so no claim about live model quality is made. |
-| Tests | ✅ 754 passing (661 backend, 93 frontend), 97% backend coverage. |
+| Tests | ✅ 755 passing (662 backend, 93 frontend), 97% backend coverage. |
 | Evaluation | ✅ [`evaluation/`](evaluation/) — 8 synthetic candidates, 89 labelled pairs, 11 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
 | Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, 10 ADRs. |

@@ -293,9 +293,13 @@ def _extract_from_model(
                 attempt=attempt,
                 error_detail=str(exc),
             )
-            _mark_failed(db, candidate, "The language model could not be reached.")
+            _mark_failed(
+                db, candidate, "The language model could not be reached, or refused the request."
+            )
             raise ExtractionFailedError(
-                "The language model could not be reached. No profile was written."
+                "The language model could not be reached, or refused the request. "
+                "No profile was written.",
+                details={"provider": str(exc)},
             ) from exc
 
         output, error = _validate(response.text)

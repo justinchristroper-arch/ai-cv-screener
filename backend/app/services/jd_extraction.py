@@ -209,7 +209,9 @@ def extract_requirements(db: Session, job_id: uuid.UUID, client: LlmClient) -> E
                 error_detail=str(exc),
             )
             raise ExtractionFailedError(
-                "The language model could not be reached. No requirements were changed."
+                "The language model could not be reached, or refused the request. "
+                "No requirements were changed.",
+                details={"provider": str(exc)},
             ) from exc
 
         output, error = _validate(response.text)

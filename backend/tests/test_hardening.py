@@ -519,3 +519,39 @@ def test_the_demo_seed_endpoint_stays_refused_outside_demo_mode() -> None:
 
     with pytest.raises(ConflictError):
         demo.require_demo_mode(False)
+
+
+@pytest.mark.requires_db
+def test_a_rejected_key_is_not_reported_as_an_unreachable_provider(
+    db_session: Session, replay_client
+) -> None:
+    """Two different failures, and the difference is what an operator acts on.
+
+    Running the live check against a placeholder key produced HTTP 401 and a
+    message saying the model "could not be reached", which sends someone looking
+    at the network for an authentication problem. The provider's own summary is
+    a status code with no body attached, so handing it back leaks nothing.
+    """
+    from app.core.errors import ExtractionFailedError
+    from app.services import jd_extraction
+
+    class _Rejecting:
+        def complete(self, request):
+            raise LlmProviderError("provider returned HTTP 401")
+
+    job = jobs.create_job(db_session, title="Rejected key")
+    jobs.set_description(
+        db_session,
+        job.id,
+        raw_text="Backend engineer. Required: 5 years of Python.",
+        source_type=JdSourceType.PASTED,
+    )
+
+    with pytest.raises(ExtractionFailedError) as caught:
+        jd_extraction.extract_requirements(db_session, job.id, _Rejecting())
+
+    assert "or refused the request" in str(caught.value)
+    assert caught.value.details["provider"] == "provider returned HTTP 401"
+    # The status, never the provider's message body: that text is not ours to
+    # forward and can echo request content back.
+    assert "sk-" not in str(caught.value.details)
