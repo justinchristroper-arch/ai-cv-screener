@@ -52,6 +52,7 @@ from app.core.enums import (
     RequirementCategory,
 )
 from app.core.errors import ConflictError, ExtractionFailedError
+from app.core.text import occurs_as_token
 from app.llm.client import LlmClient
 from app.models.audit import SkillAlias
 from app.models.candidate import Candidate, ParsedDocument
@@ -135,27 +136,6 @@ def normalize_skill_name(name: str) -> str:
     # Trailing punctuation is noise ("Python." is Python); a *leading* dot is
     # not, because ".NET" is a skill name and "net" is a different word.
     return text.rstrip(".-").lstrip("-").strip()
-
-
-def _occurs_as_token(needle: str, haystack: str) -> bool:
-    """True when `needle` appears in `haystack` on token boundaries.
-
-    ``\\b`` is unusable here: it treats ``+`` and ``#`` as boundaries, so "c++"
-    would match inside "c" and "java" would match inside "javascript". Checking
-    the neighbouring characters directly is both simpler and correct.
-    """
-    if not needle:
-        return False
-
-    start = haystack.find(needle)
-    while start != -1:
-        before = haystack[start - 1] if start > 0 else " "
-        after_index = start + len(needle)
-        after = haystack[after_index] if after_index < len(haystack) else " "
-        if not before.isalnum() and not after.isalnum():
-            return True
-        start = haystack.find(needle, start + 1)
-    return False
 
 
 # --------------------------------------------------------------------------
@@ -362,7 +342,7 @@ def _match_skill(
     for skill in usable:
         if len(skill.normalized_name) < MIN_SEARCHABLE_TOKEN_LENGTH:
             continue
-        if _occurs_as_token(skill.normalized_name, haystack):
+        if occurs_as_token(skill.normalized_name, haystack):
             return Decision(
                 requirement_id=requirement.id,
                 verdict=MatchVerdict.MATCHED,
@@ -375,7 +355,7 @@ def _match_skill(
         for form in sorted(skill_alias_forms(skill.normalized_name, alias_map)):
             if len(form) < MIN_SEARCHABLE_TOKEN_LENGTH:
                 continue
-            if _occurs_as_token(form, haystack):
+            if occurs_as_token(form, haystack):
                 return Decision(
                     requirement_id=requirement.id,
                     verdict=MatchVerdict.MATCHED,

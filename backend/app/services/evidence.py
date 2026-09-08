@@ -15,6 +15,22 @@ Procedure:
    original text so ``full_text[start:end]`` still returns the real characters.
 3. Otherwise ``UNVERIFIED``, with no offsets and no page.
 
+**Short quotes must land on token boundaries.** A long passage cannot appear in
+a document by accident, but a two- or three-letter run can: "AI" occurs inside
+"training" and "IT" inside "security". For a quote shorter than
+``SHORT_QUOTE_CHARS`` the match is therefore required to be bounded by
+non-alphanumeric characters on both sides, so that a coincidence inside a longer
+word is reported as ``UNVERIFIED`` while a genuine one-word citation --
+"English" on a languages line, "Python" in a skills list -- verifies normally.
+
+This is where that protection belongs, and it did not start here. The schemas
+used to refuse any quote under eight characters outright, which is a guess about
+*length* standing in for a fact about *position*. It cost nothing until a model
+quoted the single word a CV actually used for a language requirement, at seven
+characters, and the reply was rejected although the quotation was exact. Length
+cannot tell a citation from a coincidence; only knowing where the text landed
+can, and only this module knows that.
+
 An ``UNVERIFIED`` span cannot support a positive verdict. The caller downgrades
 the verdict and flags it; that policy lives in ``services/matching.py``, because
 this module's job is to report what is true about the text, not to decide what
@@ -39,6 +55,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.core.enums import EvidenceVerification
+from app.core.text import find_token
 from app.models.candidate import ParsedDocument
 from app.models.evaluation import EvidenceSpan
 from app.services.document_parsing import scan_for_injection
@@ -65,6 +82,14 @@ _FOLD_SUBSTITUTIONS = {
     "−": "-",
     "…": "...",
 }
+
+
+#: Below this length, a match must sit on token boundaries to count as a
+#: quotation. Eight is the number the schemas previously used as a hard floor;
+#: it is kept as the point at which coincidence stops being plausible, rather
+#: than as a reason to refuse the quote. Anything this long or longer is taken
+#: as a quotation wherever it is found, exactly as before.
+SHORT_QUOTE_CHARS = 8
 
 
 @dataclass(frozen=True)
@@ -148,6 +173,20 @@ def _fold(text: str) -> tuple[str, list[int]]:
     return "".join(folded), index_map
 
 
+def _find_citation(needle: str, haystack: str, needs_boundaries: bool) -> int:
+    """Index of the first occurrence that counts as a citation, or -1.
+
+    A long quote is taken wherever it is found. A short one must be a token, and
+    an occurrence inside a longer word is skipped rather than ending the search
+    — so the offsets recorded point at the line a reader would accept as the
+    source, instead of citing a coincidence and sending someone to the wrong
+    part of their own document.
+    """
+    if not needs_boundaries:
+        return haystack.find(needle)
+    return find_token(needle, haystack)
+
+
 def verify_quote(
     quote: str,
     full_text: str,
@@ -170,7 +209,10 @@ def verify_quote(
     if not quote or not quote.strip():
         return unverified()
 
-    start = full_text.find(quote)
+    # A short quote has to be a token, not a substring. See SHORT_QUOTE_CHARS.
+    needs_boundaries = len(quote.strip()) < SHORT_QUOTE_CHARS
+
+    start = _find_citation(quote, full_text, needs_boundaries)
     if start != -1:
         end = start + len(quote)
         return QuoteVerification(
@@ -188,7 +230,7 @@ def verify_quote(
     if not folded_quote:
         return unverified()
 
-    folded_start = folded_text.find(folded_quote)
+    folded_start = _find_citation(folded_quote, folded_text, needs_boundaries)
     if folded_start == -1:
         return unverified()
 

@@ -38,10 +38,18 @@ MAX_EDUCATION = 15
 MAX_PROJECTS = 25
 MAX_TECHNOLOGIES = 25
 
-#: Evidence is sentence-level (docs/data-model.md section 11). Eight characters
-#: is short enough for a terse CV line and long enough that a three-letter
-#: fragment cannot verify against an incidental occurrence somewhere in the text.
-MIN_QUOTE_LENGTH = 8
+#: A quote shorter than this is a fragment rather than a citation: one or two
+#: characters cannot identify a passage. It matches
+#: `matching.MIN_SEARCHABLE_TOKEN_LENGTH` and the semantic-matching contract.
+#:
+#: It used to be eight, on the reasoning that a longer quote "cannot verify
+#: against an incidental occurrence". That reasoning was sound and the mechanism
+#: was wrong: it also rejected legitimate one-word quotations such as "Python"
+#: on a skills line. Guarding against an incidental match is now done by
+#: `services/evidence.py`, which requires a short quote to sit on token
+#: boundaries in the document -- a fact about position rather than a guess from
+#: length.
+MIN_QUOTE_LENGTH = 3
 MAX_QUOTE_LENGTH = 400
 
 MAX_NAME_LENGTH = 200

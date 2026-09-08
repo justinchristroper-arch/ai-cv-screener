@@ -107,3 +107,44 @@ def has_meaningful_text(text: str) -> bool:
     guessing is how a system ends up silently discarding a valid document.
     """
     return bool(text.strip())
+
+
+def find_token(needle: str, haystack: str) -> int:
+    """Index of the first occurrence of `needle` bounded by non-alphanumerics.
+
+    The difference between finding a word and finding a run of letters that
+    happens to sit inside another word: "AI" occurs in "training" and "IT" in
+    "security", but neither occurs there *as a token*. Returns -1 when there is
+    no such occurrence.
+
+    Occurrences inside a longer word are **skipped**, not treated as the end of
+    the search. A document can easily contain "AI" inside "training" and again
+    on its own in a skills list, and a caller recording offsets needs the second
+    one.
+
+    ``\\b`` is unusable for this. It treats ``+`` and ``#`` as boundaries, so
+    "c++" would match inside "c" and "java" inside "javascript". Checking the
+    neighbouring characters directly is both simpler and correct.
+
+    Used by two callers that need the same guarantee for different reasons: the
+    deterministic skill matcher, which asks whether a requirement names a skill,
+    and evidence verification, which asks whether a short quotation is really a
+    quotation rather than a coincidence.
+    """
+    if not needle:
+        return -1
+
+    start = haystack.find(needle)
+    while start != -1:
+        before = haystack[start - 1] if start > 0 else " "
+        after_index = start + len(needle)
+        after = haystack[after_index] if after_index < len(haystack) else " "
+        if not before.isalnum() and not after.isalnum():
+            return start
+        start = haystack.find(needle, start + 1)
+    return -1
+
+
+def occurs_as_token(needle: str, haystack: str) -> bool:
+    """Whether `needle` appears in `haystack` on token boundaries at all."""
+    return find_token(needle, haystack) != -1

@@ -11,6 +11,11 @@ Two rules the schema itself enforces, so they cannot be forgotten by a prompt:
 * ``NO_EVIDENCE`` **must not** carry one, because there is by definition
   nothing to cite.
 
+The quote's length is bounded here only enough to reject a fragment that could
+not identify any passage. Whether a short quote is a real citation or a
+coincidence inside a longer word is not knowable from the reply alone, and is
+decided by ``services/evidence.py`` against the document itself.
+
 Requirements are addressed by list position rather than by database id. The
 model never sees an internal identifier, and the service checks that the reply
 covers exactly the positions it asked about -- no gaps, no repeats, no
@@ -31,7 +36,17 @@ from app.schemas.llm.json_schema import provider_json_schema
 #: largest requirement set a job can have.
 MAX_VERDICTS = 60
 
-MIN_QUOTE_LENGTH = 8
+#: A quote this short is not a citation, it is a fragment: one or two characters
+#: carry no information about which line of a CV was read. Three matches
+#: `matching.MIN_SEARCHABLE_TOKEN_LENGTH`, which already decided that a one- or
+#: two-character token is too ambiguous for this application to reason about.
+#:
+#: It used to be eight, which rejected "English" -- the exact word a CV uses for
+#: a language requirement, quoted correctly and present verbatim in the document.
+#: Length was never the property that mattered. What guards against a fragment
+#: matching some longer word by accident now lives in `services/evidence.py`,
+#: which is the only component that knows *where* a quote landed.
+MIN_QUOTE_LENGTH = 3
 MAX_QUOTE_LENGTH = 400
 
 MIN_REASON_LENGTH = 3
@@ -88,10 +103,20 @@ class RequirementVerdict(BaseModel):
 
         if not quote:
             raise ValueError(f"{self.verdict.value} requires an evidence_quote from the CV")
-        if not MIN_QUOTE_LENGTH <= len(quote) <= MAX_QUOTE_LENGTH:
+        if len(quote) < MIN_QUOTE_LENGTH:
+            # Worded so a retry can act on it. The previous message named a
+            # bound without saying what to do, and a model whose quote was
+            # correct had no compliant answer available -- it repeated the same
+            # reply and burned the retry.
             raise ValueError(
-                f"evidence_quote must be between {MIN_QUOTE_LENGTH} and "
-                f"{MAX_QUOTE_LENGTH} characters"
+                f"evidence_quote is too short to identify a passage "
+                f"({len(quote)} characters, minimum {MIN_QUOTE_LENGTH}). "
+                f"Quote the whole line the term appears on instead."
+            )
+        if len(quote) > MAX_QUOTE_LENGTH:
+            raise ValueError(
+                f"evidence_quote is longer than {MAX_QUOTE_LENGTH} characters. "
+                f"Quote only the sentence or line that supports the verdict."
             )
 
         object.__setattr__(self, "evidence_quote", quote)
