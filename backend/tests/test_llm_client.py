@@ -40,11 +40,16 @@ def test_every_bundled_fixture_loads() -> None:
     assert by_purpose == {
         # Phase 4: happy path, a recoverable retry pair, an unrecoverable pair,
         # and a prompt-injection attempt.
-        LlmPurpose.JD_EXTRACTION: 6,
+        # Plus three sets of informal natural-language criteria — Indonesian,
+        # mixed, and English — added when extraction stopped requiring a formal
+        # job description.
+        LlmPurpose.JD_EXTRACTION: 9,
         # Candidate intelligence: a full CV, an injected CV, and a retry pair.
         LlmPurpose.PROFILE_EXTRACTION: 4,
         # Candidate intelligence: the undecided pairs for each of those CVs.
-        LlmPurpose.SEMANTIC_MATCH: 2,
+        # One per (CV, criteria set) pair the demo can walk: two readable
+        # sample CVs across four sets of criteria.
+        LlmPurpose.SEMANTIC_MATCH: 8,
     }
 
 

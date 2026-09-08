@@ -1,22 +1,26 @@
 /**
- * Demo mode has a real limitation: it replays AI responses recorded in advance,
- * so it can only extract requirements from the sample job description. A person
- * pasting their own text used to discover that only after pressing Extract, in
- * the words "No recorded fixture for this input in demo mode." — which reads
- * like the product is broken and means nothing to a recruiter.
+ * Step 1 of the workflow, and the screen with the most ways to mislead someone.
  *
- * These tests pin the two halves of the fix: the limitation is stated before the
- * action, and the failure — if it still happens — is explained in language a
- * person can act on, without claiming the AI read anything.
+ * Three limits meet here, and none of them should be discovered by failing:
+ *
+ * 1. Demo mode replays AI responses recorded in advance, so it can only analyse
+ *    the sample briefs. A person pasting their own text used to find that out
+ *    only after pressing Extract, in the words "No recorded fixture for this
+ *    input in demo mode." — which reads like the product is broken.
+ * 2. Criteria naming a personal characteristic will be refused at confirmation.
+ * 3. Text addressed to the system rather than to a reader is flagged, kept and
+ *    never obeyed.
+ *
+ * These tests pin all three, plus the framing that makes the feature usable at
+ * all: the box asks for criteria, not for a formal job description.
  */
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JobDescriptionPanel } from "./JobDescriptionPanel";
-import { DEMO_SAMPLES, stubFetch } from "../testing/stubs";
-
-const SAMPLE_TEXT = DEMO_SAMPLES.body.job_description;
+import { DEMO_SAMPLES, SAMPLE_ID_TEXT, SAMPLE_JD_TEXT, stubFetch } from "../testing/stubs";
 
 const CUSTOM_TEXT = [
   "saya mau lulusan univ top 10 ptn/pts",
@@ -25,7 +29,13 @@ const CUSTOM_TEXT = [
   "ipk di atas 3",
 ].join("\n");
 
-function description(rawText: string, injectionFlagCount = 0) {
+function description(
+  rawText: string,
+  extra: {
+    injectionFlagCount?: number;
+    protectedFlags?: { attribute: string; label: string }[];
+  } = {},
+) {
   return {
     body: {
       id: "jd-1",
@@ -34,7 +44,12 @@ function description(rawText: string, injectionFlagCount = 0) {
       source_filename: null,
       raw_text: rawText,
       text_sha256: "abc",
-      injection_flag_count: injectionFlagCount,
+      injection_flag_count: extra.injectionFlagCount ?? 0,
+      protected_attribute_flags: (extra.protectedFlags ?? []).map((flag) => ({
+        ...flag,
+        offset: 0,
+        excerpt: rawText.slice(0, 40),
+      })),
       created_at: "2026-09-07T09:10:00Z",
     },
   };
@@ -43,11 +58,9 @@ function description(rawText: string, injectionFlagCount = 0) {
 function renderPanel(
   rawText: string,
   samples: typeof DEMO_SAMPLES.body | null,
-  injectionFlagCount = 0,
+  extra: Parameters<typeof description>[1] = {},
 ) {
-  stubFetch({
-    "GET /api/jobs/job-1/description": description(rawText, injectionFlagCount),
-  });
+  stubFetch({ "GET /api/jobs/job-1/description": description(rawText, extra) });
   return render(
     <JobDescriptionPanel jobId="job-1" confirmed={false} samples={samples} onSaved={() => {}} />,
   );
@@ -57,7 +70,46 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("demo mode and a custom job description", () => {
+describe("what the box asks for", () => {
+  it("invites criteria in the user's own words rather than a job description", async () => {
+    stubFetch({ "GET /api/jobs/job-1/description": { status: 404, body: { message: "none" } } });
+    render(
+      <JobDescriptionPanel
+        jobId="job-1"
+        confirmed={false}
+        samples={DEMO_SAMPLES.body}
+        onSaved={() => {}}
+      />,
+    );
+
+    expect(await screen.findByText(/in your own words and your own language/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/your screening criteria/i)).toBeInTheDocument();
+  });
+
+  it("offers every brief the demo has recordings for, and fills the box from one", async () => {
+    const user = userEvent.setup();
+    stubFetch({ "GET /api/jobs/job-1/description": { status: 404, body: { message: "none" } } });
+    render(
+      <JobDescriptionPanel
+        jobId="job-1"
+        confirmed={false}
+        samples={DEMO_SAMPLES.body}
+        onSaved={() => {}}
+      />,
+    );
+
+    expect(await screen.findByText(/Formal job description/)).toBeInTheDocument();
+    expect(screen.getByText(/Informal criteria, Indonesian/)).toBeInTheDocument();
+    expect(screen.getByText("Indonesian")).toBeInTheDocument();
+
+    const buttons = screen.getAllByRole("button", { name: /use this/i });
+    await user.click(buttons[1]);
+
+    expect(screen.getByLabelText(/your screening criteria/i)).toHaveValue(SAMPLE_ID_TEXT);
+  });
+});
+
+describe("demo mode and criteria it has no recording for", () => {
   it("warns about the limitation before the user tries to extract", async () => {
     renderPanel(CUSTOM_TEXT, DEMO_SAMPLES.body);
 
@@ -65,66 +117,88 @@ describe("demo mode and a custom job description", () => {
     expect(screen.getByText(/replays ai responses recorded in advance/i)).toBeInTheDocument();
   });
 
-  it("does not suggest the AI read the custom text", async () => {
-    const { container } = renderPanel(CUSTOM_TEXT, DEMO_SAMPLES.body);
-    await screen.findByText(/cannot be analysed in demo mode/i);
-
-    expect(screen.getByText(/nothing has been sent to a model/i)).toBeInTheDocument();
-    const text = container.textContent ?? "";
-    expect(text).not.toMatch(/rejected/i);
-    expect(text).not.toMatch(/could not understand/i);
-  });
-
-  it("says what to do instead, and that the text is not lost", async () => {
+  it("does not claim the AI read anything", async () => {
     renderPanel(CUSTOM_TEXT, DEMO_SAMPLES.body);
-    await screen.findByText(/cannot be analysed in demo mode/i);
 
-    expect(
-      screen.getByRole("button", { name: /replace it with the sample job description/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/an ai provider configured/i)).toBeInTheDocument();
-    expect(screen.getByText(/your text stays until you save/i)).toBeInTheDocument();
+    const callout = await screen.findByText(/cannot be analysed in demo mode/i);
+    const body = callout.closest(".callout") as HTMLElement;
+
+    expect(body).toHaveTextContent(/nothing has been sent to a model/i);
+    expect(body).not.toHaveTextContent(/fixture/i);
+    expect(body).not.toHaveTextContent(/hash/i);
   });
 
-  it("never shows internal fixture or hash wording", async () => {
-    const { container } = renderPanel(CUSTOM_TEXT, DEMO_SAMPLES.body);
-    await screen.findByText(/cannot be analysed in demo mode/i);
+  it("offers a way out, and says the typed text is not lost", async () => {
+    const user = userEvent.setup();
+    renderPanel(CUSTOM_TEXT, DEMO_SAMPLES.body);
 
-    const text = (container.textContent ?? "").toLowerCase();
-    expect(text).not.toContain("fixture");
-    expect(text).not.toContain("sha256");
-    expect(text).not.toContain("hash");
-    expect(text).not.toContain("prompt_version");
+    const callout = await screen.findByText(/cannot be analysed in demo mode/i);
+    const body = callout.closest(".callout") as HTMLElement;
+    expect(body).toHaveTextContent(/your text stays until you save/i);
+
+    await user.click(screen.getByRole("button", { name: "Informal criteria, Indonesian" }));
+    expect(screen.getByLabelText(/your screening criteria/i)).toHaveValue(SAMPLE_ID_TEXT);
   });
 
-  it("stays quiet when the description is the supported sample", async () => {
-    renderPanel(SAMPLE_TEXT, DEMO_SAMPLES.body);
+  it("says nothing when the saved text is one of the samples", async () => {
+    renderPanel(SAMPLE_JD_TEXT, DEMO_SAMPLES.body);
 
     expect(await screen.findByText(/Northwind Analytics/)).toBeInTheDocument();
     expect(screen.queryByText(/cannot be analysed in demo mode/i)).not.toBeInTheDocument();
   });
 
-  it("stays quiet when the server is not in demo mode", async () => {
-    // `samples` is null whenever demo mode is off, so a custom description is
-    // simply a custom description.
+  it("says nothing at all when the server is not in demo mode", async () => {
     renderPanel(CUSTOM_TEXT, null);
 
     expect(await screen.findByText(/lulusan univ top 10/)).toBeInTheDocument();
-    expect(screen.queryByText(/cannot be analysed in demo mode/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/demo mode/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("criteria that name a personal characteristic", () => {
+  it("says so, names what it found, and explains why it cannot be screened on", async () => {
+    renderPanel("Backend engineer. Wanita, maksimal 25 tahun.", null, {
+      protectedFlags: [
+        { attribute: "gender", label: "gender" },
+        { attribute: "age", label: "age or date of birth" },
+      ],
+    });
+
+    const callout = await screen.findByText(/ask about a personal characteristic/i);
+    const body = callout.closest(".callout") as HTMLElement;
+
+    expect(body).toHaveTextContent(/gender/);
+    expect(body).toHaveTextContent(/age or date of birth/);
+    expect(body).toHaveTextContent(/could never be answered from evidence/i);
+  });
+
+  it("does not alter the text it flagged", async () => {
+    const typed = "Backend engineer. Wanita, maksimal 25 tahun.";
+    renderPanel(typed, null, { protectedFlags: [{ attribute: "gender", label: "gender" }] });
+
+    expect(await screen.findByText(typed)).toBeInTheDocument();
+    expect(screen.getByText(/stored exactly as you typed it/i)).toBeInTheDocument();
+  });
+
+  it("says nothing for ordinary criteria", async () => {
+    renderPanel("Minimal 2 tahun pengalaman Python", null);
+
+    expect(await screen.findByText(/Minimal 2 tahun/)).toBeInTheDocument();
+    expect(screen.queryByText(/personal characteristic/i)).not.toBeInTheDocument();
   });
 });
 
 /**
- * A job description is untrusted text in exactly the way a CV is: a person can
- * paste anything into it, including a line addressed to the system rather than
- * to a reader. The application never obeys such a line, but the recruiter is the
- * one who confirms the requirements read out of this text, so they are told.
+ * Criteria are untrusted text in exactly the way a CV is: a person can paste
+ * anything, including a line addressed to the system rather than to a reader.
+ * The application never obeys such a line, but the recruiter is the one who
+ * confirms the requirements read out of this text, so they are told.
  */
-describe("instruction-like text in a job description", () => {
+describe("instruction-like text in the criteria", () => {
   it("tells the reviewer when passages read as instructions", async () => {
-    renderPanel(SAMPLE_TEXT, null, 2);
+    renderPanel(SAMPLE_JD_TEXT, null, { injectionFlagCount: 2 });
 
-    const callout = await screen.findByText(/contains instruction-like text/i);
+    const callout = await screen.findByText(/contains instruction-like passages/i);
     const body = callout.closest(".callout") as HTMLElement;
 
     expect(body).toHaveTextContent(/2 passages/i);
@@ -132,10 +206,10 @@ describe("instruction-like text in a job description", () => {
     expect(body).toHaveTextContent(/you still review and confirm every requirement/i);
   });
 
-  it("says nothing about instructions for an ordinary description", async () => {
-    renderPanel(SAMPLE_TEXT, null);
+  it("says nothing about instructions for ordinary criteria", async () => {
+    renderPanel(SAMPLE_JD_TEXT, null);
 
-    expect(await screen.findByText(/Backend Engineer/i)).toBeInTheDocument();
-    expect(screen.queryByText(/instruction-like text/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Northwind Analytics/)).toBeInTheDocument();
+    expect(screen.queryByText(/instruction-like/i)).not.toBeInTheDocument();
   });
 });

@@ -5,6 +5,7 @@
  */
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JobPage } from "./JobPage";
@@ -39,6 +40,7 @@ function stubJob(options: { confirmed: boolean; ranking?: unknown } = { confirme
         raw_text: "Senior Backend Engineer at Northwind Analytics",
         text_sha256: "abc",
         injection_flag_count: 0,
+        protected_attribute_flags: [],
         created_at: "2026-09-07T09:10:00Z",
       },
     },
@@ -72,7 +74,7 @@ describe("JobPage", () => {
     render(<JobPage jobId="job-1" />);
 
     expect(
-      await screen.findByRole("heading", { name: /1 · job description/i }),
+      await screen.findByRole("heading", { name: /1 · screening criteria/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /2 · requirements/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /3 · candidates/i })).toBeInTheDocument();
@@ -143,21 +145,22 @@ describe("JobPage", () => {
 
     render(<JobPage jobId="job-1" />);
 
-    expect(await screen.findByLabelText(/paste the job description/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/your screening criteria/i)).toBeInTheDocument();
     expect(screen.getByText(/add a job description first/i)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("offers the synthetic sample description in demo mode", async () => {
+  it("offers every sample brief the demo has recordings for", async () => {
+    const user = userEvent.setup();
     stubJob({ confirmed: false });
 
     render(<JobPage jobId="job-1" />);
-    // The description already exists, so the editor is behind "Replace".
-    (await screen.findByRole("button", { name: "Replace" })).click();
+    // The criteria already exist, so the editor is behind "Replace".
+    await user.click(await screen.findByRole("button", { name: "Replace" }));
 
-    expect(
-      await screen.findByRole("button", { name: /use the sample job description/i }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Formal job description/)).toBeInTheDocument();
+    expect(screen.getByText(/Informal criteria, Indonesian/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /use this/i })).toHaveLength(2);
   });
 
   it("warns before replacing a description, not after", async () => {

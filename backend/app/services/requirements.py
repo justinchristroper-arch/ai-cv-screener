@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import RequirementCategory, RequirementOrigin
 from app.core.errors import ConflictError, NotFoundError, RequirementsNotConfirmedError
+from app.core.protected_attributes import scan as scan_for_protected_attributes
 from app.models.job import Job, Requirement
 from app.services import invalidation
 from app.services.jd_extraction import (
@@ -222,18 +223,52 @@ def confirm_requirements(db: Session, job_id: uuid.UUID) -> Job:
     Confirming an already-confirmed job keeps the original timestamp rather
     than refreshing it: the timestamp records when the human actually made the
     decision, and a later no-op call did not change that.
+
+    **Refused when any requirement asks about a protected personal
+    characteristic** — age, gender, marital status, religion, ethnicity,
+    nationality, appearance, or health. Confirmation is the one gate every
+    screening stage passes through (ADR-0004), so refusing here is what makes
+    "no candidate is ever screened on one of these" a property of the code
+    rather than a promise in a prompt. The requirement is named in the error and
+    left exactly as the recruiter wrote it: this application does not silently
+    rewrite anyone's criteria, and it does not decide anything about a candidate
+    here either. See `core/protected_attributes.py`.
     """
     job = _get_job(db, job_id)
 
     if job.requirements_confirmed_at is not None:
         return job
 
-    count = db.scalar(
-        select(func.count()).select_from(Requirement).where(Requirement.job_id == job_id)
+    rows = list(
+        db.scalars(
+            select(Requirement)
+            .where(Requirement.job_id == job_id)
+            .order_by(Requirement.display_order, Requirement.created_at)
+        )
     )
-    if not count:
+    if not rows:
         raise ConflictError(
             "This job has no requirements to confirm. Extract or add at least one first."
+        )
+
+    blocked = [(row, scan_for_protected_attributes(row.text)) for row in rows]
+    blocked = [(row, flags) for row, flags in blocked if flags]
+    if blocked:
+        raise ConflictError(
+            "This requirement set cannot be confirmed: "
+            f"{len(blocked)} requirement{'s' if len(blocked) > 1 else ''} "
+            "asks about a personal characteristic that must not be used to screen "
+            "anyone. Remove or reword it, then confirm again.",
+            details={
+                "requirements": [
+                    {
+                        "requirement_id": str(row.id),
+                        "text": row.text,
+                        "attributes": [flag.label for flag in flags],
+                    }
+                    for row, flags in blocked
+                ]
+            },
         )
 
     job.requirements_confirmed_at = datetime.now(timezone.utc)

@@ -4,7 +4,13 @@
 
 import { useState } from "react";
 
-import { createJob, getDemoSamples, listJobs, seedDemoJob } from "../api/client";
+import {
+  createJob,
+  getDemoSamples,
+  listJobs,
+  seedDemoJob,
+  type SampleCriteria,
+} from "../api/client";
 import { EmptyState, ErrorState, Spinner } from "../components/ui";
 import { formatDate } from "../display";
 import { href, navigate } from "../hooks/useHashRoute";
@@ -16,6 +22,9 @@ export function JobsPage() {
   const create = useAction();
   const seed = useAction();
   const [title, setTitle] = useState("");
+  // Which sample brief to seed from. Empty means the formal job description,
+  // which is what the server defaults to.
+  const [criteriaId, setCriteriaId] = useState("");
 
   const onCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -34,12 +43,14 @@ export function JobsPage() {
   const onSeed = async () => {
     let seeded: { job_id: string } | null = null;
     const ok = await seed.run(async () => {
-      seeded = await seedDemoJob();
+      seeded = await seedDemoJob(criteriaId || undefined);
     });
     if (ok && seeded) navigate(href.job((seeded as { job_id: string }).job_id));
   };
 
-  const demoAvailable = demo.resource.state === "ready" && demo.resource.data.demo_mode;
+  const samples = demo.resource.state === "ready" ? demo.resource.data : null;
+  const demoAvailable = samples !== null && samples.demo_mode;
+  const criteria: SampleCriteria[] = demoAvailable ? samples.criteria : [];
 
   return (
     <div className="stack">
@@ -72,14 +83,31 @@ export function JobsPage() {
                 real applicant&rsquo;s data.
               </p>
             </div>
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={onSeed}
-              disabled={seed.busy}
-            >
-              {seed.busy ? "Seeding…" : "Load demo job"}
-            </button>
+            <div className="demo-strip__actions">
+              {criteria.length > 1 ? (
+                <label className="field field--inline">
+                  <span className="field__label">Screening criteria</span>
+                  <select
+                    value={criteriaId}
+                    onChange={(event) => setCriteriaId(event.target.value)}
+                  >
+                    {criteria.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label} ({item.language})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={onSeed}
+                disabled={seed.busy}
+              >
+                {seed.busy ? "Seeding…" : "Load demo job"}
+              </button>
+            </div>
           </div>
         ) : null}
         {seed.error ? <ErrorState error={seed.error} /> : null}

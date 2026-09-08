@@ -1,8 +1,8 @@
 {
-  "description": "Unrecoverable path, attempt 1: not JSON at all. Proves the application treats a non-structured reply as a failure rather than trying to interpret prose as free text (docs/architecture.md section 8).",
+  "description": "Unrecoverable path, attempt 1: not JSON at all. Proves the application treats a non-structured reply as a failure rather than trying to interpret prose as free text (docs/architecture.md section 8). Re-keyed from jd-extraction-v1 to jd-extraction-v2 when the prompt was broadened to accept informal, non-English screening criteria; the expected reply for this input is unchanged by that broadening.",
   "purpose": "JD_EXTRACTION",
   "model": "claude-opus-5",
-  "prompt_version": "jd-extraction-v1",
+  "prompt_version": "jd-extraction-v2",
   "attempt": 1,
   "jd_text": [
     "Office Coordinator",

@@ -21,6 +21,22 @@ class SampleCvResponse(BaseModel):
     demonstrates: str = Field(description="What a reader is meant to learn from this file.")
 
 
+class SampleCriteriaResponse(BaseModel):
+    """One set of screening criteria a visitor can try."""
+
+    id: str = Field(description="Stable identifier; also the recording's file stem.")
+    label: str
+    language: str
+    demonstrates: str = Field(description="What a reader is meant to learn from this one.")
+    text: str = Field(description="Exactly the text to paste, byte for byte.")
+    full_walkthrough: bool = Field(
+        description=(
+            "Whether the recordings go past extraction. When true this text can be taken "
+            "all the way to a ranked list with no API key."
+        )
+    )
+
+
 class DemoSamplesResponse(BaseModel):
     """The sample inputs a demo is driven with."""
 
@@ -36,6 +52,15 @@ class DemoSamplesResponse(BaseModel):
             "The synthetic job description, read from the recorded extraction fixture "
             "so the two cannot drift apart. Paste it to walk the workflow by hand."
         )
+    )
+    criteria: list[SampleCriteriaResponse] = Field(
+        default_factory=list,
+        description=(
+            "Every set of screening criteria this build has recordings for — a formal job "
+            "description and three informal briefs, one Indonesian, one mixed and one "
+            "English. Demo mode can only analyse text it has a recording of, so these are "
+            "offered rather than left to be discovered."
+        ),
     )
     cvs: list[SampleCvResponse] = Field(
         description="The synthetic CVs, which live in `data/sample/` in the repository."

@@ -70,11 +70,35 @@ export const HEALTH_DEMO = {
   body: { status: "ok", version: "0.1.0", app_env: "development", demo_mode: true },
 };
 
+export const SAMPLE_JD_TEXT =
+  "Senior Backend Engineer\nNorthwind Analytics (fictional, sample posting)";
+
+export const SAMPLE_ID_TEXT =
+  "saya mau lulusan univ top 10 ptn/pts / harus s1 / bisa bahasa inggris / ipk di atas 3";
+
 export const DEMO_SAMPLES = {
   body: {
     demo_mode: true,
     job_title: "[Demo] Senior Backend Engineer",
-    job_description: "Senior Backend Engineer\nNorthwind Analytics (fictional, sample posting)",
+    job_description: SAMPLE_JD_TEXT,
+    criteria: [
+      {
+        id: "jd_backend_engineer",
+        label: "Formal job description",
+        language: "English",
+        demonstrates: "A full job posting, the traditional input.",
+        text: SAMPLE_JD_TEXT,
+        full_walkthrough: true,
+      },
+      {
+        id: "criteria_indonesian",
+        label: "Informal criteria, Indonesian",
+        language: "Indonesian",
+        demonstrates: "Four criteria typed as one line, with local abbreviations.",
+        text: SAMPLE_ID_TEXT,
+        full_walkthrough: true,
+      },
+    ],
     cvs: [
       {
         filename: "alex-rivera-backend-engineer.pdf",
@@ -114,6 +138,7 @@ export function requirement(overrides: Record<string, unknown> = {}) {
     proposed_must_have: true,
     created_at: "2026-09-07T09:30:00Z",
     updated_at: "2026-09-07T09:30:00Z",
+    protected_attribute_flags: [],
     ...overrides,
   };
 }

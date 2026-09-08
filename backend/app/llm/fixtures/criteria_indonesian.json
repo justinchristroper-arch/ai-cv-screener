@@ -1,0 +1,32 @@
+{
+  "description": "Informal screening criteria written in Indonesian, in the shape a recruiter actually types them: lower case, slash-separated, local abbreviations (s1, ipk, ptn/pts). Nothing here is a job description. The expected reply keeps every requirement in Indonesian, because the recruiter has to review and correct this list. Hand-authored: this is the reply this application requires for this input, not a transcript of a live provider call.",
+  "purpose": "JD_EXTRACTION",
+  "model": "claude-opus-5",
+  "prompt_version": "jd-extraction-v2",
+  "attempt": 1,
+  "jd_text": "saya mau lulusan univ top 10 ptn/pts / harus s1 / bisa bahasa inggris / ipk di atas 3",
+  "response_json": {
+    "requirements": [
+      {
+        "text": "Lulusan universitas yang termasuk 10 besar PTN/PTS",
+        "category": "EDUCATION",
+        "must_have": false
+      },
+      {
+        "text": "Pendidikan S1",
+        "category": "EDUCATION",
+        "must_have": true
+      },
+      {
+        "text": "Bisa berbahasa Inggris",
+        "category": "SOFT_SKILL_OTHER",
+        "must_have": false
+      },
+      {
+        "text": "IPK di atas 3",
+        "category": "EDUCATION",
+        "must_have": true
+      }
+    ]
+  }
+}

@@ -36,6 +36,7 @@ from app.core.errors import (
     ExtractionFailedError,
     RequirementsNotConfirmedError,
 )
+from app.llm.prompts import semantic_match
 from app.models.audit import LlmCallLog
 from app.models.evaluation import EvidenceSpan, MatchResult
 from app.models.job import Requirement
@@ -405,7 +406,7 @@ def test_a_correctable_reply_is_retried_once_and_succeeds(
             select(LlmCallLog)
             .where(
                 LlmCallLog.candidate_id == candidate.id,
-                LlmCallLog.prompt_version == "semantic-match-v1",
+                LlmCallLog.prompt_version == semantic_match.PROMPT_VERSION,
             )
             .order_by(LlmCallLog.attempt)
         )

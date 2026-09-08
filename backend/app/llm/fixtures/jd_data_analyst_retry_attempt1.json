@@ -1,8 +1,8 @@
 {
-  "description": "Retry path, attempt 1: structurally valid JSON whose 'category' is not a member of the requirement taxonomy. Must be rejected by local validation, not persisted. Paired with jd_data_analyst_retry_attempt2.json, which is the corrected reply.",
+  "description": "Retry path, attempt 1: structurally valid JSON whose 'category' is not a member of the requirement taxonomy. Must be rejected by local validation, not persisted. Paired with jd_data_analyst_retry_attempt2.json, which is the corrected reply. Re-keyed from jd-extraction-v1 to jd-extraction-v2 when the prompt was broadened to accept informal, non-English screening criteria; the expected reply for this input is unchanged by that broadening.",
   "purpose": "JD_EXTRACTION",
   "model": "claude-opus-5",
-  "prompt_version": "jd-extraction-v1",
+  "prompt_version": "jd-extraction-v2",
   "attempt": 1,
   "jd_text": [
     "Data Analyst",

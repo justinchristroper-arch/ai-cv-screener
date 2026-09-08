@@ -15,9 +15,10 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.core.enums import JdSourceType, RequirementCategory, RequirementOrigin
+from app.core.protected_attributes import scan as scan_for_protected_attributes
 from app.core.text import strip_control_characters
 
 MAX_TITLE_LENGTH = 200
@@ -116,6 +117,19 @@ class JobDescriptionResponse(BaseModel):
     )
     injection_flag_count: int = 0
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def protected_attribute_flags(self) -> list[dict]:
+        """Protected personal characteristics the criteria text itself names.
+
+        The same scan the requirement rows get, run one step earlier so the
+        recruiter meets the problem while looking at what they wrote rather than
+        at a refused confirmation three steps later. Nothing is blocked here:
+        the text is stored and used exactly as typed, and only confirmation
+        actually refuses.
+        """
+        return [flag.as_dict() for flag in scan_for_protected_attributes(self.raw_text)]
+
 
 # --------------------------------------------------------------------------
 # Requirements
@@ -145,6 +159,23 @@ class RequirementResponse(BaseModel):
     proposed_must_have: bool | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def protected_attribute_flags(self) -> list[dict]:
+        """Protected personal characteristics this requirement's text names.
+
+        Age, gender, marital status, religion, ethnicity, nationality,
+        appearance or health. A requirement set containing any of these cannot
+        be confirmed (`services/requirements.confirm_requirements`), so no
+        candidate is ever screened against one — this field is what lets the UI
+        say so on the row before the recruiter reaches that wall.
+
+        Derived from the text on every read rather than stored: the text is the
+        entire input, so there is nothing to fall out of date, and a pattern
+        added later covers requirements written before it existed.
+        """
+        return [flag.as_dict() for flag in scan_for_protected_attributes(self.text)]
 
 
 class RequirementCreateRequest(BaseModel):

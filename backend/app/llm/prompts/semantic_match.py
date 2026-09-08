@@ -30,7 +30,7 @@ from app.core.hashing import sha256_text
 from app.llm.client import LlmRequest
 from app.schemas.llm.semantic_match import semantic_match_json_schema
 
-PROMPT_VERSION = "semantic-match-v1"
+PROMPT_VERSION = "semantic-match-v2"
 
 CV_OPEN = "<<<CV_TEXT_BEGIN>>>"
 CV_CLOSE = "<<<CV_TEXT_END>>>"
@@ -100,6 +100,22 @@ quote therefore cannot help a candidate, and it is recorded.
 "The CV lists Kubernetes among its skills" or "The CV describes Flask work but \
 does not mention Django". Never a score, never a rating, never a recommendation, \
 never a statement about the person's ability or suitability.
+
+## When the requirement and the CV are not in the same language
+
+They often will not be: the recruiter writes their criteria in the language \
+they think in, and the candidate wrote their CV in theirs. Judge across the two \
+normally -- "Pernah bekerja dengan Python" is evidenced by an English CV that \
+lists Python.
+
+Two rules follow, and they deliberately pull in opposite directions:
+
+- The `evidence_quote` is **always in the CV's own language**, copied exactly \
+as the CV prints it. Never translate a quote. A translated quote is not in the \
+document, so the application will not find it and the verdict will be \
+downgraded to `NO_EVIDENCE`.
+- The `reason` is **in the requirement's language**, because the recruiter who \
+wrote that requirement is the person who has to read it.
 
 ## Out of scope
 

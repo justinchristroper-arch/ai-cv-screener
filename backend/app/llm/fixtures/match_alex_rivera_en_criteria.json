@@ -1,0 +1,73 @@
+{
+  "description": "Shorthand English criteria against the strong CV. Only three pairs reach the model: 'python' matched exactly from the skill list and 'postgres' matched through the alias table, which is the point of leaving the recruiter's shorthand alone. Hand-authored: this is the reply this application requires for this input, not a transcript of a live provider call.",
+  "purpose": "SEMANTIC_MATCH",
+  "model": "claude-opus-5",
+  "prompt_version": "semantic-match-v2",
+  "attempt": 1,
+  "cv_text": [
+    "Alex Rivera",
+    "Backend Engineer",
+    "Personal details",
+    "Date of birth: 14 March 1994",
+    "Gender: Female",
+    "Nationality: Fictionalese",
+    "Marital status: Single",
+    "Address: 12 Invented Lane, Fictionalburg",
+    "Phone: +00 000 000 000",
+    "Email: alex.rivera@example.invalid",
+    "Photograph attached above.",
+    "Profile",
+    "Backend engineer working on document-processing services.",
+    "Experience",
+    "Northwind Analytics (fictional) - Backend Engineer, March 2022 - February 2026",
+    "Designed and operated REST services in production for four years.",
+    "Owned the relational schema behind the document pipeline.",
+    "Presented quarterly architecture reviews to the product and operations teams.",
+    "Cobalt Systems (fictional) - Junior Developer, June 2021 - February 2022",
+    "Maintained internal reporting tools and their test suites.",
+    "Projects",
+    "Document understanding pipeline: shipped and maintained a data-processing system",
+    "that parses uploaded PDFs, extracts their text and indexes it for search.",
+    "Built similarity search over sentence embeddings stored in Postgres.",
+    "Skills",
+    "Python, FastAPI, Postgres, Docker, Bash, pytest",
+    "Education",
+    "BSc Computer Science, University of the Fictional Midlands, 2021"
+  ],
+  "requirements": [
+    {
+      "text": "At least 2 years of experience",
+      "category": "EXPERIENCE"
+    },
+    {
+      "text": "Experience with aws",
+      "category": "TECHNICAL_SKILL"
+    },
+    {
+      "text": "Able to write clearly",
+      "category": "SOFT_SKILL_OTHER"
+    }
+  ],
+  "response_json": {
+    "verdicts": [
+      {
+        "index": 0,
+        "verdict": "MATCHED",
+        "evidence_quote": "Designed and operated REST services in production for four years.",
+        "reason": "The CV states four years of designing and operating REST services in production."
+      },
+      {
+        "index": 1,
+        "verdict": "NO_EVIDENCE",
+        "evidence_quote": null,
+        "reason": "The CV does not mention AWS or any cloud platform."
+      },
+      {
+        "index": 2,
+        "verdict": "PARTIAL",
+        "evidence_quote": "Presented quarterly architecture reviews to the product and operations teams.",
+        "reason": "The CV describes presenting architecture reviews, which is communication but not written work."
+      }
+    ]
+  }
+}

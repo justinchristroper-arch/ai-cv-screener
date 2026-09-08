@@ -1,8 +1,8 @@
 {
-  "description": "Semantic matching for the Alex Rivera CV against the eight backend-engineer requirements that the deterministic matchers could not settle. Produces MATCHED, PARTIAL and NO_EVIDENCE, and every quote is a verbatim line of cv_text so it verifies. The requirements list is the undecided subset, in the order and with the indices the matcher hands to the prompt.",
+  "description": "Semantic matching for the Alex Rivera CV against the eight backend-engineer requirements that the deterministic matchers could not settle. Produces MATCHED, PARTIAL and NO_EVIDENCE, and every quote is a verbatim line of cv_text so it verifies. The requirements list is the undecided subset, in the order and with the indices the matcher hands to the prompt. Re-keyed from semantic-match-v1 to semantic-match-v2 when the prompt gained a rule for requirements and CVs written in different languages; this fixture's requirement list and CV are both English, so the expected reply is unchanged by that rule.",
   "purpose": "SEMANTIC_MATCH",
   "model": "claude-opus-5",
-  "prompt_version": "semantic-match-v1",
+  "prompt_version": "semantic-match-v2",
   "attempt": 1,
   "cv_text": [
     "Alex Rivera",

@@ -33,7 +33,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import REPO_ROOT
 from app.core.enums import CandidateStatus, JdSourceType
-from app.core.errors import ConflictError, ExtractionFailedError, LlmUnavailableError
+from app.core.errors import (
+    ConflictError,
+    ExtractionFailedError,
+    LlmUnavailableError,
+    NotFoundError,
+)
 from app.core.storage import DocumentStorage
 from app.llm.client import LlmClient
 from app.llm.fixtures import fixture_jd_text
@@ -45,12 +50,87 @@ logger = logging.getLogger(__name__)
 
 SAMPLE_DIR = REPO_ROOT / "data" / "sample"
 
-#: The fixture the sample job description is read from. Read rather than
-#: copied, so the demo cannot drift away from the extraction fixture it depends
-#: on -- there is exactly one copy of this text in the repository.
+#: The fixture the seeded demo job is built from. Read rather than copied, so
+#: the demo cannot drift away from the extraction fixture it depends on -- there
+#: is exactly one copy of this text in the repository.
 SAMPLE_JD_FIXTURE = "jd_backend_engineer"
 
 DEMO_JOB_TITLE = "[Demo] Senior Backend Engineer"
+
+
+@dataclass(frozen=True)
+class SampleCriteria:
+    """One set of screening criteria a visitor can try in demo mode.
+
+    Demo mode replays recordings keyed by a hash of their input, so it can only
+    answer for text it has a recording of. That is a real limit, and the honest
+    way to live with it is to offer the texts that *do* work rather than to let
+    someone discover the limit by pasting their own and getting an error.
+
+    ``full_walkthrough`` says whether the recordings go beyond extraction. The
+    two that do can be taken all the way to a ranked list; the others stop at a
+    reviewed requirement set, which is still the whole of the feature they
+    exist to show.
+    """
+
+    #: The fixture file stem, and the identifier the UI passes back.
+    id: str
+    label: str
+    language: str
+    demonstrates: str
+    full_walkthrough: bool
+
+    @property
+    def text(self) -> str:
+        return fixture_jd_text(self.id)
+
+
+SAMPLE_CRITERIA: tuple[SampleCriteria, ...] = (
+    SampleCriteria(
+        id="jd_backend_engineer",
+        label="Formal job description",
+        language="English",
+        demonstrates=(
+            "A full job posting, the traditional input. Thirteen requirements across "
+            "all five categories, including a compound skills sentence that has to be "
+            "split into separate atomic requirements."
+        ),
+        full_walkthrough=True,
+    ),
+    SampleCriteria(
+        id="criteria_indonesian",
+        label="Informal criteria, Indonesian",
+        language="Indonesian",
+        demonstrates=(
+            "Four criteria typed as one line, in lower case, with local abbreviations "
+            "(s1, ipk, ptn/pts). No job description anywhere. The requirements come "
+            "back in Indonesian, because the recruiter has to check them."
+        ),
+        full_walkthrough=True,
+    ),
+    SampleCriteria(
+        id="criteria_mixed_language",
+        label="Informal criteria, Indonesian and English mixed",
+        language="Indonesian + English",
+        demonstrates=(
+            "One sentence mixing both languages, with a stated minimum "
+            "('minimal 2 tahun') and a preference ('kalau pernah AI/ML lebih bagus') "
+            "in the same breath. The two are told apart by the words used."
+        ),
+        full_walkthrough=True,
+    ),
+    SampleCriteria(
+        id="criteria_english_informal",
+        label="Informal criteria, English",
+        language="English",
+        demonstrates=(
+            "Shorthand English with no bullet points: 'python + postgres, 2+ yrs, aws "
+            "would be nice'. 'postgres' is kept as written, which is what sends that "
+            "requirement through the alias matcher rather than the exact one."
+        ),
+        full_walkthrough=True,
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -104,15 +184,30 @@ class DemoSamples:
 
     job_title: str
     job_description: str
+    criteria: tuple[SampleCriteria, ...]
     cvs: tuple[SampleCv, ...]
 
 
 def get_samples() -> DemoSamples:
-    """The sample job description and the CVs that go with it."""
+    """Every sample input a demo can be driven with."""
     return DemoSamples(
         job_title=DEMO_JOB_TITLE,
         job_description=fixture_jd_text(SAMPLE_JD_FIXTURE),
+        criteria=SAMPLE_CRITERIA,
         cvs=SAMPLE_CVS,
+    )
+
+
+def get_criteria(criteria_id: str | None) -> SampleCriteria:
+    """One sample by id, or the formal job description when none is named."""
+    if criteria_id is None:
+        criteria_id = SAMPLE_JD_FIXTURE
+    for item in SAMPLE_CRITERIA:
+        if item.id == criteria_id:
+            return item
+    raise NotFoundError(
+        f"There is no sample criteria set called {criteria_id!r}.",
+        details={"available": [item.id for item in SAMPLE_CRITERIA]},
     )
 
 
@@ -146,6 +241,7 @@ def seed_demo_job(
     max_size_bytes: int,
     max_pages: int,
     max_files: int,
+    criteria_id: str | None = None,
 ) -> SeedResult:
     """Build one complete demo job, start to finish.
 
@@ -161,6 +257,7 @@ def seed_demo_job(
     require_demo_mode(demo_mode)
 
     samples = get_samples()
+    criteria = get_criteria(criteria_id)
     missing = [cv.filename for cv in samples.cvs if not cv.path.is_file()]
     if missing:
         raise ConflictError(
@@ -168,11 +265,11 @@ def seed_demo_job(
             details={"missing": missing},
         )
 
-    job = jobs.create_job(db, title=samples.job_title)
+    job = jobs.create_job(db, title=_title_for(criteria))
     jobs.set_description(
         db,
         job.id,
-        raw_text=samples.job_description,
+        raw_text=criteria.text,
         source_type=JdSourceType.PASTED,
         source_filename=None,
     )
@@ -214,6 +311,13 @@ def seed_demo_job(
     return result
 
 
+def _title_for(criteria: SampleCriteria) -> str:
+    """A job title that names the sample, so several seeds stay distinguishable."""
+    if criteria.id == SAMPLE_JD_FIXTURE:
+        return DEMO_JOB_TITLE
+    return f"[Demo] {criteria.label}"
+
+
 def _screen(db: Session, candidate_id: uuid.UUID, client: LlmClient) -> bool:
     """Profile, match and score one candidate. False when it could not finish.
 
@@ -233,11 +337,14 @@ def _screen(db: Session, candidate_id: uuid.UUID, client: LlmClient) -> bool:
 
 __all__ = [
     "DEMO_JOB_TITLE",
+    "SAMPLE_CRITERIA",
     "SAMPLE_CVS",
     "SAMPLE_DIR",
     "DemoSamples",
+    "SampleCriteria",
     "SampleCv",
     "SeedResult",
+    "get_criteria",
     "get_samples",
     "require_demo_mode",
     "seed_demo_job",

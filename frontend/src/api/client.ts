@@ -150,6 +150,7 @@ export interface JobDescription {
   text_sha256: string;
   created_at: string;
   injection_flag_count: number;
+  protected_attribute_flags: ProtectedAttributeFlag[];
 }
 
 export function listJobs(signal?: AbortSignal): Promise<Job[]> {
@@ -194,6 +195,19 @@ export interface Requirement {
   proposed_must_have: boolean | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Protected personal characteristics this requirement's wording names.
+   * Non-empty means the requirement set cannot be confirmed until it is removed
+   * or reworded, so the UI says so on the row rather than at the wall.
+   */
+  protected_attribute_flags: ProtectedAttributeFlag[];
+}
+
+export interface ProtectedAttributeFlag {
+  attribute: string;
+  label: string;
+  offset: number;
+  excerpt: string;
 }
 
 export interface RequirementList {
@@ -483,10 +497,20 @@ export function getRanking(jobId: string, signal?: AbortSignal): Promise<JobRank
 // Demo
 // --------------------------------------------------------------------------
 
+export interface SampleCriteria {
+  id: string;
+  label: string;
+  language: string;
+  demonstrates: string;
+  text: string;
+  full_walkthrough: boolean;
+}
+
 export interface DemoSamples {
   demo_mode: boolean;
   job_title: string;
   job_description: string;
+  criteria: SampleCriteria[];
   cvs: { filename: string; label: string; demonstrates: string }[];
 }
 
@@ -503,6 +527,7 @@ export function getDemoSamples(signal?: AbortSignal): Promise<DemoSamples> {
   return request<DemoSamples>("/api/demo/samples", { signal });
 }
 
-export function seedDemoJob(): Promise<DemoSeed> {
-  return jsonRequest<DemoSeed>("/api/demo/jobs", "POST");
+export function seedDemoJob(criteriaId?: string): Promise<DemoSeed> {
+  const query = criteriaId ? `?criteria_id=${encodeURIComponent(criteriaId)}` : "";
+  return jsonRequest<DemoSeed>(`/api/demo/jobs${query}`, "POST");
 }

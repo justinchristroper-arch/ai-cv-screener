@@ -1,8 +1,8 @@
 {
-  "description": "Retry path, attempt 2: the corrected reply after attempt 1 was rejected for an invalid category. 'jd_text' is byte-identical to jd_data_analyst_retry_attempt1.json so both resolve to the same input hash and differ only by attempt number.",
+  "description": "Retry path, attempt 2: the corrected reply after attempt 1 was rejected for an invalid category. 'jd_text' is byte-identical to jd_data_analyst_retry_attempt1.json so both resolve to the same input hash and differ only by attempt number. Re-keyed from jd-extraction-v1 to jd-extraction-v2 when the prompt was broadened to accept informal, non-English screening criteria; the expected reply for this input is unchanged by that broadening.",
   "purpose": "JD_EXTRACTION",
   "model": "claude-opus-5",
-  "prompt_version": "jd-extraction-v1",
+  "prompt_version": "jd-extraction-v2",
   "attempt": 2,
   "jd_text": [
     "Data Analyst",

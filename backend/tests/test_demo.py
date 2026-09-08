@@ -215,3 +215,67 @@ def test_the_demo_response_exposes_no_filesystem_path(api: TestClient) -> None:
     assert "data/sample" not in body
     assert "var/uploads" not in body
     assert "C:\\\\" not in body
+
+
+# --------------------------------------------------------------------------
+# Every sample brief, all the way through
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.requires_db
+@pytest.mark.parametrize("criteria", demo.SAMPLE_CRITERIA, ids=lambda item: item.id)
+def test_every_sample_brief_can_be_walked_end_to_end(
+    api: TestClient, criteria: demo.SampleCriteria
+) -> None:
+    """`full_walkthrough` is a claim in the API. This is what makes it true.
+
+    A sample whose recordings stop at extraction would still return requirements
+    and look fine, then fail at the first CV. Seeding each one proves the whole
+    chain of recordings exists: extraction, a profile per readable CV, and the
+    semantic pairs for exactly the requirements this brief leaves undecided.
+    """
+    assert criteria.full_walkthrough
+
+    body = api.post("/api/demo/jobs", params={"criteria_id": criteria.id}).json()
+
+    assert (body["uploaded"], body["screened"], body["failed"]) == (3, 2, 1)
+
+    ranked = api.get(f"/api/jobs/{body['job_id']}/ranking").json()
+    assert ranked["summary"] == {"total": 3, "ranked": 2, "not_yet_scored": 0, "failed": 1}
+    # Ordered, and every score defined — the point is that the pipeline finished,
+    # not what any particular number is.
+    scores = [row["score"] for row in ranked["ranked"]]
+    assert scores == sorted(scores, reverse=True)
+    assert all(score is not None for score in scores)
+
+
+@pytest.mark.requires_db
+def test_the_samples_endpoint_offers_more_than_a_job_description(api: TestClient) -> None:
+    """The product's claim is that a recruiter can type criteria, not paste a JD.
+
+    Demo mode can only answer for text it has a recording of, so the way to make
+    that claim visible without an API key is to offer the briefs that work.
+    """
+    body = api.get("/api/demo/samples").json()
+
+    ids = [item["id"] for item in body["criteria"]]
+    assert ids == [
+        "jd_backend_engineer",
+        "criteria_indonesian",
+        "criteria_mixed_language",
+        "criteria_english_informal",
+    ]
+    assert all(item["text"] and item["demonstrates"] for item in body["criteria"])
+    assert all(item["full_walkthrough"] for item in body["criteria"])
+
+    indonesian = next(item for item in body["criteria"] if item["id"] == "criteria_indonesian")
+    assert "ipk" in indonesian["text"]
+    assert indonesian["language"] == "Indonesian"
+
+
+@pytest.mark.requires_db
+def test_an_unknown_criteria_id_is_a_404_not_a_silent_default(api: TestClient) -> None:
+    response = api.post("/api/demo/jobs", params={"criteria_id": "does-not-exist"})
+
+    assert response.status_code == 404
+    assert "criteria_indonesian" in response.text

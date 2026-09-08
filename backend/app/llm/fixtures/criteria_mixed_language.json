@@ -1,0 +1,37 @@
+{
+  "description": "One sentence of screening criteria mixing Indonesian and English, with the role name, two technologies, a stated minimum and a preference all in the same breath. Exercises the two rules that matter for informal input: a stated minimum ('minimal 2 tahun') is hard, and a preference ('kalau pernah ... lebih bagus') is not. Hand-authored: this is the reply this application requires for this input, not a transcript of a live provider call.",
+  "purpose": "JD_EXTRACTION",
+  "model": "claude-opus-5",
+  "prompt_version": "jd-extraction-v2",
+  "attempt": 1,
+  "jd_text": "Saya cari backend engineer yang pernah kerja dengan Python dan PostgreSQL, minimal 2 tahun pengalaman, kalau pernah AI/ML lebih bagus.",
+  "response_json": {
+    "requirements": [
+      {
+        "text": "Pengalaman sebagai backend engineer",
+        "category": "EXPERIENCE",
+        "must_have": true
+      },
+      {
+        "text": "Pernah bekerja dengan Python",
+        "category": "TECHNICAL_SKILL",
+        "must_have": true
+      },
+      {
+        "text": "Pernah bekerja dengan PostgreSQL",
+        "category": "TECHNICAL_SKILL",
+        "must_have": true
+      },
+      {
+        "text": "Minimal 2 tahun pengalaman",
+        "category": "EXPERIENCE",
+        "must_have": true
+      },
+      {
+        "text": "Pernah mengerjakan AI/ML",
+        "category": "EXPERIENCE",
+        "must_have": false
+      }
+    ]
+  }
+}

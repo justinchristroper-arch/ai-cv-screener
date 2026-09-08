@@ -1,8 +1,8 @@
 {
-  "description": "Happy path. A realistic backend/AI engineering role covering all five requirement categories, a mix of must-have and nice-to-have, and a compound skills sentence that must be split into separate atomic requirements. Entirely fictional; no real company or person.",
+  "description": "Happy path. A realistic backend/AI engineering role covering all five requirement categories, a mix of must-have and nice-to-have, and a compound skills sentence that must be split into separate atomic requirements. Entirely fictional; no real company or person. Re-keyed from jd-extraction-v1 to jd-extraction-v2 when the prompt was broadened to accept informal, non-English screening criteria; the expected reply for this input is unchanged by that broadening.",
   "purpose": "JD_EXTRACTION",
   "model": "claude-opus-5",
-  "prompt_version": "jd-extraction-v1",
+  "prompt_version": "jd-extraction-v2",
   "attempt": 1,
   "jd_text": [
     "Senior Backend Engineer - AI Platform",

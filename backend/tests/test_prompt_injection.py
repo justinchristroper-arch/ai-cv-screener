@@ -54,10 +54,10 @@ def test_the_description_never_enters_the_system_prompt() -> None:
 def test_the_description_is_confined_to_a_delimited_data_block() -> None:
     request = build_request(INJECTION_JD)
 
-    assert "<<<JOB_DESCRIPTION_BEGIN>>>" in request.user_content
-    assert "<<<JOB_DESCRIPTION_END>>>" in request.user_content
+    assert "<<<SCREENING_CRITERIA_BEGIN>>>" in request.user_content
+    assert "<<<SCREENING_CRITERIA_END>>>" in request.user_content
     # The injected line is inside the block, where it belongs — as content.
-    body = request.user_content.split("<<<JOB_DESCRIPTION_BEGIN>>>")[1]
+    body = request.user_content.split("<<<SCREENING_CRITERIA_BEGIN>>>")[1]
     assert "IGNORE ALL PREVIOUS INSTRUCTIONS" in body
 
 

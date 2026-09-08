@@ -1,0 +1,83 @@
+{
+  "description": "Indonesian education criteria against an English CV, and the most instructive case in the whole demo: three of the four come back NO_EVIDENCE, and none of them is a claim about the candidate. The CV is written in English but never states an English ability, and it prints no GPA and no Indonesian institution ranking. 'No evidence found in this CV' is exactly what the system is allowed to say. Hand-authored: this is the reply this application requires for this input, not a transcript of a live provider call.",
+  "purpose": "SEMANTIC_MATCH",
+  "model": "claude-opus-5",
+  "prompt_version": "semantic-match-v2",
+  "attempt": 1,
+  "cv_text": [
+    "Alex Rivera",
+    "Backend Engineer",
+    "Personal details",
+    "Date of birth: 14 March 1994",
+    "Gender: Female",
+    "Nationality: Fictionalese",
+    "Marital status: Single",
+    "Address: 12 Invented Lane, Fictionalburg",
+    "Phone: +00 000 000 000",
+    "Email: alex.rivera@example.invalid",
+    "Photograph attached above.",
+    "Profile",
+    "Backend engineer working on document-processing services.",
+    "Experience",
+    "Northwind Analytics (fictional) - Backend Engineer, March 2022 - February 2026",
+    "Designed and operated REST services in production for four years.",
+    "Owned the relational schema behind the document pipeline.",
+    "Presented quarterly architecture reviews to the product and operations teams.",
+    "Cobalt Systems (fictional) - Junior Developer, June 2021 - February 2022",
+    "Maintained internal reporting tools and their test suites.",
+    "Projects",
+    "Document understanding pipeline: shipped and maintained a data-processing system",
+    "that parses uploaded PDFs, extracts their text and indexes it for search.",
+    "Built similarity search over sentence embeddings stored in Postgres.",
+    "Skills",
+    "Python, FastAPI, Postgres, Docker, Bash, pytest",
+    "Education",
+    "BSc Computer Science, University of the Fictional Midlands, 2021"
+  ],
+  "requirements": [
+    {
+      "text": "Lulusan universitas yang termasuk 10 besar PTN/PTS",
+      "category": "EDUCATION"
+    },
+    {
+      "text": "Pendidikan S1",
+      "category": "EDUCATION"
+    },
+    {
+      "text": "Bisa berbahasa Inggris",
+      "category": "SOFT_SKILL_OTHER"
+    },
+    {
+      "text": "IPK di atas 3",
+      "category": "EDUCATION"
+    }
+  ],
+  "response_json": {
+    "verdicts": [
+      {
+        "index": 0,
+        "verdict": "NO_EVIDENCE",
+        "evidence_quote": null,
+        "reason": "CV menyebut University of the Fictional Midlands, tanpa keterangan peringkat atau status PTN/PTS."
+      },
+      {
+        "index": 1,
+        "verdict": "MATCHED",
+        "evidence_quote": "BSc Computer Science, University of the Fictional Midlands, 2021",
+        "reason": "CV mencantumkan gelar sarjana BSc Computer Science, setara S1."
+      },
+      {
+        "index": 2,
+        "verdict": "NO_EVIDENCE",
+        "evidence_quote": null,
+        "reason": "CV tidak menyatakan kemampuan berbahasa Inggris di bagian mana pun."
+      },
+      {
+        "index": 3,
+        "verdict": "NO_EVIDENCE",
+        "evidence_quote": null,
+        "reason": "CV tidak mencantumkan IPK atau nilai akhir."
+      }
+    ]
+  }
+}

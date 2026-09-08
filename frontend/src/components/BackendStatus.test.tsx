@@ -20,7 +20,9 @@ describe("BackendStatus", () => {
 
     expect(await screen.findByText("Demo mode")).toBeInTheDocument();
     expect(screen.getByText(/no api key, no cost/i)).toBeInTheDocument();
-    expect(screen.getByText(/only the sample documents can be analysed/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/only the sample briefs and sample CVs can be analysed/i),
+    ).toBeInTheDocument();
   });
 
   it("uses no internal terminology a recruiter would not recognise", async () => {
@@ -48,8 +50,9 @@ describe("BackendStatus", () => {
 
     render(<BackendStatus />);
 
-    expect(await screen.findByText("Live mode")).toBeInTheDocument();
-    expect(screen.getByText(/configured provider/i)).toBeInTheDocument();
+    expect(await screen.findByText("Live AI mode")).toBeInTheDocument();
+    expect(screen.getByText(/sent to the configured AI provider/i)).toBeInTheDocument();
+    expect(screen.getByText(/each run costs money/i)).toBeInTheDocument();
   });
 
   it("reports an unreachable backend with something actionable", async () => {

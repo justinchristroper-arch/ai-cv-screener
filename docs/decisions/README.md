@@ -34,6 +34,8 @@ ADRs are numbered sequentially (`0001`, `0002`, …) in the order they were writ
 | [0006](0006-synchronous-sqlalchemy.md) | Synchronous SQLAlchemy over async | Accepted |
 | [0007](0007-backgroundtasks-not-celery.md) | FastAPI `BackgroundTasks` instead of Celery/Redis | Accepted |
 | [0008](0008-deterministic-scoring.md) | Deterministic scoring rather than LLM-generated scores | Accepted |
+| [0009](0009-natural-language-screening-criteria.md) | Screening criteria are free text, not a job description | Accepted |
+| [0010](0010-protected-attribute-guard.md) | A requirement naming a protected characteristic cannot be confirmed | Accepted |
 
 ## Proposing a change
 

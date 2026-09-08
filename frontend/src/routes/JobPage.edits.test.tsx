@@ -51,6 +51,7 @@ const DESCRIPTION = {
     raw_text: "Senior Backend Engineer at Northwind Analytics",
     text_sha256: "abc",
     injection_flag_count: 0,
+    protected_attribute_flags: [],
     created_at: "2026-09-07T09:10:00Z",
   },
 };
@@ -141,7 +142,7 @@ describe("inline requirement edits", () => {
     await new Promise((resolve) => setTimeout(resolve, 2));
     expect(screen.queryByText(/loading job…/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/loading requirements…/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /1 · job description/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /1 · screening criteria/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /4 · results/i })).toBeInTheDocument();
     expect(screen.getByText("Strong experience with Python")).toBeInTheDocument();
 

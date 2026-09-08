@@ -87,6 +87,9 @@ export function RequirementsPanel({
         item.proposed_category !== item.category ||
         item.proposed_must_have !== item.must_have),
   ).length;
+  // Requirements the confirmation gate will refuse. Surfaced here so the wall
+  // is visible while it can still be walked around, not only when it is hit.
+  const blocking = requirements.filter((item) => item.protected_attribute_flags.length > 0);
 
   return (
     <section className="panel" aria-labelledby="req-heading">
@@ -171,6 +174,23 @@ export function RequirementsPanel({
 
           {!confirmed ? <AddRequirement jobId={jobId} onAdded={refreshJob} /> : null}
 
+          {blocking.length > 0 && !confirmed ? (
+            <Callout tone="warn" title="These requirements cannot be confirmed">
+              <p>
+                {blocking.length} requirement{blocking.length === 1 ? "" : "s"} below
+                {blocking.length === 1 ? " asks" : " ask"} about a personal characteristic rather
+                than about someone&rsquo;s work. Remove or reword{" "}
+                {blocking.length === 1 ? "it" : "them"}, then confirm.
+              </p>
+              <p>
+                This tool holds no such information about anybody &mdash; age, gender, marital
+                status, religion, ethnicity, nationality, appearance and health are never extracted
+                from a CV &mdash; so a requirement about one could never be answered from evidence,
+                and no candidate will ever be screened on it.
+              </p>
+            </Callout>
+          ) : null}
+
           <Callout
             tone={confirmed ? "info" : "warn"}
             title={
@@ -241,7 +261,17 @@ function RequirementRow({
         <span className="req-tags">
           {requirement.origin === "HR_ADDED" ? <Pill tone="added">Added by you</Pill> : null}
           {wasEdited ? <Pill tone="edited">Edited</Pill> : null}
+          {requirement.protected_attribute_flags.map((flag) => (
+            <Pill key={flag.attribute} tone="blocked">
+              {flag.label}
+            </Pill>
+          ))}
         </span>
+        {requirement.protected_attribute_flags.length > 0 ? (
+          <span className="req-blocked">
+            Cannot be screened on. Remove or reword this requirement to confirm the set.
+          </span>
+        ) : null}
       </td>
       <td>{CATEGORY_LABEL[requirement.category]}</td>
       <td>

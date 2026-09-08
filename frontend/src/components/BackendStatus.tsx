@@ -57,12 +57,12 @@ export function BackendStatus() {
 
   const { health } = status;
   return (
-    <div className="backend backend--ok" role="status">
-      <strong>{health.demo_mode ? "Demo mode" : "Live mode"}</strong>
+    <div className={`backend ${health.demo_mode ? "backend--ok" : "backend--live"}`} role="status">
+      <strong>{health.demo_mode ? "Demo mode" : "Live AI mode"}</strong>
       <span className="backend__hint">
         {health.demo_mode
-          ? "AI responses are replayed from recordings made in advance — no API key, no cost. Only the sample documents can be analysed."
-          : `AI requests go to the configured provider. v${health.version} · ${API_BASE_URL}`}
+          ? "AI responses are replayed from recordings made in advance — no API key, no cost, and nothing is sent anywhere. Only the sample briefs and sample CVs can be analysed."
+          : `Your criteria and every CV you upload are sent to the configured AI provider, and each run costs money. v${health.version} · ${API_BASE_URL}`}
       </span>
     </div>
   );

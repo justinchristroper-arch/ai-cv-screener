@@ -68,10 +68,7 @@ def github_slug(heading_text: str, seen: Counter) -> str:
     text = re.sub(r"[^\w\s-]", "", text)  # strip punctuation
     text = re.sub(r"\s+", "-", text.strip())
 
-    if seen[text]:
-        slug = f"{text}-{seen[text]}"
-    else:
-        slug = text
+    slug = f"{text}-{seen[text]}" if seen[text] else text
     seen[text] += 1
     return slug
 
@@ -163,25 +160,22 @@ def check_file(md: MarkdownFile, root: Path, verbose: bool) -> list[Finding]:
                     Finding(md.path, line_number, target, f"file does not exist: {path_part}")
                 )
                 continue
-            target_md = (
-                MarkdownFile.load(resolved) if resolved.suffix.lower() == ".md" else None
-            )
+            target_md = MarkdownFile.load(resolved) if resolved.suffix.lower() == ".md" else None
         else:
             # A same-file fragment link, e.g. "#some-heading".
             resolved = md.path
             target_md = md
 
-        if fragment and target_md is not None:
-            if fragment not in target_md.heading_slugs:
-                findings.append(
-                    Finding(
-                        md.path,
-                        line_number,
-                        target,
-                        f"no heading in {resolved.name} produces anchor #{fragment}",
-                    )
+        if fragment and target_md is not None and fragment not in target_md.heading_slugs:
+            findings.append(
+                Finding(
+                    md.path,
+                    line_number,
+                    target,
+                    f"no heading in {resolved.name} produces anchor #{fragment}",
                 )
-                continue
+            )
+            continue
 
         if verbose:
             print(f"  ok              {md.path.relative_to(root)}:{line_number} -> {target}")
@@ -209,7 +203,9 @@ def discover_markdown_files(root: Path) -> list[Path]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument(
         "--root",
         type=Path,
@@ -240,7 +236,9 @@ def main(argv: list[str] | None = None) -> int:
 
     print()
     if all_findings:
-        print(f"FAILED - {len(all_findings)} broken link(s)/anchor(s) out of {total_links} checked:\n")
+        print(
+            f"FAILED - {len(all_findings)} broken link(s)/anchor(s) out of {total_links} checked:\n"
+        )
         for finding in all_findings:
             print(f"  {finding.format(root)}")
         return 1

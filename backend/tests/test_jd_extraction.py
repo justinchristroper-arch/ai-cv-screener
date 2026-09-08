@@ -99,7 +99,7 @@ def test_extraction_logs_a_successful_call(db_session: Session, replay_client) -
     assert log.status is LlmStatus.SUCCESS
     assert log.source is LlmSource.FIXTURE
     assert log.attempt == 1
-    assert log.prompt_version == "jd-extraction-v1"
+    assert log.prompt_version == "jd-extraction-v2"
     assert len(log.input_sha256) == 64
     assert log.job_id == job.id
 
