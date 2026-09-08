@@ -121,6 +121,9 @@ export interface HealthResponse {
   version: string;
   app_env: string;
   demo_mode: boolean;
+  /** "ollama" — a model on the server's own machine — or "anthropic". */
+  llm_provider: string;
+  llm_model: string;
 }
 
 export function fetchHealth(signal?: AbortSignal): Promise<HealthResponse> {

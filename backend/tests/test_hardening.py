@@ -22,9 +22,10 @@ from app.core.config import ConfigurationError, Settings, load_settings
 from app.core.enums import CandidateFailureReason, CandidateStatus, JdSourceType, LlmSource
 from app.core.errors import ExtractionFailedError, LlmUnavailableError
 from app.llm.client import (
-    LiveLlmClient,
+    AnthropicLlmClient,
     LlmProviderError,
     LlmResponse,
+    OllamaLlmClient,
     ReplayLlmClient,
     build_llm_client,
 )
@@ -223,10 +224,78 @@ def test_demo_mode_never_falls_back_to_a_live_call() -> None:
         client.complete(build_request("a job description with no recording"))
 
 
-def test_live_mode_without_a_key_fails_at_startup_not_at_the_first_call() -> None:
+def test_the_cloud_provider_without_a_key_fails_at_startup_not_at_the_first_call() -> None:
     """The check is knowable at boot, so it happens at boot."""
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-        Settings(_env_file=None, database_url="postgresql+psycopg://x/y", demo_mode=False)
+        Settings(
+            _env_file=None,
+            database_url="postgresql+psycopg://x/y",
+            demo_mode=False,
+            llm_provider="anthropic",
+        )
+
+
+def test_running_locally_needs_no_cloud_api_key() -> None:
+    """The whole point of the local default: a fresh clone owes nobody an account.
+
+    Asserted as its own test rather than as an absence elsewhere, because
+    "requires an API key you do not have" is the failure that stops someone
+    before they have seen the product work at all.
+    """
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql+psycopg://x/y",
+        demo_mode=False,
+        llm_provider="ollama",
+    )
+
+    assert settings.anthropic_api_key is None
+    assert settings.ollama_model
+
+
+@pytest.mark.parametrize(
+    ("url", "reason"),
+    [
+        ("file:///etc/passwd", "http"),
+        ("ftp://example.invalid", "http"),
+        ("not-a-url", "http"),
+        ("http://", "host"),
+        ("http://user:secret@ollama.invalid:11434", "credentials"),
+    ],
+)
+def test_a_malformed_local_model_url_is_refused_at_startup(url: str, reason: str) -> None:
+    """`OLLAMA_BASE_URL` decides where every CV is posted, so it is checked.
+
+    It is operator configuration, not user input — no API path can influence it
+    — but the consequence of a wrong value is the same either way, and a
+    credential embedded in the URL would end up in a log line.
+    """
+    with pytest.raises(ValueError, match=reason):
+        Settings(
+            _env_file=None,
+            database_url="postgresql+psycopg://x/y",
+            demo_mode=False,
+            llm_provider="ollama",
+            ollama_base_url=url,
+        )
+
+
+def test_a_local_url_on_another_host_is_allowed() -> None:
+    """Deliberately not restricted to localhost.
+
+    Ollama on another machine on a home network, or in a sibling container, is a
+    real setup. A check that forbade it would be theatre that broke real use;
+    the residual risk is recorded in docs/security.md instead.
+    """
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql+psycopg://x/y",
+        demo_mode=False,
+        llm_provider="ollama",
+        ollama_base_url="http://workstation.local:11434",
+    )
+
+    assert settings.ollama_base_url == "http://workstation.local:11434"
 
 
 def test_a_missing_database_url_is_a_configuration_error() -> None:
@@ -265,11 +334,19 @@ def test_the_provider_sdk_is_imported_only_inside_the_llm_boundary() -> None:
     assert offenders == [], f"anthropic imported outside app/llm: {offenders}"
 
 
-def test_the_live_client_is_not_constructed_anywhere_in_demo_mode(settings_factory) -> None:
-    """Nothing should be able to reach the provider while demo mode is on."""
-    client = build_llm_client(settings_factory(demo_mode=True))
+@pytest.mark.parametrize("provider", ["ollama", "anthropic"])
+def test_no_real_provider_is_constructed_in_demo_mode(settings_factory, provider: str) -> None:
+    """Nothing reaches a model while demo mode is on, whichever one is selected.
 
-    assert not isinstance(client, LiveLlmClient)
+    Parameterised over both providers because demo mode is the *outer* switch:
+    it must short-circuit before `LLM_PROVIDER` is consulted at all. Otherwise a
+    misconfigured provider could break the offline demo, which is the one thing
+    that has to work from a fresh clone.
+    """
+    client = build_llm_client(settings_factory(demo_mode=True, llm_provider=provider))
+
+    assert isinstance(client, ReplayLlmClient)
+    assert not isinstance(client, (OllamaLlmClient, AnthropicLlmClient))
 
 
 # --------------------------------------------------------------------------

@@ -14,6 +14,19 @@ class HealthResponse(BaseModel):
     version: str = Field(description="Backend application version")
     app_env: str = Field(description="Configured environment name")
     demo_mode: bool = Field(description="True when LLM calls are served from fixtures")
+    llm_provider: str = Field(
+        description=(
+            "Which provider answers when demo mode is off: 'ollama' for a model running "
+            "on the server's own machine, 'anthropic' for the cloud API. Surfaced so the "
+            "UI can tell a user where their documents actually go rather than guessing."
+        )
+    )
+    llm_model: str = Field(
+        description=(
+            "The model that will answer. In demo mode this is the model the recordings "
+            "were made against, which is what a replayed answer honestly is."
+        )
+    )
 
 
 class DatabaseHealthResponse(BaseModel):

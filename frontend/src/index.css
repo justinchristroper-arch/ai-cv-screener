@@ -1103,7 +1103,16 @@ summary:focus-visible {
   color: var(--ok);
 }
 
-/* Live mode is not an error, but it is the state where a click costs money and
+/* Local mode: a model really runs, but nothing leaves the machine it runs on
+   and nothing is billed. Accent rather than warn — it is the normal working
+   state of this application, not a caution. */
+.backend--local {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Cloud mode is not an error, but it is the state where a click costs money and
    sends someone's document to a third party, so it does not look like the calm
    green of the free offline demo. */
 .backend--live {

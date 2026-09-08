@@ -7,6 +7,18 @@
 #
 # Plain PostgreSQL, no pgvector: Phase 1 evaluated vector search and deferred it
 # (docs/data-model.md section 10).
+#
+# **Ollama is deliberately not a service here.** Local AI Mode needs a model
+# server, and it would be easy to add one — but `docker compose up` would then
+# either pull 4.7 GB of weights on a first run, or start a server with no model
+# in it, and GPU passthrough differs on every platform. Ollama is a one-line
+# install that its own project recommends running on the host, so that is what
+# the documentation says to do (docs/decisions/0011). This file keeps one
+# service, which is the one nobody wants to install by hand.
+#
+# A backend container reaching a host Ollama uses
+# OLLAMA_BASE_URL=http://host.docker.internal:11434 on Docker Desktop; see
+# docs/deployment.md.
 
 services:
   db:

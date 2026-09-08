@@ -67,7 +67,14 @@ export function stubFetch(routes: RouteMap, options: StubOptions = {}): FetchStu
 }
 
 export const HEALTH_DEMO = {
-  body: { status: "ok", version: "0.1.0", app_env: "development", demo_mode: true },
+  body: {
+    status: "ok",
+    version: "0.1.0",
+    app_env: "development",
+    demo_mode: true,
+    llm_provider: "ollama",
+    llm_model: "claude-opus-5",
+  },
 };
 
 export const SAMPLE_JD_TEXT =

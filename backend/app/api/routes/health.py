@@ -29,6 +29,14 @@ def health(settings: SettingsDep) -> HealthResponse:
         version=__version__,
         app_env=settings.app_env,
         demo_mode=settings.demo_mode,
+        llm_provider=settings.llm_provider,
+        # In demo mode the honest answer is the model the recordings were made
+        # against, not the one that would answer if demo mode were off.
+        llm_model=(
+            settings.llm_model
+            if settings.demo_mode or settings.llm_provider == "anthropic"
+            else settings.ollama_model
+        ),
     )
 
 

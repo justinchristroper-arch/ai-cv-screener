@@ -155,6 +155,13 @@ switch ($Task) {
         Invoke-InDir $Frontend { npm audit }
     }
 
+    "check-llm" {
+        # Whichever provider is configured. With Ollama that is a preflight plus
+        # four real generations, so it is a task rather than part of `lint`.
+        Require-Venv
+        Invoke-InDir $Root { & $Python (Join-Path $Root "scripts\check_llm.py") @Rest }
+    }
+
     "evaluate" {
         # Run from the repository root: the package is `evaluation`, and the
         # runner puts backend\ on sys.path itself. Extra arguments pass through,
@@ -184,6 +191,7 @@ AI CV Screener — developer commands
   .\tasks.ps1 format         Apply formatting to both halves
   .\tasks.ps1 check-docs     Check docs for broken relative links and anchors
   .\tasks.ps1 check-contrast Check the UI palette against WCAG AA, both themes
+  .\tasks.ps1 check-llm      Check the configured AI provider (add --preflight)
   .\tasks.ps1 coverage       Backend tests with a coverage report
   .\tasks.ps1 audit          Scan Python and Node dependencies for known CVEs
   .\tasks.ps1 evaluate       Measure the pipeline and rewrite evaluation/RESULTS.md

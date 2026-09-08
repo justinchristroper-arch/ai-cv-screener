@@ -14,7 +14,13 @@ import pytest
 from app.core.enums import LlmPurpose, LlmSource
 from app.core.errors import LlmUnavailableError
 from app.core.hashing import sha256_text
-from app.llm.client import FixtureKey, LlmRequest, ReplayLlmClient, build_llm_client
+from app.llm.client import (
+    FixtureKey,
+    LlmRequest,
+    OllamaLlmClient,
+    ReplayLlmClient,
+    build_llm_client,
+)
 from app.llm.fixtures import fixture_jd_text, load_fixtures
 from app.llm.prompts.jd_extraction import (
     PROMPT_VERSION,
@@ -158,32 +164,71 @@ def test_demo_mode_selects_the_replay_client(settings_factory) -> None:
     assert isinstance(client, ReplayLlmClient)
 
 
-def test_live_mode_never_selects_the_replay_client(settings_factory, monkeypatch) -> None:
-    """The other half of the rule: live mode must not serve a recording.
+def test_the_cloud_provider_never_serves_a_recording(settings_factory, monkeypatch) -> None:
+    """The other half of the rule: a real provider must not serve a recording.
 
-    The live client is constructed but never called, so no request is made.
+    The client is constructed but never called, so no request is made.
     """
     from app.llm import client as client_module
 
     constructed: dict[str, str] = {}
 
-    class _StubLive:
+    class _StubAnthropic:
         def __init__(self, api_key: str, model: str, timeout_seconds: float = 120.0) -> None:
             constructed["api_key"] = api_key
             constructed["model"] = model
 
         def complete(self, request):  # pragma: no cover - never invoked here
-            raise AssertionError("no live call should be made in this test")
+            raise AssertionError("no provider call should be made in this test")
 
-    monkeypatch.setattr(client_module, "LiveLlmClient", _StubLive)
+    monkeypatch.setattr(client_module, "AnthropicLlmClient", _StubAnthropic)
 
     built = build_llm_client(
-        settings_factory(demo_mode=False, anthropic_api_key="sk-ant-not-a-real-key")
+        settings_factory(
+            demo_mode=False,
+            llm_provider="anthropic",
+            anthropic_api_key="sk-ant-not-a-real-key",
+        )
     )
 
     assert not isinstance(built, ReplayLlmClient)
     assert constructed["api_key"] == "sk-ant-not-a-real-key"
     assert constructed["model"] == MODEL
+
+
+def test_the_local_provider_never_serves_a_recording(settings_factory) -> None:
+    """The default path, and the one a fresh clone takes.
+
+    Constructed, not called: building the client opens no socket, which is what
+    lets this run in CI with no Ollama anywhere.
+    """
+    built = build_llm_client(
+        settings_factory(
+            demo_mode=False,
+            llm_provider="ollama",
+            ollama_model="qwen2.5:7b-instruct",
+        )
+    )
+
+    assert isinstance(built, OllamaLlmClient)
+    assert not isinstance(built, ReplayLlmClient)
+
+
+def test_selecting_a_local_model_does_not_change_the_fixture_identity(settings_factory) -> None:
+    """`OLLAMA_MODEL` and `LLM_MODEL` are separate settings on purpose.
+
+    Every recording is keyed by the model it was recorded against. If choosing a
+    local model also renamed the fixture key, switching provider would silently
+    invalidate the entire demo.
+    """
+    demo = build_llm_client(
+        settings_factory(demo_mode=True, ollama_model="some-other-model:latest")
+    )
+
+    response = demo.complete(build_request(fixture_jd_text("jd_backend_engineer")))
+
+    assert response.source is LlmSource.FIXTURE
+    assert response.model == MODEL
 
 
 def test_fixture_key_is_hashable_and_value_based() -> None:

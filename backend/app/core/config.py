@@ -15,6 +15,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -46,10 +47,34 @@ class Settings(BaseSettings):
     database_url: str
 
     # When true, all LLM calls are served from recorded fixtures: no key, no
-    # cost, identical results every run. See docs/architecture.md section 4.2.
+    # cost, no server, identical results every run. This is the outer switch and
+    # it is checked first — demo mode never reaches a provider of any kind.
+    # See docs/architecture.md section 4.2.
     demo_mode: bool = True
-    anthropic_api_key: str | None = None
+
+    # Which provider answers when demo mode is off. Local by default: a fresh
+    # clone should work with no account and no paid API (ADR-0011).
+    llm_provider: Literal["ollama", "anthropic"] = "ollama"
+
+    #: The model a *fixture* was recorded against. It is part of the fixture key,
+    #: so changing it invalidates every recording in `app/llm/fixtures/` — which
+    #: is why it is separate from the model a live provider actually runs.
     llm_model: str = "claude-opus-5"
+
+    # --- Ollama (LLM_PROVIDER=ollama) -------------------------------------
+    #
+    # Operator configuration, never user input: nothing in the API lets a caller
+    # choose where a request goes. The URL is still validated below, because a
+    # setting that points this application at an arbitrary host turns it into a
+    # request forwarder for whatever a prompt happens to contain.
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:7b-instruct"
+    #: Generous on purpose. A 7B model on a laptop CPU can take a minute on a
+    #: long CV, and a timeout that fires mid-answer looks like a broken product.
+    ollama_timeout_seconds: float = 300.0
+
+    # --- Anthropic (LLM_PROVIDER=anthropic) -------------------------------
+    anthropic_api_key: str | None = None
 
     # Comma-separated. Kept as a string rather than list[str] on purpose:
     # pydantic-settings parses complex types from the environment as JSON, so a
@@ -92,16 +117,64 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
     @model_validator(mode="after")
-    def _live_mode_requires_api_key(self) -> Settings:
-        """Live mode without a key would fail at the first LLM call, not at boot.
+    def _selected_provider_is_configured(self) -> Settings:
+        """Whatever the selected provider needs, it needs before the first request.
 
-        Demo mode never falls back to a live call and live mode never falls back
-        to a fixture (docs/architecture.md section 4.2), so the key requirement
-        is knowable at startup and is enforced here.
+        Demo mode never falls back to a provider and a provider never falls back
+        to a fixture (docs/architecture.md section 4.2), so what each one
+        requires is knowable at startup and is enforced here rather than
+        surfacing as a confusing failure on someone's first click.
+
+        Only the *selected* provider is checked. Running locally must not
+        require an API key for a cloud service nobody asked for.
         """
-        if not self.demo_mode and not self.anthropic_api_key:
-            raise ValueError("ANTHROPIC_API_KEY is required when DEMO_MODE is false")
+        if self.demo_mode:
+            return self
+
+        if self.llm_provider == "anthropic" and not self.anthropic_api_key:
+            raise ValueError(
+                "ANTHROPIC_API_KEY is required when DEMO_MODE is false and "
+                "LLM_PROVIDER is anthropic"
+            )
+
+        if self.llm_provider == "ollama":
+            _validate_ollama_base_url(self.ollama_base_url)
+            if not self.ollama_model.strip():
+                raise ValueError("OLLAMA_MODEL must name a model, e.g. qwen2.5:7b-instruct")
+
         return self
+
+
+def _validate_ollama_base_url(url: str) -> None:
+    """Refuse a base URL that would make this application a request forwarder.
+
+    `OLLAMA_BASE_URL` is operator configuration read from the environment, and
+    no API path lets a caller influence it — so this is not the classic SSRF
+    shape where an attacker supplies the address. It is checked anyway, because
+    the *consequence* of a wrong value is the same either way: every prompt,
+    including CV text, is posted to whatever host is named.
+
+    What this rejects is malformed or obviously wrong configuration: a scheme
+    that is not HTTP, a missing host, or credentials embedded in the URL (which
+    would then be logged by anything that logs the URL). What it deliberately
+    does **not** do is restrict the host to localhost. Running Ollama on another
+    machine on a home network, or in a sibling container, is a legitimate setup,
+    and a check that forbade it would be security theatre that broke real use.
+    The residual risk is recorded in docs/security.md.
+    """
+    parsed = urlparse(url)
+
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"OLLAMA_BASE_URL must start with http:// or https://, got {parsed.scheme or url!r}"
+        )
+    if not parsed.hostname:
+        raise ValueError(f"OLLAMA_BASE_URL has no host: {url!r}")
+    if parsed.username or parsed.password:
+        raise ValueError(
+            "OLLAMA_BASE_URL must not contain credentials. Ollama needs none, and a "
+            "URL carrying them ends up in logs."
+        )
 
 
 def _format_validation_error(exc: ValidationError) -> str:

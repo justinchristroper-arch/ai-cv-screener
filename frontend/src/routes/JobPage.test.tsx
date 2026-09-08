@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JobPage } from "./JobPage";
-import { DEMO_SAMPLES, job, requirement, stubFetch } from "../testing/stubs";
+import { HEALTH_DEMO, DEMO_SAMPLES, job, requirement, stubFetch } from "../testing/stubs";
 
 const EMPTY_RANKING = {
   body: {
@@ -27,7 +27,7 @@ function stubJob(options: { confirmed: boolean; ranking?: unknown } = { confirme
   const confirmedAt = options.confirmed ? "2026-09-07T10:00:00Z" : null;
   return stubFetch({
     "GET /health": {
-      body: { status: "ok", version: "0.1.0", app_env: "development", demo_mode: true },
+      body: HEALTH_DEMO.body,
     },
     "GET /api/demo/samples": DEMO_SAMPLES,
     "GET /api/jobs/job-1": { body: job({ requirements_confirmed_at: confirmedAt }) },
@@ -113,7 +113,7 @@ describe("JobPage", () => {
   it("labels a demo job as synthetic", async () => {
     stubFetch({
       "GET /health": {
-        body: { status: "ok", version: "0.1.0", app_env: "development", demo_mode: true },
+        body: HEALTH_DEMO.body,
       },
       "GET /api/demo/samples": DEMO_SAMPLES,
       "GET /api/jobs/job-1": { body: job({ title: "[Demo] Senior Backend Engineer" }) },
@@ -132,7 +132,7 @@ describe("JobPage", () => {
   it("treats a job with no description yet as a starting state, not an error", async () => {
     stubFetch({
       "GET /health": {
-        body: { status: "ok", version: "0.1.0", app_env: "development", demo_mode: true },
+        body: HEALTH_DEMO.body,
       },
       "GET /api/demo/samples": DEMO_SAMPLES,
       "GET /api/jobs/job-1": { body: job({ has_description: false, requirement_count: 0 }) },

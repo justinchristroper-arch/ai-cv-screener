@@ -36,6 +36,7 @@ ADRs are numbered sequentially (`0001`, `0002`, …) in the order they were writ
 | [0008](0008-deterministic-scoring.md) | Deterministic scoring rather than LLM-generated scores | Accepted |
 | [0009](0009-natural-language-screening-criteria.md) | Screening criteria are free text, not a job description | Accepted |
 | [0010](0010-protected-attribute-guard.md) | A requirement naming a protected characteristic cannot be confirmed | Accepted |
+| [0011](0011-local-model-by-default.md) | A local model is the default provider | Accepted |
 
 ## Proposing a change
 

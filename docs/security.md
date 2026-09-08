@@ -174,7 +174,7 @@ the application never serves the file back — but it is still on disk.
   only configuration is `VITE_API_BASE_URL`.
 - **It is never logged.** `test_hardening.py` §6 builds the client with a key
   present and asserts no log record contains it.
-- `scripts/live_check.py` reads the key, uses it, and never prints it — not in
+- `scripts/check_llm.py` reads the key, uses it, and never prints it — not in
   its output and not in its JSON report.
 - A provider error is reported as its **HTTP status only**. The provider's
   message body is not forwarded, because that text is not ours to relay and can
@@ -189,6 +189,55 @@ files.
 was ever committed that needed removing. A scan of the full history is a
 pre-publication step for the repository owner — see
 [README.md](../README.md#before-you-publish-this-repository).
+
+---
+
+## 5a. The local model provider
+
+Running the model locally ([ADR-0011](decisions/0011-local-model-by-default.md))
+changes the threat picture in one good way and adds one new surface.
+
+**What improves.** Candidate CVs and recruiter criteria no longer leave the
+machine the backend runs on. That is a genuine privacy improvement for documents
+belonging to people who never chose this tool — and it is the whole reason the
+default changed. It is *not* a guarantee that data "never leaves your computer":
+the browser still posts to the server, and if that server is elsewhere, so is
+the model. The UI says "running on the server this app is talking to" for
+exactly that reason.
+
+**The new surface: `OLLAMA_BASE_URL`.** This setting names a host that every
+prompt — including CV text — is posted to. Two things about it:
+
+- It is **operator configuration**, read from the environment at startup. No API
+  path, request body, header or uploaded document can influence it, so this is
+  not the shape where an attacker supplies the address. An attacker who *can*
+  set it already has the environment, and at that point the URL is not the
+  weakest thing they control.
+- It is **validated anyway**, at startup, because the consequence of a wrong
+  value is the same regardless of who wrote it. The scheme must be `http` or
+  `https`, there must be a host, and the URL must not carry credentials — a
+  credential in a URL ends up in every log line that mentions it. Five malformed
+  forms are covered by tests.
+
+**Accepted, not fixed:** the host is **not** restricted to localhost. Ollama on
+another machine on a home network, or in a sibling container, is a legitimate
+setup, and a check that forbade it would be theatre that broke real use while an
+operator who wanted a different host could simply edit the code. What this means
+in practice: an operator who points `OLLAMA_BASE_URL` at an unrelated internal
+service turns this application into a request forwarder for whatever a prompt
+contains. That is a misconfiguration with a blast radius, and it is documented
+rather than prevented.
+
+**No secret is involved.** Ollama needs no credential, so Local AI Mode has no
+key to leak, log or commit — one fewer thing to get wrong than the cloud path.
+
+**Error handling was written for the failures a first run actually hits.** A
+server that is not running, and a model that is not pulled, both produce a
+message naming the command that fixes them. Neither the request body nor the
+response body is ever echoed back: the one exception is Ollama's short `error`
+string on a 404, read *only* to recognise "model not found", and never
+forwarded. A test drives every failure path with a CV-shaped string in the
+prompt and asserts none of it appears in the error.
 
 ---
 
@@ -265,7 +314,7 @@ limitation cannot quietly stop being true.
 ## 10. Graceful degradation when the provider is unavailable
 
 **Simulated:** `LlmProviderError` (unreachable), a provider refusal, a reply
-that fails validation twice, and — the real one — `scripts/live_check.py` run
+that fails validation twice, and — the real one — `scripts/check_llm.py` run
 against a placeholder key.
 
 **Observed:** HTTP 401 from the provider, reported as
@@ -327,7 +376,7 @@ at 78%**, and every uncovered line is inside `LiveLlmClient` — the provider ca
 its error branches, and the response unpacking. That code cannot be covered
 offline by construction, and covering it with a mock deep enough to be
 meaningless would raise the number without raising the confidence. It is
-exercised instead by `scripts/live_check.py`, which needs a real key.
+exercised instead by `scripts/check_llm.py`, which needs a running model.
 
 `app/db/session.py` at 58% is engine and session-factory construction, exercised
 by every test that touches the database but not through the code paths coverage

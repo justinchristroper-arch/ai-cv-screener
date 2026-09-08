@@ -22,12 +22,12 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JobPage } from "./JobPage";
-import { DEMO_SAMPLES, job, requirement, stubFetch } from "../testing/stubs";
+import { HEALTH_DEMO, DEMO_SAMPLES, job, requirement, stubFetch } from "../testing/stubs";
 
 const DELAY = { delayMs: 5 };
 
 const HEALTH = {
-  body: { status: "ok", version: "0.1.0", app_env: "development", demo_mode: true },
+  body: HEALTH_DEMO.body,
 };
 
 const RANKING = {

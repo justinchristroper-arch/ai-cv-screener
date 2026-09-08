@@ -16,6 +16,7 @@ Every command below was executed — on Windows 11 with PowerShell for the local
 | npm | 11.12.1 | |
 | Docker Desktop | 29.4.3 (Compose 5.1.4) | Must be **running**, not merely installed. |
 | Git | 2.54.0 | |
+| Ollama | 0.33.3 | **Only for Local AI Mode.** Demo mode and the whole test suite need nothing from it. See §17. |
 
 Check them:
 
@@ -111,7 +112,7 @@ pytest-cov 7.1.0, pip-audit 2.10.1, httpx2 2.12.0, reportlab 5.0.1
 
 The `anthropic` SDK is imported **only** inside `backend/app/llm/` — every
 service above that layer depends on the `LlmClient` protocol instead. In demo
-mode it is never called at all; see §22.
+mode it is never called at all; see §23.
 
 > **Why `httpx2`, not `httpx`:** `starlette.testclient` (used via
 > `fastapi.testclient.TestClient` in every backend test) tries
@@ -229,7 +230,7 @@ models do not describe.
 > written at the top of the file. Expect to make the same correction if a future
 > migration introduces a new enum.
 >
-> CI (§18) now exercises `upgrade → downgrade → upgrade` on every push against a
+> CI (§19) now exercises `upgrade → downgrade → upgrade` on every push against a
 > fresh database specifically to catch a regression of this class before merge —
 > a plain `upgrade head` alone would not have caught it the first time.
 
@@ -283,7 +284,7 @@ cd backend
 or `.\tasks.ps1 test-backend`. Expected: **662 passed**.
 
 The suite makes no network call and needs no API key: every LLM-backed test
-runs against recorded fixtures (§21).
+runs against recorded fixtures (§23).
 
 Tests are split by what they need:
 
@@ -291,7 +292,7 @@ Tests are split by what they need:
   schema assertions need no database.
 - Tests marked `requires_db` are **skipped with a stated reason** when
   PostgreSQL is unreachable, naming the connection string it tried. They are
-  never silently passed. CI always has a database available (§17), so all
+  never silently passed. CI always has a database available (§19), so all
   test — the full suite, `requires_db` included — runs there on every push.
 
 Run only the offline set:
@@ -380,7 +381,7 @@ Coverage is **97% of `backend/app` by statement**. The weakest module is named
 rather than averaged away: `app/llm/client.py` at 78%, and every uncovered line
 is inside `LiveLlmClient` — code that cannot run offline by construction.
 Mocking it deeply enough to cover would raise the number without raising the
-confidence; `scripts/live_check.py` exercises it for real instead.
+confidence; `scripts/check_llm.py` exercises it for real instead.
 
 The audit is not wired into CI on purpose. A new upstream advisory would turn CI
 red on a commit that changed nothing, which trains people to ignore it. It is a
@@ -419,7 +420,53 @@ holds the measurements.
 
 ---
 
-## 17. Stop the development environment
+## 17. Local AI Mode (Ollama)
+
+Everything above runs in **demo mode**, which replays recordings and needs no
+model. To run a real model over your own criteria and CVs:
+
+```powershell
+# 1. Install Ollama — https://ollama.com/download
+# 2. Start it. The desktop app does this; otherwise:
+ollama serve
+
+# 3. Pull the model, once. About 4.7 GB.
+ollama pull qwen2.5:7b-instruct
+```
+
+Then in `.env`:
+
+```ini
+DEMO_MODE=false
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:7b-instruct
+```
+
+Check it before opening the UI. This costs nothing and catches the two things
+that go wrong first:
+
+```powershell
+.\tasks.ps1 check-llm --preflight
+```
+
+It reports whether Ollama is answering and whether the model is installed,
+naming the command that fixes whichever is missing. Drop `--preflight` to run
+the four sample briefs through the model and see what actually comes back.
+
+**Hardware.** About 8 GB of free RAM for the 7B model on CPU, or a GPU with 6 GB+
+of VRAM for a large speed-up. Expect seconds to tens of seconds per call on CPU.
+On a smaller machine, `OLLAMA_MODEL=qwen2.5:3b-instruct` (~1.9 GB) runs on much
+less and is measurably worse at returning valid structured output.
+
+**Nothing else changes.** The confirmation gate, evidence verification,
+deterministic matching, scoring and ranking are identical in every mode — the
+model reads text, and ordinary code makes every decision
+([ADR-0011](decisions/0011-local-model-by-default.md)).
+
+---
+
+## 18. Stop the development environment
 
 ```powershell
 # Ctrl+C in each dev-server terminal, then:
@@ -431,7 +478,7 @@ docker compose down -v       # stop PostgreSQL and DELETE all data
 
 ---
 
-## 18. Continuous integration
+## 19. Continuous integration
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push
 and pull request to `main`, as three independent jobs:
@@ -467,7 +514,7 @@ as two different claims; only the first is currently true.
 
 ---
 
-## 19. Task script reference
+## 20. Task script reference
 
 `tasks.ps1` is a thin PowerShell wrapper, not a build system — every task is one
 or two of the commands above.
@@ -483,6 +530,7 @@ or two of the commands above.
 | `.\tasks.ps1 lint` / `format` | lint or format both halves |
 | `.\tasks.ps1 check-docs` | check docs for broken relative links and anchors |
 | `.\tasks.ps1 check-contrast` | check the UI palette against WCAG AA, both themes |
+| `.\tasks.ps1 check-llm` | check the configured AI provider (`--preflight` to check setup only) |
 | `.\tasks.ps1 evaluate` | run the evaluation harness (`--no-db` passes through) |
 | `.\tasks.ps1` | print this list |
 
@@ -496,7 +544,7 @@ or just use the underlying commands — nothing depends on the script.
 
 ---
 
-## 20. Troubleshooting
+## 21. Troubleshooting
 
 **`ModuleNotFoundError: No module named 'psycopg2'`**
 `DATABASE_URL` is missing the driver suffix. Use `postgresql+psycopg://`.
@@ -530,9 +578,23 @@ field (`^22.13.0 || ^24.0.0 || >=26.0.0`), and `frontend/.npmrc` sets
 combination. Switch to the version in `frontend/.nvmrc` (24.15.0) — `nvm use`
 if you have nvm installed.
 
+**`could not reach the local model server at http://localhost:11434`**
+Ollama is not running. Start it (`ollama serve`, or launch the desktop app) and
+re-run. Only affects Local AI Mode; demo mode never contacts it.
+
+**`the local model 'qwen2.5:7b-instruct' is not installed`**
+Pull it once: `ollama pull qwen2.5:7b-instruct` (~4.7 GB). The application never
+downloads a model itself. `python scripts/check_llm.py --preflight` tells you
+which of these two you have before you wait for a timeout.
+
+**`the local model did not answer within 300s`**
+A large model on a slow machine. Either raise `OLLAMA_TIMEOUT_SECONDS`, or move
+to `OLLAMA_MODEL=qwen2.5:3b-instruct`, which is smaller and faster and less
+reliable at returning valid structured output.
+
 ---
 
-## 21. What is not set up
+## 22. What is not set up
 
 Deliberately absent, with the reason:
 
@@ -541,7 +603,7 @@ Deliberately absent, with the reason:
   largest reason not to deploy this with real applicant data
   ([security.md §1](security.md#1-what-this-system-is-for-threat-modelling-purposes)).
 - **OCR.** Scanned or image-only PDFs have no text layer and are recorded as
-  failures (`NO_TEXT_LAYER`); nothing recovers text from them. See §23.
+  failures (`NO_TEXT_LAYER`); nothing recovers text from them. See §24.
 - **Language detection.** `parsed_document.language_detected` is always NULL and
   the `UNSUPPORTED_LANGUAGE` failure reason is reserved but never raised.
   Multilingual *criteria* are supported ([ADR-0009](decisions/0009-natural-language-screening-criteria.md));
@@ -550,15 +612,20 @@ Deliberately absent, with the reason:
   this process's memory — a brake, not a wall. A real limit belongs in a proxy
   ([security.md §8](security.md#8-rate-limiting-and-request-size)).
 - **A deployment.** The backend has a Dockerfile and the frontend builds to
-  static files; nothing is hosted. CI (§18) validates the code, it does not
+  static files; nothing is hosted. CI (§19) validates the code, it does not
   deploy it. See [deployment.md](deployment.md).
-- **A live-model measurement.** Live AI Mode is implemented and can be exercised
-  with `scripts/live_check.py`, but it has not been run against a real key in
-  this repository, so no claim about live model quality is made.
+- **A measurement of model quality.** Local AI Mode runs a real model and can be
+  exercised with `scripts/check_llm.py`, but the LLM-dependent metrics in
+  `evaluation/RESULTS.md` are still reported as not measured. A number produced
+  by one model on one machine describes that model, not this application, and
+  the harness keeps those two things apart on purpose.
+- **The Anthropic provider, in practice.** It is implemented and selectable with
+  `LLM_PROVIDER=anthropic`, and has never been exercised against a real key in
+  this repository.
 
 ---
 
-## 22. The LLM layer, demo mode, and fixtures
+## 23. The LLM layer, demo mode, and fixtures
 
 Everything that talks to a language model sits behind one protocol in
 `backend/app/llm/client.py`:
@@ -629,7 +696,7 @@ and is never logged or returned in a response.
 
 ---
 
-## 23. CV upload and PDF parsing
+## 24. CV upload and PDF parsing
 
 Uploading a CV runs a fixed, deterministic pipeline. No language model is
 involved: turning a PDF into text is mechanical, and keeping it mechanical is
@@ -689,7 +756,7 @@ in this project.** Such a file has no text layer; extraction produces nothing,
 and the candidate is recorded as `FAILED` with `NO_TEXT_LAYER`. Nothing is
 invented to fill the gap — a fabricated CV would be far worse than an honest
 failure. OCR is listed as a future improvement in
-[product-spec.md §18](product-spec.md#18-future-improvements).
+[product-spec.md §19](product-spec.md#18-future-improvements).
 
 ### Storage
 

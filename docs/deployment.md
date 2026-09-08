@@ -30,18 +30,22 @@ proxy in the design; if you add one, that is where a real rate limit belongs
 
 ## 2. Decide these first
 
-### Demo mode or live mode
+### Demo mode, or a real model
 
-**A public demo should run with `DEMO_MODE=true`.** Every model call is served
-from a recording, so it costs nothing, behaves identically on every visit, and
-there is no key to leak. The whole workflow — four sample briefs, three
-synthetic CVs, ranking and evidence — works in that mode; that is what it is
-for.
+**A public demo should run with `DEMO_MODE=true`.** Every AI call is served from
+a recording, so it costs nothing, needs no model server, behaves identically on
+every visit, and there is no key to leak. The whole workflow — four sample
+briefs, three synthetic CVs, ranking and evidence — works in that mode; that is
+what it is for.
 
-`DEMO_MODE=false` means every set of criteria a visitor types and every CV they
-upload is sent to the provider on your account. On a public URL with no
-authentication, that is an open invitation to spend your money. If you do it
-anyway, put authentication in front of it first.
+`DEMO_MODE=false` runs a real model over whatever a visitor types and uploads,
+and on a public URL with **no authentication** that is a problem either way:
+
+- with `LLM_PROVIDER=anthropic`, it is an open invitation to spend your money;
+- with `LLM_PROVIDER=ollama`, it is an open invitation to occupy your CPU or GPU
+  for seconds at a time, per request, which is a denial-of-service surface.
+
+If you do it anyway, put authentication in front of it first.
 
 ### Where uploaded files go
 
@@ -74,10 +78,36 @@ explicitly:
 | `DATABASE_URL` | The managed instance's URL, **with the `+psycopg` suffix**. A bare `postgresql://` makes SQLAlchemy look for psycopg2, which is not installed. |
 | `APP_ENV` | `production` |
 | `DEMO_MODE` | `true` for a public demo. See above. |
-| `ANTHROPIC_API_KEY` | Only when `DEMO_MODE=false`. **From the platform's secret store, never from a file in the image.** |
+| `LLM_PROVIDER` | `ollama` (default) or `anthropic`. Only read when demo mode is off. |
+| `OLLAMA_BASE_URL` | Where Ollama listens. **Not `localhost` from inside a container** — see below. |
+| `OLLAMA_MODEL` | Must already be pulled on whatever machine runs Ollama. |
+| `ANTHROPIC_API_KEY` | Only when `LLM_PROVIDER=anthropic`. **From the platform's secret store, never from a file in the image.** |
 | `CORS_ALLOWED_ORIGINS` | Exactly the deployed frontend's origin. Never `*`. |
 | `UPLOAD_STORAGE_DIR` | The mount point of the volume, if there is one. |
 | `RATE_LIMIT_ENABLED` | `true`. It is a brake, not a wall — put a real limit in the proxy too. |
+
+### Reaching Ollama from a container
+
+`localhost` inside a container is the container, not the host, so a backend in
+Docker cannot reach a host Ollama at `http://localhost:11434`. Three shapes,
+in the order most deployments want them:
+
+| Setup | `OLLAMA_BASE_URL` |
+|---|---|
+| Backend on the host, Ollama on the host | `http://localhost:11434` |
+| Backend in Docker Desktop, Ollama on the host | `http://host.docker.internal:11434` |
+| Both in Compose on one network | `http://ollama:11434` (you supply the service) |
+
+Ollama binds to `127.0.0.1` by default, which is the right default and also
+means a host install is not reachable from a container until you set
+`OLLAMA_HOST=0.0.0.0` on **Ollama's** side. Do that only on a machine where
+that port is not exposed to a network you do not control: Ollama has no
+authentication of its own.
+
+**A public deployment should run `DEMO_MODE=true` and not use Ollama at all.**
+Local inference on a shared host means every visitor's upload occupies the CPU
+or GPU for seconds at a time, with no authentication in front of it — which is
+a denial-of-service surface, not a feature.
 
 The backend **fails fast**: a missing or invalid variable stops the process at
 startup with a message naming it, rather than surfacing as a confusing error at

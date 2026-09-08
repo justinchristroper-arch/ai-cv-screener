@@ -56,13 +56,33 @@ export function BackendStatus() {
   }
 
   const { health } = status;
+
+  if (health.demo_mode) {
+    return (
+      <div className="backend backend--ok" role="status">
+        <strong>Demo mode</strong>
+        <span className="backend__hint">
+          AI responses are replayed from recordings made in advance — no model runs, nothing is sent
+          anywhere, and no API key is needed. Only the sample briefs and sample CVs can be analysed.
+        </span>
+      </div>
+    );
+  }
+
+  // Two live modes with genuinely different privacy properties, so they get
+  // genuinely different copy. Claiming "your data stays on your machine" while
+  // running against a cloud API would be the worst mistake this component
+  // could make, so the wording is driven by what the server reports rather
+  // than by a build-time assumption.
+  const local = health.llm_provider === "ollama";
   return (
-    <div className={`backend ${health.demo_mode ? "backend--ok" : "backend--live"}`} role="status">
-      <strong>{health.demo_mode ? "Demo mode" : "Live AI mode"}</strong>
+    <div className={`backend ${local ? "backend--local" : "backend--live"}`} role="status">
+      <strong>{local ? "Local AI mode" : "Cloud AI mode"}</strong>
       <span className="backend__hint">
-        {health.demo_mode
-          ? "AI responses are replayed from recordings made in advance — no API key, no cost, and nothing is sent anywhere. Only the sample briefs and sample CVs can be analysed."
-          : `Your criteria and every CV you upload are sent to the configured AI provider, and each run costs money. v${health.version} · ${API_BASE_URL}`}
+        {local
+          ? `Your criteria and every CV you upload are read by ${health.llm_model} running on the server this app is talking to — not sent to a third-party AI service. Ollama must be running with that model installed.`
+          : `Your criteria and every CV you upload are sent to a third-party AI provider (${health.llm_model}), and each run costs money.`}{" "}
+        v{health.version} · {API_BASE_URL}
       </span>
     </div>
   );

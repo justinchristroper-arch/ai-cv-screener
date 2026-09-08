@@ -1,6 +1,6 @@
 # AI CV Screener — Development Roadmap
 
-**Status:** every phase delivered. Phases 0–7, 9–12 and 15–17 are complete. Five carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/live_check.py`); **3, 14 and 18** need the first push to GitHub, so CI can be observed and the repository's own metadata set; **19 and 20** need a hosting decision that belongs to the repository owner. Nothing is deployed and nothing has been pushed.
+**Status:** every phase delivered. Phases 0–7, 9–12 and 15–17 are complete. Five carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/check_llm.py`); **3, 14 and 18** need the first push to GitHub, so CI can be observed and the repository's own metadata set; **19 and 20** need a hosting decision that belongs to the repository owner. Nothing is deployed and nothing has been pushed.
 **Last updated:** 2026-09-07
 **Product definition:** [product-spec.md](product-spec.md)
 
@@ -187,7 +187,7 @@ Also delivered, beyond the original list, because they turned out to be needed t
 - A stored record of every LLM call: model, prompt version, token usage. ✅ Every attempt, success or failure, written to `llm_call_log`.
 
 Also delivered:
-- The `LlmClient` abstraction (`LiveLlmClient` / `ReplayLlmClient`) with the two no-fallback rules from [architecture §4.2](architecture.md#42-the-client-abstraction-and-demo-mode), and six recorded fixtures covering the happy path, a recoverable retry, an unrecoverable double failure, and a prompt-injection attempt.
+- The `LlmClient` abstraction (`LiveLlmClient` / `ReplayLlmClient`) with the two no-fallback rules from [architecture §4.2](architecture.md#42-the-client-abstraction-demo-mode-and-provider-selection), and six recorded fixtures covering the happy path, a recoverable retry, an unrecoverable double failure, and a prompt-injection attempt.
 - `app/core/errors.py` — domain errors with a structured, non-leaking HTTP mapping.
 
 **Verification criteria.**
@@ -549,7 +549,7 @@ outstanding item Phase 3 carries, and it needs a push, not more code.
 - Each control is tested by attempting to break it, and the attempt is shown to fail. ✅
 - A dependency vulnerability scan runs, and its findings are triaged in writing. ✅ `pip-audit` + `npm audit` via `.	asks.ps1 audit`. The first run found 8 advisories across 2 development-only packages; both were fixed, and the triage is in [`docs/security.md` §13](security.md#13-dependency-vulnerabilities). Both scans now report nothing.
 - No secret appears in logs; verified by inspecting real log output. ✅
-- The API returns a sane error, not a stack trace, when the provider is unreachable — verified by simulating the failure. ✅ And by an unsimulated one: `scripts/live_check.py` against a placeholder key reports `provider returned HTTP 401` without printing the key.
+- The API returns a sane error, not a stack trace, when the provider is unreachable — verified by simulating the failure. ✅ And by an unsimulated one: `scripts/check_llm.py` against a placeholder key reports `provider returned HTTP 401` without printing the key.
 - Findings are recorded even where they are accepted rather than fixed, with the reason. ✅ Six of them, including the two that matter most — no authentication at all, and a rate limiter that is a brake rather than a wall.
 
 ---

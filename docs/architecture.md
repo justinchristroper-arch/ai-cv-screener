@@ -118,26 +118,36 @@ Stage 9 runs before stage 10 and settles every pair it can — exact skill match
 
 This ordering is deliberate and does three things at once: it cuts cost and latency, it makes the easy cases perfectly reproducible, and it makes the deterministic/LLM split *measurable* (`MatchResult.decided_by` records which mechanism decided each pair). If the LLM share is high, that is a signal the alias table needs work — a fact the architecture surfaces rather than hides.
 
-### 4.2 The client abstraction and demo mode
+### 4.2 The client abstraction, demo mode, and provider selection
 
 ```
 LlmClient (Protocol)
-├── LiveLlmClient    — calls the provider; used when DEMO_MODE=false
-└── ReplayLlmClient  — serves recorded fixtures; used when DEMO_MODE=true
+├── OllamaLlmClient     — a model on this machine; the default
+├── AnthropicLlmClient  — the cloud API; opt-in via LLM_PROVIDER=anthropic
+└── ReplayLlmClient     — recorded fixtures; used when DEMO_MODE=true
 ```
 
-Fixtures are keyed by `(purpose, model, prompt_version, sha256(rendered_input))`.
+Selection happens in exactly one function, `build_llm_client`, at composition time, in two levels and in this order:
+
+1. **`DEMO_MODE`** decides whether a model is contacted *at all*. It short-circuits, so demo mode needs no provider configured, no server running and no key — which is what makes a fresh clone work.
+2. **`LLM_PROVIDER`** decides *which* model, and is only consulted when demo mode is off.
+
+Fixtures are keyed by `(purpose, model, prompt_version, sha256(rendered_input))`, where `model` is `LLM_MODEL` — deliberately a *separate* setting from `OLLAMA_MODEL`, so choosing a local model cannot silently invalidate every recording.
 
 Two rules, both important:
 
-- **Demo mode never falls back to a live call.** A missing fixture raises an explicit error. Silent fallback would mean the "free, deterministic" demo could quietly start spending money.
-- **Live mode never falls back to a fixture.** That would mean presenting recorded output as a fresh result — fabricating a result, which is the one thing this project is built not to do.
+- **Demo mode never falls back to a real call.** A missing fixture raises an explicit error. Silent fallback would mean the "free, deterministic" demo could quietly start spending money or saturating a CPU.
+- **A real call never falls back to a fixture.** That would mean presenting recorded output as a fresh result — fabricating a result, which is the one thing this project is built not to do.
 
-Both clients return the same validated Pydantic object, so every service above them is identical in either mode. This is what lets the entire test suite and the public demo run with no API key.
+Every client returns the same `LlmResponse`, so every service above them is identical whichever answered. Nothing above `app/llm/` can tell, or ask. That property is what made replacing a cloud API with a local model a change to one file plus configuration — see [ADR-0011](decisions/0011-local-model-by-default.md).
 
 ### 4.3 Model call settings
 
-Temperature is not set (current models reject sampling parameters); determinism comes from the fixture layer, not from the provider. Structured output is enforced via the schema constraint on the request, and the response is *re-validated* locally against `schemas/llm/` regardless — a provider guarantee is not a substitute for our own check. Model id and prompt version are read from configuration and written to `LlmCallLog` on every call.
+Structured output is requested from whichever provider is in use — Anthropic's `output_config`, Ollama's `format` — using the *same* JSON Schema, and the reply is **re-validated locally** against `schemas/llm/` regardless. A provider guarantee is never a substitute for our own check, and this matters more with a small local model than it did with a large hosted one, not less.
+
+Determinism comes from the fixture layer rather than the provider, but the local client still pins `temperature: 0`: two runs of the same CV disagreeing gives a recruiter nothing to act on. It also sets `num_ctx` explicitly, because Ollama's default context window is small enough to silently truncate a real CV — a wrong answer that looks like a right one.
+
+Model id and prompt version are read from configuration and written to `LlmCallLog` on every call. The id recorded is the one that *answered*, not the one requested: Ollama resolves a tag to a specific build.
 
 ---
 
@@ -329,6 +339,8 @@ Settings load from the environment into a typed settings object at startup. **Th
 | Score storage | Store inputs **and** result | Store only the final score | Reconstructibility is a stated requirement; recomputation from stored rows must reproduce the value exactly. |
 | Demo/live fallback | Never, in either direction | Fall back on missing fixture | One direction spends money silently; the other presents recorded output as a fresh result. |
 | Frontend state | Server-state query lib | Redux/global store | Nearly all state here is server state. |
+| AI provider | A local model via Ollama, by default | A cloud API | A fresh clone should screen a real CV with no account and no spending, and a candidate's CV should not leave the machine unless someone chose that. The pipeline needs a model that can read text, not a particular company's model ([ADR-0011](decisions/0011-local-model-by-default.md)). |
+| Local HTTP calls | `urllib.request` | `httpx`/`requests` | One POST with a JSON body and a timeout. Adding a runtime HTTP client so the LLM boundary could make a single request would be a dependency bought for nothing. |
 | Stage 2's input | Whatever the recruiter typed, in any language | A formal job description | The rest of the pipeline never cared what shape the input had; only the prompt did. Requiring a document first was a barrier with nothing behind it ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)). |
 | A criterion naming a protected characteristic | Refused at the confirmation gate | Neutralised later at screening | Silently scoring it "no evidence" for everybody teaches the recruiter nothing and overrules them without saying so. Refusing names the line and hands the decision back ([ADR-0010](decisions/0010-protected-attribute-guard.md)). |
 | Rate limiting | In-process, per client, on the paid endpoints | A shared store; nothing at all | A brake on accidental hammering that costs one file and no dependency. Its ceilings are documented rather than oversold; a real limit belongs in a proxy. |

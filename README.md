@@ -30,7 +30,7 @@ responses, so the whole workflow can be walked at zero cost.
 - [The line this project is built on](#the-line-this-project-is-built-on)
 - [Evidence-first](#evidence-first)
 - [Screening criteria in your own words](#screening-criteria-in-your-own-words)
-- [Demo mode and Live AI mode](#demo-mode-and-live-ai-mode)
+- [Demo mode and Local AI mode](#demo-mode-and-local-ai-mode)
 - [Scoring](#scoring)
 - [Ranking](#ranking)
 - [Architecture](#architecture)
@@ -173,17 +173,17 @@ and nobody is filtered; the recruiter removes or rewords one line. See
 
 ---
 
-## Demo mode and Live AI mode
+## Demo mode and Local AI mode
 
-Two modes, with **no fallback in either direction**. Demo mode never makes a
-live call; live mode never serves a recording. Which one is running is shown in
-the application header.
+Two modes, with **no fallback in either direction**. Demo mode never contacts a
+model; a model is never replaced by a recording. Which one is running is shown
+in the application header, along with the model that will answer.
 
 ### Demo mode (`DEMO_MODE=true`, the default)
 
-Every model call is served from a recording in `backend/app/llm/fixtures/`. No
-API key, no network, no cost, identical results on every run — which is also
-what lets the entire test suite run offline.
+Every AI call is served from a recording in `backend/app/llm/fixtures/`. No
+model runs, no server is needed, no key is needed, and every run gives identical
+results — which is also what lets the entire test suite run offline.
 
 One click seeds a complete job from three synthetic CVs: a strong match, a CV
 carrying injected instructions, and a scan with no text layer that fails
@@ -195,30 +195,69 @@ The limit is real and is stated up front rather than discovered: a recording is
 keyed by a hash of its input, so demo mode can only analyse the sample briefs.
 Pasting your own text shows an explanation, not an error.
 
-### Live AI mode (`DEMO_MODE=false`)
+### Local AI mode (`DEMO_MODE=false`, `LLM_PROVIDER=ollama`)
 
-Requires `ANTHROPIC_API_KEY`. The key is read server-side only and never reaches
-the browser bundle. A missing key is a **startup failure with a named variable**,
-not a mystery at the first request.
+A real model, running on the machine your backend runs on, reading whatever you
+type and whatever you upload. **No account, no API key, no per-call cost, and
+candidate CVs are not sent to a third-party AI service.**
 
-In live mode the criteria you type and every CV you upload are sent to the
-provider, and each run costs money. The header says so.
-
-Verify a live configuration without touching the UI:
+Set-up is three commands, once:
 
 ```bash
-python scripts/live_check.py
+# 1. Install Ollama — https://ollama.com/download  (macOS, Linux, Windows)
+# 2. Start it (the desktop app does this for you; on a server, run it yourself)
+ollama serve
+
+# 3. Pull the model. ~4.7 GB, once. This is never done by the application.
+ollama pull qwen2.5:7b-instruct
 ```
 
-It runs the four sample briefs against the real provider and reports the
-requirements returned, their categories and must-have flags, whether each reply
-passed this application's own validation, and the tokens and latency each call
-took. `--stability N` repeats one brief to show whether the model agreed with
-itself. It refuses to run in demo mode, never prints the key, and costs money
-every time — so it asks first.
+Then point the backend at it in `.env`:
 
-This script is also the **only** path to the evaluation metrics that cannot be
-measured offline; see [Evaluation](#evaluation).
+```ini
+DEMO_MODE=false
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:7b-instruct
+```
+
+Check the setup before touching the UI — this catches the two things that go
+wrong first, and costs nothing:
+
+```bash
+python scripts/check_llm.py --preflight
+```
+
+It says whether Ollama is answering and whether the model is installed, naming
+the command that fixes whichever is missing. Drop `--preflight` to actually run
+the four sample briefs through the model and see what comes back: the
+requirements, their categories and must-have flags, whether each reply passed
+this application's own schema validation, and the tokens and time each call
+took. `--stability N` repeats one brief to show whether the model agreed with
+itself.
+
+**Why `qwen2.5:7b-instruct`.** It holds a JSON schema well (which this pipeline
+depends on absolutely), it handles Indonesian as well as English, and 7B at
+4-bit is the largest size comfortable on an ordinary laptop. Full reasoning and
+the alternatives considered: [ADR-0011](docs/decisions/0011-local-model-by-default.md).
+
+**Hardware.** About **8 GB of free RAM** for the 7B model on CPU, or a GPU with
+6 GB+ of VRAM for a large speed-up. Expect seconds to tens of seconds per call
+on CPU — screening a batch of CVs is a wait, not an instant. On a smaller
+machine use `OLLAMA_MODEL=qwen2.5:3b-instruct` (~1.9 GB): it runs on much less
+and is measurably worse at returning a reply that survives schema validation,
+which is a real trade rather than a free one.
+
+### Cloud AI mode (`DEMO_MODE=false`, `LLM_PROVIDER=anthropic`)
+
+Still supported, still opt-in. Requires `ANTHROPIC_API_KEY`, sends your criteria
+and every CV to a third party, and costs money per run. `scripts/check_llm.py`
+works against it too. A missing key is a **startup failure with a named
+variable**, not a mystery at the first request.
+
+`scripts/check_llm.py` is the **only** path to the evaluation metrics that
+cannot be measured offline, whichever provider is configured; see
+[Evaluation](#evaluation).
 
 ---
 
@@ -357,9 +396,13 @@ message naming any variable that is missing or invalid.
 | Variable | Default | Notes |
 |---|---|---|
 | `DATABASE_URL` | — | **Required.** Needs the `+psycopg` suffix. |
-| `DEMO_MODE` | `true` | `false` switches to live calls and makes the API key required. |
-| `ANTHROPIC_API_KEY` | — | Required when `DEMO_MODE=false`. Server-side only; never reaches the browser. |
-| `LLM_MODEL` | `claude-opus-5` | Recorded with every call, and part of a recording's key. |
+| `DEMO_MODE` | `true` | The outer switch. `false` runs a real model. |
+| `LLM_PROVIDER` | `ollama` | Which provider answers when demo mode is off. `ollama` or `anthropic`. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Where Ollama is listening. Validated at startup. |
+| `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Must be pulled once with `ollama pull`. Never downloaded by the app. |
+| `OLLAMA_TIMEOUT_SECONDS` | `300` | One generation. Generous — a 7B model on CPU is slow. |
+| `ANTHROPIC_API_KEY` | — | Required **only** when `LLM_PROVIDER=anthropic`. Server-side only; never reaches the browser. |
+| `LLM_MODEL` | `claude-opus-5` | The model the bundled **recordings** were made against, and part of a recording's key. Not the model Ollama runs. |
 | `APP_ENV` | `development` | `development` or `production`. |
 | `LOG_LEVEL` | `info` | |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated allowlist. Never `*`. |
@@ -392,7 +435,7 @@ Everything below runs offline, with no API key.
 
 CI runs the backend suite against a real PostgreSQL service container, the
 frontend suite and production build, and the documentation link checker
-([docs/development.md §18](docs/development.md#18-continuous-integration)).
+([docs/development.md §19](docs/development.md#19-continuous-integration)).
 
 ---
 
@@ -424,7 +467,8 @@ sensitivity, ranking correlation against a human reference, and cost per CV —
 are reported as **not measured**, each with its reason, rather than estimated.
 They are all downstream of the model: a recording is keyed by a hash of its
 input, so measuring the model offline would mean hand-writing both the answer
-and the label it is scored against. `scripts/live_check.py` is the path to them.
+and the label it is scored against. `scripts/check_llm.py` is the path to them,
+against whichever provider is configured.
 
 The harness earned its keep on its first run by finding two real defects, both
 over-crediting candidates: the skill `Go` matched the word "go" in *"the ability
@@ -526,7 +570,7 @@ Recorded up front rather than discovered later:
   same author as the labels, which would measure that author's consistency.
 - **Multilingual behaviour is exercised, not benchmarked.** Indonesian, English
   and mixed input are covered by tests; how well a live model handles them is
-  unmeasured until `scripts/live_check.py` is run with a real key.
+  unmeasured until `scripts/check_llm.py` is run against a real model.
 - **The rate limiter is in-process.** Two workers means two allowances, and the
   client address is spoofable. It is a brake, not a wall.
 - **Not deployed.** No public URL, and no cold-start or uptime figures to report.
@@ -544,7 +588,8 @@ The full list is in
 | Frontend | ✅ The full workflow: job creation, criteria entry, requirement review and confirmation, batch upload, screening progress, ranked results, candidate detail with evidence. React + Vite, zero runtime dependencies beyond React. |
 | Database | ✅ PostgreSQL 16 in Docker; all 16 tables migrated via Alembic. |
 | Demo mode | ✅ Four sample briefs and three synthetic CVs, each walkable end to end. No API key, no cost, no real applicant data. |
-| Live AI mode | 🟡 Implemented and wired; verifiable with `scripts/live_check.py`. **Not yet exercised against a real key in this repository**, so no claim about live model quality is made. |
+| Local AI mode | ✅ Ollama, `qwen2.5:7b-instruct`, the default when demo mode is off. No account, no key, no per-call cost. |
+| Cloud AI mode | 🟡 Anthropic, opt-in via `LLM_PROVIDER=anthropic`. Implemented and wired; **never exercised against a real key in this repository**, so no claim about it is made. |
 | Tests | ✅ 755 passing (662 backend, 93 frontend), 97% backend coverage. |
 | Evaluation | ✅ [`evaluation/`](evaluation/) — 8 synthetic candidates, 89 labelled pairs, 11 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
