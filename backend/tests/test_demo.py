@@ -102,8 +102,7 @@ def test_the_service_refuses_to_seed_outside_demo_mode(
 # --------------------------------------------------------------------------
 
 
-@pytest.fixture()
-def seeded(db_session: Session, replay_client, storage):
+def _seed(db_session, replay_client, storage, criteria_id=None):
     return demo.seed_demo_job(
         db_session,
         replay_client,
@@ -112,15 +111,65 @@ def seeded(db_session: Session, replay_client, storage):
         max_size_bytes=10 * 1024 * 1024,
         max_pages=20,
         max_files=25,
+        criteria_id=criteria_id,
     )
 
 
+@pytest.fixture()
+def seeded(db_session: Session, replay_client, storage):
+    """The default demo: six structured criteria, and no model call anywhere."""
+    return _seed(db_session, replay_client, storage)
+
+
+@pytest.fixture()
+def seeded_free_text(db_session: Session, replay_client, storage):
+    """The legacy path (ADR-0009), kept under test because it is kept working."""
+    return _seed(db_session, replay_client, storage, criteria_id=demo.SAMPLE_JD_FIXTURE)
+
+
 @pytest.mark.requires_db
-def test_seeding_produces_a_confirmed_job_with_requirements(db_session: Session, seeded) -> None:
+def test_seeding_produces_a_confirmed_job_with_structured_criteria(
+    db_session: Session, seeded
+) -> None:
     from app.services import requirements
 
     assert seeded.job.requirements_confirmed_at is not None
-    assert len(requirements.list_requirements(db_session, seeded.job.id)) == 13
+    rows = requirements.list_requirements(db_session, seeded.job.id)
+    assert len(rows) == len(demo.STRUCTURED_CRITERIA)
+    # Every one is typed, so every verdict it produces is reconstructible.
+    assert all(row.spec_type is not None for row in rows)
+
+
+@pytest.mark.requires_db
+def test_the_default_demo_never_calls_a_model(db_session: Session, storage) -> None:
+    """The claim the structured demo exists to make.
+
+    `None` is not a stub that returns nothing -- it has no methods at all, so
+    anything reaching for a model raises. A walkthrough that completes is
+    therefore proof that nothing did.
+    """
+    result = demo.seed_demo_job(
+        db_session,
+        None,  # type: ignore[arg-type]
+        storage=storage,
+        demo_mode=True,
+        max_size_bytes=10 * 1024 * 1024,
+        max_pages=20,
+        max_files=25,
+    )
+
+    assert (result.uploaded, result.screened, result.failed) == (3, 2, 1)
+
+
+@pytest.mark.requires_db
+def test_the_legacy_brief_still_seeds_free_text_requirements(
+    db_session: Session, seeded_free_text
+) -> None:
+    from app.services import requirements
+
+    rows = requirements.list_requirements(db_session, seeded_free_text.job.id)
+    assert len(rows) == 13
+    assert all(row.spec_type is None for row in rows)
 
 
 @pytest.mark.requires_db
@@ -138,7 +187,7 @@ def test_the_seeded_job_ranks_the_way_the_samples_describe(db_session: Session, 
     """The demo a reader sees: a strong match, a flagged one, and an honest failure."""
     result = ranking.rank_job_candidates(db_session, seeded.job.id)
 
-    assert [entry.score.score for entry in result.ranked] == [82, 15]
+    assert [entry.score.score for entry in result.ranked] == [83, 50]
     assert [entry.score.band for entry in result.ranked] == [
         RecommendationBand.GOOD_MATCH,
         RecommendationBand.LOW_MATCH,
@@ -150,11 +199,18 @@ def test_the_seeded_job_ranks_the_way_the_samples_describe(db_session: Session, 
 
 
 @pytest.mark.requires_db
-def test_the_seeded_job_stores_no_sensitive_attribute(db_session: Session, seeded) -> None:
-    """The strong sample prints a personal-details block. None of it is stored."""
+def test_the_seeded_job_stores_no_sensitive_attribute(
+    db_session: Session, seeded_free_text
+) -> None:
+    """The strong sample prints a personal-details block. None of it is stored.
+
+    Asserted against the free-text seed because that is the path that builds a
+    profile at all. The structured demo never extracts one, so there is nothing
+    it could have stored -- the same guarantee, made structurally instead.
+    """
     from app.services import profile_extraction
 
-    result = ranking.rank_job_candidates(db_session, seeded.job.id)
+    result = ranking.rank_job_candidates(db_session, seeded_free_text.job.id)
     top = result.ranked[0].candidate
     profile = profile_extraction.require_profile(db_session, top.id)
     items = profile_extraction.load_profile_items(db_session, profile)
@@ -205,7 +261,31 @@ def test_seeding_over_http_returns_a_browsable_job(api: TestClient) -> None:
 
     ranked = api.get(f"/api/jobs/{body['job_id']}/ranking").json()
     assert ranked["summary"] == {"total": 3, "ranked": 2, "not_yet_scored": 0, "failed": 1}
-    assert [row["score"] for row in ranked["ranked"]] == [82, 15]
+    assert [row["score"] for row in ranked["ranked"]] == [83, 50]
+
+
+@pytest.mark.requires_db
+def test_the_samples_endpoint_publishes_the_structured_criteria(api: TestClient) -> None:
+    body = api.get("/api/demo/samples").json()
+
+    assert body["structured_criteria_id"] == demo.STRUCTURED_CRITERIA_ID
+    assert len(body["structured_criteria"]) == len(demo.STRUCTURED_CRITERIA)
+    assert all(item["demonstrates"] for item in body["structured_criteria"])
+
+
+@pytest.mark.requires_db
+def test_the_structured_demo_verdicts_all_cite_the_cv(api: TestClient) -> None:
+    """No model was asked, so every positive verdict must come from the document."""
+    seed = api.post("/api/demo/jobs").json()
+    job_id = seed["job_id"]
+    ranked = api.get("/api/jobs/" + job_id + "/ranking").json()["ranked"]
+
+    matches = api.get("/api/candidates/" + ranked[0]["candidate_id"] + "/matches").json()
+    assert matches["summary"]["decided_by_model"] == 0
+    for row in matches["results"]:
+        if row["verdict"] in {"MATCHED", "PARTIAL"}:
+            assert row["evidence"] is not None, row["requirement_text"]
+            assert row["evidence"]["verification_status"] != "UNVERIFIED"
 
 
 @pytest.mark.requires_db

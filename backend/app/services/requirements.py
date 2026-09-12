@@ -34,11 +34,11 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import RequirementCategory, RequirementOrigin
+from app.core.enums import RequirementCategory, RequirementOrigin, RequirementSpecType
 from app.core.errors import ConflictError, NotFoundError, RequirementsNotConfirmedError
 from app.core.protected_attributes import scan as scan_for_protected_attributes
 from app.models.job import Job, Requirement
-from app.services import invalidation
+from app.services import invalidation, skill_taxonomy, structured_match
 from app.services.jd_extraction import (
     MUST_HAVE_DEFAULT_WEIGHT,
     NICE_TO_HAVE_DEFAULT_WEIGHT,
@@ -135,6 +135,116 @@ def add_requirement(
     # unconfirming already discarded everything derived from the old set. Stated
     # anyway so "adding a requirement invalidates the job's scores" is true of
     # this function rather than true only via a chain of reasoning elsewhere.
+    invalidation.invalidate_scores_for_job(db, job_id)
+    db.commit()
+    db.refresh(requirement)
+    return requirement
+
+
+#: Which display category each structured criterion belongs to. The category is
+#: presentation and grouping only -- nothing in scoring reads it -- so these are
+#: the bucket a recruiter would expect to find the criterion under.
+_SPEC_CATEGORY: dict[RequirementSpecType, RequirementCategory] = {
+    RequirementSpecType.EDUCATION_MIN: RequirementCategory.EDUCATION,
+    RequirementSpecType.GPA_MIN: RequirementCategory.EDUCATION,
+    RequirementSpecType.EXPERIENCE_MIN: RequirementCategory.EXPERIENCE,
+    RequirementSpecType.INTERNSHIP_MIN: RequirementCategory.EXPERIENCE,
+    RequirementSpecType.EXPERIENCE_IN_FIELD: RequirementCategory.EXPERIENCE,
+    RequirementSpecType.SKILL: RequirementCategory.TECHNICAL_SKILL,
+    RequirementSpecType.LANGUAGE_PRESENT: RequirementCategory.SOFT_SKILL_OTHER,
+}
+
+
+def validate_spec(spec: structured_match.RequirementSpec) -> None:
+    """Refuse a criterion the engine could never answer.
+
+    The boundary is enforced here, at creation, as well as at match time. A
+    requirement that can only ever come back NEEDS_REVIEW is not a screening
+    criterion -- it is a question the product cannot ask, and the recruiter
+    should learn that while they are still writing it rather than after a
+    screening run (ADR-0012).
+    """
+    if spec.spec_type == structured_match.SKILL:
+        if not skill_taxonomy.is_supported(spec.subject or ""):
+            raise ConflictError(
+                f"{spec.subject!r} is not a skill this screener supports. "
+                "Choose one from the supported list."
+            )
+    elif spec.spec_type == structured_match.LANGUAGE_PRESENT:
+        if (spec.subject or "") not in skill_taxonomy.LANGUAGES:
+            raise ConflictError(
+                f"{spec.subject!r} is not a language this screener supports. "
+                "Choose one from the supported list."
+            )
+    elif spec.spec_type == structured_match.EDUCATION_MIN:
+        if (spec.subject or "") not in structured_match.DEGREE_CHOICES:
+            raise ConflictError(f"{spec.subject!r} is not a degree level this screener supports.")
+    elif spec.spec_type == structured_match.GPA_MIN:
+        if spec.threshold_value is None:
+            raise ConflictError("A GPA criterion needs a minimum grade.")
+        if spec.scale is None:
+            # The recruiter states the scale; the engine never assumes one.
+            raise ConflictError("A GPA criterion needs the scale the minimum is out of.")
+        if spec.threshold_value > spec.scale:
+            raise ConflictError("The minimum grade cannot be above the scale it is out of.")
+    elif spec.spec_type == structured_match.EXPERIENCE_MIN and spec.threshold_value is None:
+        raise ConflictError("An experience criterion needs a minimum duration.")
+    elif spec.spec_type == structured_match.EXPERIENCE_IN_FIELD:
+        # Both halves, because either one alone is a criterion that already
+        # exists: a field with no duration is SKILL, a duration with no field
+        # is EXPERIENCE_MIN.
+        if not skill_taxonomy.is_supported(spec.subject or ""):
+            raise ConflictError(
+                f"{spec.subject!r} is not a skill this screener supports, so experience "
+                "in it cannot be measured. Choose one from the supported list."
+            )
+        if spec.threshold_value is None:
+            raise ConflictError("An experience-in-a-field criterion needs a minimum duration.")
+
+
+def add_structured_requirement(
+    db: Session,
+    job_id: uuid.UUID,
+    *,
+    spec: structured_match.RequirementSpec,
+    must_have: bool,
+    weight: Decimal | None = None,
+) -> Requirement:
+    """Add one of the six structured criteria (ADR-0012).
+
+    `text` is still written, as the human-readable rendering of the spec, so
+    every existing display, export and score breakdown keeps working against a
+    structured requirement without knowing it is one.
+    """
+    job = _get_job(db, job_id)
+    _require_unconfirmed(job, "adding a requirement")
+    _validate_weight(weight)
+    validate_spec(spec)
+
+    next_order = db.scalar(
+        select(func.coalesce(func.max(Requirement.display_order), -1) + 1).where(
+            Requirement.job_id == job_id
+        )
+    )
+
+    spec_type = RequirementSpecType(spec.spec_type)
+    requirement = Requirement(
+        job_id=job_id,
+        text=structured_match.describe(spec),
+        category=_SPEC_CATEGORY[spec_type],
+        must_have=must_have,
+        weight=weight if weight is not None else _default_weight(must_have),
+        display_order=int(next_order or 0),
+        origin=RequirementOrigin.HR_ADDED,
+        spec_type=spec_type,
+        subject=spec.subject,
+        threshold_value=spec.threshold_value,
+        threshold_scale=spec.scale,
+        proposed_text=None,
+        proposed_category=None,
+        proposed_must_have=None,
+    )
+    db.add(requirement)
     invalidation.invalidate_scores_for_job(db, job_id)
     db.commit()
     db.refresh(requirement)

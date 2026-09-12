@@ -1,21 +1,28 @@
 /**
- * Step 1: the screening criteria.
+ * Step 1: the job description, which is optional.
  *
- * Not "the job description". A recruiter often does not have one — what they
- * have is a few lines in their head about who they want, in whatever language
- * they think in. Asking for a formal document before the product will do
- * anything is a barrier the product had no reason to put there, so the box
- * accepts whatever they type and the copy says so.
+ * This box used to be the screening criteria themselves — a recruiter typed a
+ * few lines and a model turned them into requirements. ADR-0012 moved that job
+ * to step 2, where the criteria are chosen from a supported list and answered
+ * by arithmetic rather than by a model's reading. The evidence for the move is
+ * in the ADR: extracting requirements from free text was the least reliable
+ * step in the whole pipeline.
+ *
+ * The box stays, because a job description is genuinely useful — it is the
+ * context a recruiter already has, and it is still the input the model can
+ * propose criteria from if they want that. It is no longer required for
+ * anything, and the copy says so rather than implying a missing description
+ * blocks the work.
  *
  * Two things are stated *before* the button rather than after it, because both
  * are things a person should not have to discover by failing:
  *
  * - in demo mode, only the sample briefs have recorded AI responses;
- * - criteria that name a personal characteristic will be refused at
- *   confirmation, so they are flagged here, three steps earlier.
+ * - text that names a personal characteristic will be refused at confirmation
+ *   if criteria are extracted from it, so it is flagged here.
  *
- * Replacing saved text also has consequences — extracted requirements are
- * deleted and the job is unconfirmed — and that is stated before the button too.
+ * Replacing saved text also has consequences — requirements extracted from it
+ * are deleted and the job is unconfirmed — and that is stated before the button.
  */
 
 import { useEffect, useState } from "react";
@@ -32,11 +39,12 @@ import { Callout, ErrorState, Spinner } from "./ui";
 
 function ProtectedAttributeCallout({ labels }: { labels: string[] }) {
   return (
-    <Callout tone="warn" title="These criteria ask about a personal characteristic">
+    <Callout tone="warn" title="This text asks about a personal characteristic">
       <p>
         This text mentions {labels.join(", ")}. Requirements about a person rather than about their
-        work cannot be confirmed here, so the requirement set will be refused until they are removed
-        or reworded. Nothing has been changed &mdash; your text is stored exactly as you typed it.
+        work cannot be confirmed here, so a requirement set extracted from it will be refused until
+        they are removed or reworded. Nothing has been changed &mdash; your text is stored exactly
+        as you typed it.
       </p>
       <p>
         The reason is not only legal caution: this tool holds no such information about anybody. It
@@ -87,7 +95,7 @@ export function JobDescriptionPanel({
     }
   };
 
-  if (resource.state === "loading") return <Spinner label="Loading screening criteria…" />;
+  if (resource.state === "loading") return <Spinner label="Loading job description…" />;
   if (resource.state === "error") return <ErrorState error={resource.error} onRetry={reload} />;
 
   const showEditor = editing || !existing;
@@ -103,7 +111,7 @@ export function JobDescriptionPanel({
   return (
     <section className="panel" aria-labelledby="jd-heading">
       <div className="panel__header">
-        <h2 id="jd-heading">1 · Screening criteria</h2>
+        <h2 id="jd-heading">1 · Job description (optional)</h2>
         {existing && !editing ? (
           <button type="button" className="button button--quiet" onClick={() => setEditing(true)}>
             Replace
@@ -114,10 +122,10 @@ export function JobDescriptionPanel({
       {showEditor ? (
         <>
           <p className="panel__hint">
-            Write what you are looking for, in your own words and your own language. A full job
-            description works; so does &ldquo;minimal S1, IPK di atas 3, bisa bahasa Inggris,
-            pengalaman Python minimal 2 tahun&rdquo;. You will review every requirement before
-            anything is screened.
+            Optional context, in your own words and your own language. Nothing here is screened
+            against on its own &mdash; you choose what to screen for in step 2, from criteria this
+            tool can actually check against a CV. Paste a description here if you would like the
+            language model to propose requirements from it, or skip straight to step 2.
           </p>
 
           {sampleCriteria.length > 0 ? (
@@ -147,7 +155,7 @@ export function JobDescriptionPanel({
           ) : null}
 
           <label className="field">
-            <span className="field__label">Your screening criteria</span>
+            <span className="field__label">Job description or notes</span>
             <textarea
               value={text}
               rows={12}
@@ -176,7 +184,7 @@ export function JobDescriptionPanel({
               onClick={onSave}
               disabled={save.busy || !text.trim()}
             >
-              {save.busy ? "Saving…" : "Save criteria"}
+              {save.busy ? "Saving…" : "Save job description"}
             </button>
             {existing ? (
               <button

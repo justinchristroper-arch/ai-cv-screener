@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -44,7 +45,15 @@ from app.llm.client import LlmClient
 from app.llm.fixtures import fixture_jd_text
 from app.models.job import Job
 from app.services import candidates as candidates_service
-from app.services import jd_extraction, jobs, matching, profile_extraction, requirements, scoring
+from app.services import (
+    jd_extraction,
+    jobs,
+    matching,
+    profile_extraction,
+    requirements,
+    scoring,
+    structured_match,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +65,84 @@ SAMPLE_DIR = REPO_ROOT / "data" / "sample"
 SAMPLE_JD_FIXTURE = "jd_backend_engineer"
 
 DEMO_JOB_TITLE = "[Demo] Senior Backend Engineer"
+
+#: The id that selects the structured demo. Not a fixture stem, because the
+#: structured path has no recordings to key: it calls no model at all.
+STRUCTURED_CRITERIA_ID = "structured"
+
+STRUCTURED_DEMO_TITLE = "[Demo] Backend Engineer"
+
+
+@dataclass(frozen=True)
+class DemoCriterion:
+    """One criterion the structured demo screens with, and why it is here.
+
+    The six were chosen against the bundled CVs so the result shows a real
+    spread -- a match, a partial and several honest gaps -- rather than six
+    green ticks. A demo where everything matches teaches a reader nothing about
+    how the product behaves when a document does not say what was asked for.
+    """
+
+    spec: structured_match.RequirementSpec
+    must_have: bool
+    demonstrates: str
+
+    @property
+    def text(self) -> str:
+        return structured_match.describe(self.spec)
+
+
+STRUCTURED_CRITERIA: tuple[DemoCriterion, ...] = (
+    DemoCriterion(
+        spec=structured_match.RequirementSpec(structured_match.EDUCATION_MIN, subject="S1"),
+        must_have=True,
+        demonstrates=(
+            "A degree level read out of the CV's own education section. The "
+            "second sample CV states no qualification at all, which comes back "
+            "as a gap in the document rather than as a claim about the person."
+        ),
+    ),
+    DemoCriterion(
+        spec=structured_match.RequirementSpec(
+            structured_match.EXPERIENCE_MIN, threshold_value=Decimal("48")
+        ),
+        must_have=True,
+        demonstrates=(
+            "Date arithmetic over the dated entries, with overlapping roles "
+            "counted once. Short of the minimum comes back as partial, not as a "
+            "failure."
+        ),
+    ),
+    DemoCriterion(
+        spec=structured_match.RequirementSpec(structured_match.SKILL, subject="Python"),
+        must_have=True,
+        demonstrates="A skill from the supported list, matched on the line that states it.",
+    ),
+    DemoCriterion(
+        spec=structured_match.RequirementSpec(structured_match.SKILL, subject="PostgreSQL"),
+        must_have=False,
+        demonstrates=(
+            "The same, through an alias: one CV writes 'Postgres' and is "
+            "matched, the other never mentions it and is not."
+        ),
+    ),
+    DemoCriterion(
+        spec=structured_match.RequirementSpec(structured_match.INTERNSHIP_MIN),
+        must_have=False,
+        demonstrates=(
+            "Presence alone, with no duration. Neither sample CV has one, so "
+            "both report the absence plainly."
+        ),
+    ),
+    DemoCriterion(
+        spec=structured_match.RequirementSpec(structured_match.LANGUAGE_PRESENT, subject="English"),
+        must_have=False,
+        demonstrates=(
+            "Presence of a language, never a level. Neither CV lists one, which "
+            "is a gap in the document -- both are written in English."
+        ),
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -185,6 +272,7 @@ class DemoSamples:
     job_title: str
     job_description: str
     criteria: tuple[SampleCriteria, ...]
+    structured_criteria: tuple[DemoCriterion, ...]
     cvs: tuple[SampleCv, ...]
 
 
@@ -194,12 +282,13 @@ def get_samples() -> DemoSamples:
         job_title=DEMO_JOB_TITLE,
         job_description=fixture_jd_text(SAMPLE_JD_FIXTURE),
         criteria=SAMPLE_CRITERIA,
+        structured_criteria=STRUCTURED_CRITERIA,
         cvs=SAMPLE_CVS,
     )
 
 
 def get_criteria(criteria_id: str | None) -> SampleCriteria:
-    """One sample by id, or the formal job description when none is named."""
+    """One free-text sample by id, or the formal job description by default."""
     if criteria_id is None:
         criteria_id = SAMPLE_JD_FIXTURE
     for item in SAMPLE_CRITERIA:
@@ -257,7 +346,8 @@ def seed_demo_job(
     require_demo_mode(demo_mode)
 
     samples = get_samples()
-    criteria = get_criteria(criteria_id)
+    structured = criteria_id is None or criteria_id == STRUCTURED_CRITERIA_ID
+    criteria = None if structured else get_criteria(criteria_id)
     missing = [cv.filename for cv in samples.cvs if not cv.path.is_file()]
     if missing:
         raise ConflictError(
@@ -265,15 +355,23 @@ def seed_demo_job(
             details={"missing": missing},
         )
 
-    job = jobs.create_job(db, title=_title_for(criteria))
-    jobs.set_description(
-        db,
-        job.id,
-        raw_text=criteria.text,
-        source_type=JdSourceType.PASTED,
-        source_filename=None,
-    )
-    jd_extraction.extract_requirements(db, job.id, client)
+    if structured:
+        job = jobs.create_job(db, title=STRUCTURED_DEMO_TITLE)
+        for item in STRUCTURED_CRITERIA:
+            requirements.add_structured_requirement(
+                db, job.id, spec=item.spec, must_have=item.must_have
+            )
+    else:
+        assert criteria is not None
+        job = jobs.create_job(db, title=_title_for(criteria))
+        jobs.set_description(
+            db,
+            job.id,
+            raw_text=criteria.text,
+            source_type=JdSourceType.PASTED,
+            source_filename=None,
+        )
+        jd_extraction.extract_requirements(db, job.id, client)
     requirements.confirm_requirements(db, job.id)
 
     outcomes = candidates_service.upload_candidates(
@@ -290,7 +388,7 @@ def seed_demo_job(
     for outcome in outcomes:
         if outcome.candidate_id is None or outcome.status is not CandidateStatus.PARSED:
             continue
-        if _screen(db, outcome.candidate_id, client):
+        if _screen(db, outcome.candidate_id, client, structured=structured):
             screened += 1
 
     db.refresh(job)
@@ -318,15 +416,22 @@ def _title_for(criteria: SampleCriteria) -> str:
     return f"[Demo] {criteria.label}"
 
 
-def _screen(db: Session, candidate_id: uuid.UUID, client: LlmClient) -> bool:
+def _screen(db: Session, candidate_id: uuid.UUID, client: LlmClient, *, structured: bool) -> bool:
     """Profile, match and score one candidate. False when it could not finish.
 
     A candidate the fixtures do not cover stops here rather than taking the seed
     down with it: the rest of the demo is still worth showing, and the candidate
     is left in the state it actually reached.
+
+    The structured demo skips profile extraction entirely, because nothing
+    downstream reads a profile: structured criteria are matched against the CV
+    text itself. That is not an optimisation -- it is the demonstration. The
+    whole walkthrough completes with no model call, which is why it works with
+    no API key, no recorded fixture and no local model running.
     """
     try:
-        profile_extraction.extract_profile(db, candidate_id, client)
+        if not structured:
+            profile_extraction.extract_profile(db, candidate_id, client)
         matching.run_matching(db, candidate_id, client)
         scoring.score_candidate(db, candidate_id)
     except (ExtractionFailedError, LlmUnavailableError, ConflictError) as exc:
@@ -338,8 +443,12 @@ def _screen(db: Session, candidate_id: uuid.UUID, client: LlmClient) -> bool:
 __all__ = [
     "DEMO_JOB_TITLE",
     "SAMPLE_CRITERIA",
+    "STRUCTURED_CRITERIA",
+    "STRUCTURED_CRITERIA_ID",
+    "STRUCTURED_DEMO_TITLE",
     "SAMPLE_CVS",
     "SAMPLE_DIR",
+    "DemoCriterion",
     "DemoSamples",
     "SampleCriteria",
     "SampleCv",

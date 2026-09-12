@@ -71,7 +71,7 @@ afterEach(() => {
 });
 
 describe("what the box asks for", () => {
-  it("invites criteria in the user's own words rather than a job description", async () => {
+  it("says the box is optional and that the criteria themselves live in step 2", async () => {
     stubFetch({ "GET /api/jobs/job-1/description": { status: 404, body: { message: "none" } } });
     render(
       <JobDescriptionPanel
@@ -83,7 +83,10 @@ describe("what the box asks for", () => {
     );
 
     expect(await screen.findByText(/in your own words and your own language/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/your screening criteria/i)).toBeInTheDocument();
+    // The narrowing in ADR-0012, stated where a recruiter meets it: this text
+    // is context, and nothing is screened against it on its own.
+    expect(screen.getByText(/you choose what to screen for in step 2/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/job description or notes/i)).toBeInTheDocument();
   });
 
   it("offers every brief the demo has recordings for, and fills the box from one", async () => {
@@ -105,7 +108,7 @@ describe("what the box asks for", () => {
     const buttons = screen.getAllByRole("button", { name: /use this/i });
     await user.click(buttons[1]);
 
-    expect(screen.getByLabelText(/your screening criteria/i)).toHaveValue(SAMPLE_ID_TEXT);
+    expect(screen.getByLabelText(/job description or notes/i)).toHaveValue(SAMPLE_ID_TEXT);
   });
 });
 
@@ -137,7 +140,7 @@ describe("demo mode and criteria it has no recording for", () => {
     expect(body).toHaveTextContent(/your text stays until you save/i);
 
     await user.click(screen.getByRole("button", { name: "Informal criteria, Indonesian" }));
-    expect(screen.getByLabelText(/your screening criteria/i)).toHaveValue(SAMPLE_ID_TEXT);
+    expect(screen.getByLabelText(/job description or notes/i)).toHaveValue(SAMPLE_ID_TEXT);
   });
 
   it("says nothing when the saved text is one of the samples", async () => {
@@ -164,7 +167,7 @@ describe("criteria that name a personal characteristic", () => {
       ],
     });
 
-    const callout = await screen.findByText(/ask about a personal characteristic/i);
+    const callout = await screen.findByText(/asks about a personal characteristic/i);
     const body = callout.closest(".callout") as HTMLElement;
 
     expect(body).toHaveTextContent(/gender/);

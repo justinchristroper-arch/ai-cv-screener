@@ -34,6 +34,7 @@ from app.core.enums import (
     RecommendationBand,
     RequirementCategory,
     RequirementOrigin,
+    RequirementSpecType,
     ScoreStatus,
 )
 from app.db.base import Base
@@ -53,6 +54,7 @@ __all__ = [
     "RECOMMENDATION_BAND",
     "REQUIREMENT_CATEGORY",
     "REQUIREMENT_ORIGIN",
+    "REQUIREMENT_SPEC_TYPE",
     "SCORE_STATUS",
     "CandidateFailureReason",
     "CandidateStatus",
@@ -67,6 +69,7 @@ __all__ = [
     "RecommendationBand",
     "RequirementCategory",
     "RequirementOrigin",
+    "RequirementSpecType",
     "ScoreStatus",
 ]
 
@@ -83,6 +86,7 @@ def _pg_enum(python_enum: type[enum.Enum], name: str) -> SAEnum:
 
 REQUIREMENT_CATEGORY = _pg_enum(RequirementCategory, "requirement_category")
 REQUIREMENT_ORIGIN = _pg_enum(RequirementOrigin, "requirement_origin")
+REQUIREMENT_SPEC_TYPE = _pg_enum(RequirementSpecType, "requirement_spec_type")
 JD_SOURCE_TYPE = _pg_enum(JdSourceType, "jd_source_type")
 CANDIDATE_STATUS = _pg_enum(CandidateStatus, "candidate_status")
 CANDIDATE_FAILURE_REASON = _pg_enum(CandidateFailureReason, "candidate_failure_reason")
@@ -101,6 +105,7 @@ LLM_STATUS = _pg_enum(LlmStatus, "llm_status")
 ENUM_TYPE_NAMES = (
     "requirement_category",
     "requirement_origin",
+    "requirement_spec_type",
     "jd_source_type",
     "candidate_status",
     "candidate_failure_reason",

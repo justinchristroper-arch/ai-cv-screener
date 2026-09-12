@@ -198,6 +198,9 @@ class MatchSummary(BaseModel):
     matched: int
     partial: int
     no_evidence: int
+    #: Criteria the engine could not resolve. Counted apart from `no_evidence`
+    #: because the two say opposite things about the document (ADR-0012).
+    needs_review: int = 0
     downgraded: int
     decided_deterministically: int
     decided_by_model: int

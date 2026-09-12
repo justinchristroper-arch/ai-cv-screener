@@ -8,8 +8,8 @@
 
 import { getDemoSamples, getJob } from "../api/client";
 import { CandidatesPanel } from "../components/CandidatesPanel";
+import { CriteriaPanel } from "../components/CriteriaPanel";
 import { JobDescriptionPanel } from "../components/JobDescriptionPanel";
-import { RequirementsPanel } from "../components/RequirementsPanel";
 import { ErrorState, Pill, Spinner } from "../components/ui";
 import { href } from "../hooks/useHashRoute";
 import { useResource } from "../hooks/useResource";
@@ -48,13 +48,13 @@ export function JobPage({ jobId }: { jobId: string }) {
         <div className="page-header__tags">
           {isDemoJob ? <Pill tone="demo">Synthetic demo data</Pill> : null}
           <Pill tone={confirmed ? "ok" : "warn"}>
-            {confirmed ? "Requirements confirmed" : "Requirements not confirmed"}
+            {confirmed ? "Criteria confirmed" : "Criteria not confirmed"}
           </Pill>
         </div>
       </header>
 
       <JobDescriptionPanel jobId={jobId} confirmed={confirmed} samples={samples} onSaved={reload} />
-      <RequirementsPanel jobId={jobId} hasDescription={job.has_description} onChanged={reload} />
+      <CriteriaPanel jobId={jobId} hasDescription={job.has_description} onChanged={reload} />
       <CandidatesPanel jobId={jobId} confirmed={confirmed} />
     </div>
   );

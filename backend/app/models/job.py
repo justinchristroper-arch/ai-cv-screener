@@ -18,9 +18,11 @@ from app.models.enums import (
     JD_SOURCE_TYPE,
     REQUIREMENT_CATEGORY,
     REQUIREMENT_ORIGIN,
+    REQUIREMENT_SPEC_TYPE,
     JdSourceType,
     RequirementCategory,
     RequirementOrigin,
+    RequirementSpecType,
 )
 from app.models.mixins import CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -103,7 +105,59 @@ class Requirement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("llm_call_log.id", ondelete="SET NULL")
     )
 
+    # ---- Structured criteria (ADR-0012) --------------------------------
+    #: Which of the six criterion types this row is. NULL means the row
+    #: predates ADR-0012 and carries free text in `text` instead, so the two
+    #: generations of requirement can sit in one table without either having to
+    #: pretend to be the other.
+    spec_type: Mapped[RequirementSpecType | None] = mapped_column(REQUIREMENT_SPEC_TYPE)
+
+    #: What the criterion names: a degree, a skill or a language.
+    subject: Mapped[str | None] = mapped_column(Text)
+
+    #: The bar: months for a duration, a grade for GPA.
+    threshold_value: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+
+    #: GPA only: the scale the recruiter says the threshold is out of. Stored
+    #: rather than assumed, because a 3.2 is strong out of 4 and ordinary out
+    #: of 5 and the engine refuses to guess which was meant.
+    threshold_scale: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+
     __table_args__ = (
         CheckConstraint("weight >= 0", name="weight_non_negative"),
+        # A row is wholly structured or wholly legacy; there is no half-filled
+        # spec for the matcher to interpret. Mirrored exactly in the migration.
+        #
+        # CASE, not a chain of ORs: `spec_type IN (...)` is NULL when spec_type
+        # is NULL, and PostgreSQL accepts a CHECK whose expression is NULL, so
+        # the OR form let a subject-without-a-type straight through.
+        CheckConstraint(
+            """
+CASE
+    WHEN spec_type IS NULL THEN
+        subject IS NULL AND threshold_value IS NULL AND threshold_scale IS NULL
+    WHEN spec_type IN ('EDUCATION_MIN', 'SKILL', 'LANGUAGE_PRESENT') THEN
+        subject IS NOT NULL AND threshold_value IS NULL AND threshold_scale IS NULL
+    WHEN spec_type = 'GPA_MIN' THEN
+        subject IS NULL AND threshold_value IS NOT NULL
+    WHEN spec_type = 'EXPERIENCE_MIN' THEN
+        subject IS NULL AND threshold_value IS NOT NULL AND threshold_scale IS NULL
+    WHEN spec_type = 'INTERNSHIP_MIN' THEN
+        subject IS NULL AND threshold_scale IS NULL
+    WHEN spec_type = 'EXPERIENCE_IN_FIELD' THEN
+        subject IS NOT NULL AND threshold_value IS NOT NULL AND threshold_scale IS NULL
+    ELSE FALSE
+END
+""",
+            name="spec_is_complete",
+        ),
+        CheckConstraint(
+            "threshold_value IS NULL OR threshold_value >= 0",
+            name="threshold_non_negative",
+        ),
+        CheckConstraint(
+            "threshold_scale IS NULL OR threshold_scale > 0",
+            name="scale_positive",
+        ),
         Index("ix_requirement_job_id_display_order", "job_id", "display_order"),
     )

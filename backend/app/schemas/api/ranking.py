@@ -78,11 +78,21 @@ class RankedCandidateResponse(BaseModel):
     matched_count: int = Field(
         description="How many requirements this CV evidenced outright. The third tie-break."
     )
+    needs_review_count: int = Field(
+        default=0,
+        description=(
+            "How many criteria the engine left unresolved. They are excluded "
+            "from the score on both sides of the average rather than counted as "
+            "zeros, so this says how much of the criteria list the number "
+            "actually covers."
+        ),
+    )
     warnings: list[str] = Field(
         default_factory=list,
         description=(
             "Stable codes a recruiter should read next to the number: "
-            "MUST_HAVE_NOT_EVIDENCED, SCORE_UNDEFINED, EVIDENCE_DOWNGRADED, "
+            "MUST_HAVE_NOT_EVIDENCED, MUST_HAVE_NEEDS_REVIEW, SCORE_UNDEFINED, "
+            "NO_DECIDABLE_CRITERIA, CRITERIA_NEED_REVIEW, EVIDENCE_DOWNGRADED, "
             "INSTRUCTION_LIKE_TEXT_IN_CV. None of them changes the score or the "
             "position."
         ),

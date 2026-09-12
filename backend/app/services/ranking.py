@@ -42,12 +42,20 @@ from sqlalchemy.orm import Session
 from app.core.enums import CandidateFailureReason, CandidateStatus, MatchVerdict, ScoreStatus
 from app.models.candidate import Candidate, CandidateDocument, ParsedDocument
 from app.models.evaluation import MatchResult, Score
-from app.models.job import Job
+from app.models.job import Job, Requirement
 from app.services import jobs as jobs_service
 
 #: Stable codes a client can branch on, in the order they are emitted.
 WARNING_MUST_HAVE_NOT_EVIDENCED = "MUST_HAVE_NOT_EVIDENCED"
+#: A must-have the engine could not resolve. Kept separate from the line above
+#: because the two mean opposite things about the document: one says the CV
+#: shows nothing, the other says the CV shows something we could not read.
+WARNING_MUST_HAVE_UNRESOLVED = "MUST_HAVE_NEEDS_REVIEW"
 WARNING_SCORE_UNDEFINED = "SCORE_UNDEFINED"
+#: Every criterion came back unresolved, so there was no average to take.
+WARNING_NOTHING_DECIDABLE = "NO_DECIDABLE_CRITERIA"
+#: Some did. Those are out of the score entirely -- not counted as zeros.
+WARNING_CRITERIA_UNRESOLVED = "CRITERIA_NEED_REVIEW"
 WARNING_EVIDENCE_DOWNGRADED = "EVIDENCE_DOWNGRADED"
 WARNING_INSTRUCTION_LIKE_TEXT = "INSTRUCTION_LIKE_TEXT_IN_CV"
 
@@ -100,6 +108,10 @@ class RankedEntry:
     candidate: Candidate
     score: Score
     matched_count: int
+    #: Criteria the engine left unresolved. Excluded from the score on both
+    #: sides of the average, so this is the count the recruiter needs in order
+    #: to know how much of the list the number actually covers.
+    needs_review_count: int
     original_filename: str | None
     warnings: list[str] = field(default_factory=list)
 
@@ -135,6 +147,8 @@ def _warnings_for(
     *,
     downgraded_count: int,
     injection_flag_count: int,
+    needs_review_count: int,
+    must_have_no_evidence: int,
 ) -> list[str]:
     """Things a recruiter should see next to a number, in a fixed order.
 
@@ -144,9 +158,22 @@ def _warnings_for(
     """
     warnings: list[str] = []
     if score.capped:
-        warnings.append(WARNING_MUST_HAVE_NOT_EVIDENCED)
+        # The guard prefers genuine absence over uncertainty, so a cap with any
+        # unevidenced must-have present is that one; otherwise it was an
+        # unresolved must-have (services/scoring._apply_must_have_guard).
+        warnings.append(
+            WARNING_MUST_HAVE_NOT_EVIDENCED
+            if must_have_no_evidence
+            else WARNING_MUST_HAVE_UNRESOLVED
+        )
     if score.status is ScoreStatus.UNDEFINED_NO_WEIGHT:
         warnings.append(WARNING_SCORE_UNDEFINED)
+    elif score.status is ScoreStatus.UNDEFINED_NO_DECIDABLE:
+        warnings.append(WARNING_NOTHING_DECIDABLE)
+    elif needs_review_count:
+        # Only when a score was actually produced: when nothing was decidable
+        # the line above already says it, and more precisely.
+        warnings.append(WARNING_CRITERIA_UNRESOLVED)
     if downgraded_count:
         warnings.append(WARNING_EVIDENCE_DOWNGRADED)
     if injection_flag_count:
@@ -181,6 +208,28 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
         .group_by(MatchResult.candidate_id)
         .subquery()
     )
+    unresolved = (
+        select(MatchResult.candidate_id, func.count().label("count"))
+        .where(MatchResult.verdict == MatchVerdict.NEEDS_REVIEW)
+        .group_by(MatchResult.candidate_id)
+        .subquery()
+    )
+    # Which of the two reasons capped the band. Counted here rather than
+    # re-derived in the UI, because the distinction -- the CV shows nothing
+    # versus the CV shows something we could not read -- is the whole point of
+    # having two verdicts (ADR-0012).
+    must_have_gaps = (
+        select(
+            MatchResult.candidate_id,
+            func.count()
+            .filter(MatchResult.verdict == MatchVerdict.NO_EVIDENCE)
+            .label("no_evidence"),
+        )
+        .join(Requirement, Requirement.id == MatchResult.requirement_id)
+        .where(Requirement.must_have.is_(True))
+        .group_by(MatchResult.candidate_id)
+        .subquery()
+    )
 
     rows = db.execute(
         select(
@@ -188,12 +237,16 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
             Score,
             func.coalesce(matched.c.count, 0),
             func.coalesce(downgraded.c.count, 0),
+            func.coalesce(unresolved.c.count, 0),
+            func.coalesce(must_have_gaps.c.no_evidence, 0),
             CandidateDocument.original_filename,
             ParsedDocument.injection_flags,
         )
         .outerjoin(Score, Score.candidate_id == Candidate.id)
         .outerjoin(matched, matched.c.candidate_id == Candidate.id)
         .outerjoin(downgraded, downgraded.c.candidate_id == Candidate.id)
+        .outerjoin(unresolved, unresolved.c.candidate_id == Candidate.id)
+        .outerjoin(must_have_gaps, must_have_gaps.c.candidate_id == Candidate.id)
         .outerjoin(CandidateDocument, CandidateDocument.candidate_id == Candidate.id)
         .outerjoin(ParsedDocument, ParsedDocument.document_id == CandidateDocument.id)
         .where(Candidate.job_id == job_id)
@@ -204,7 +257,16 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
     not_yet_scored: list[UnrankedEntry] = []
     failed: list[UnrankedEntry] = []
 
-    for candidate, score, matched_count, downgraded_count, filename, flags in rows:
+    for (
+        candidate,
+        score,
+        matched_count,
+        downgraded_count,
+        unresolved_count,
+        must_have_no_evidence,
+        filename,
+        flags,
+    ) in rows:
         # Status is checked before the score: a failed candidate is reported as
         # failed even if an earlier run left a score behind, because a number
         # attached to a broken pipeline would be worse than no number at all.
@@ -215,7 +277,16 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
             not_yet_scored.append(UnrankedEntry(candidate=candidate, original_filename=filename))
             continue
 
-        scored[candidate.id] = (candidate, score, matched_count, downgraded_count, filename, flags)
+        scored[candidate.id] = (
+            candidate,
+            score,
+            matched_count,
+            downgraded_count,
+            unresolved_count,
+            must_have_no_evidence,
+            filename,
+            flags,
+        )
         inputs.append(
             RankingInputs(
                 candidate_id=candidate.id,
@@ -228,20 +299,30 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
 
     ranked: list[RankedEntry] = []
     for position, entry in enumerate(order_candidates(inputs), start=1):
-        candidate, score, matched_count, downgraded_count, filename, flags = scored[
-            entry.candidate_id
-        ]
+        (
+            candidate,
+            score,
+            matched_count,
+            downgraded_count,
+            unresolved_count,
+            must_have_no_evidence,
+            filename,
+            flags,
+        ) = scored[entry.candidate_id]
         ranked.append(
             RankedEntry(
                 position=position,
                 candidate=candidate,
                 score=score,
                 matched_count=matched_count,
+                needs_review_count=unresolved_count,
                 original_filename=filename,
                 warnings=_warnings_for(
                     score,
                     downgraded_count=downgraded_count,
                     injection_flag_count=len(flags or []),
+                    needs_review_count=unresolved_count,
+                    must_have_no_evidence=must_have_no_evidence,
                 ),
             )
         )
@@ -264,9 +345,12 @@ def failure_reason_of(entry: UnrankedEntry) -> CandidateFailureReason | None:
 
 
 __all__ = [
+    "WARNING_CRITERIA_UNRESOLVED",
     "WARNING_EVIDENCE_DOWNGRADED",
     "WARNING_INSTRUCTION_LIKE_TEXT",
     "WARNING_MUST_HAVE_NOT_EVIDENCED",
+    "WARNING_MUST_HAVE_UNRESOLVED",
+    "WARNING_NOTHING_DECIDABLE",
     "WARNING_SCORE_UNDEFINED",
     "JobRanking",
     "RankedEntry",

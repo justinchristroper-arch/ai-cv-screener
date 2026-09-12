@@ -329,6 +329,63 @@ function RequirementRow({
   );
 }
 
+/**
+ * The free-text tools, on their own, for embedding elsewhere.
+ *
+ * Structured criteria are the main path now (ADR-0012), but a job description
+ * is still the input a recruiter most often has to hand, and the model reading
+ * it is still useful. Rather than delete a working flow, `CriteriaPanel` offers
+ * these two behind a disclosure: extract requirements from the description, and
+ * add a free-text line the six types cannot express.
+ *
+ * What such a requirement costs is stated where it is offered: it is judged by
+ * the model rather than by the deterministic rules, so it is slower, needs the
+ * model to be reachable, and its verdict is not reconstructible from the CV by
+ * arithmetic alone.
+ */
+export function LegacyRequirementTools({
+  jobId,
+  hasDescription,
+  hasRequirements,
+  onChanged,
+}: {
+  jobId: string;
+  hasDescription: boolean;
+  hasRequirements: boolean;
+  onChanged: () => void;
+}) {
+  const extract = useAction();
+
+  const onExtract = async () => {
+    if (await extract.run(() => extractRequirements(jobId))) onChanged();
+  };
+
+  return (
+    <div className="legacy-tools">
+      {hasDescription ? (
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={onExtract}
+          disabled={extract.busy}
+        >
+          {extract.busy
+            ? "Extracting…"
+            : hasRequirements
+              ? "Re-extract from the description"
+              : "Extract requirements from the description"}
+        </button>
+      ) : (
+        <p className="panel__hint">
+          Attach a job description in step 1 to extract requirements from it.
+        </p>
+      )}
+      {extract.error ? <ErrorState error={extract.error} /> : null}
+      <AddRequirement jobId={jobId} onAdded={onChanged} />
+    </div>
+  );
+}
+
 function AddRequirement({ jobId, onAdded }: { jobId: string; onAdded: () => void }) {
   const add = useAction();
   const [text, setText] = useState("");

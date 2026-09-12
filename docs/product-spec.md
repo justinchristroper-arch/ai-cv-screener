@@ -97,12 +97,12 @@ The MVP is complete when a recruiter can, in one session, go from a pasted JD to
 **In scope:**
 
 - Job creation; JD entry by paste or file upload.
-- LLM extraction of requirements into a typed schema, with category, must-have flag, and weight.
-- Full HR editing of the requirement set, plus an explicit confirmation gate.
+- Screening criteria chosen from six supported types — minimum degree, minimum GPA, work experience duration, skill, internship, language presence — with typed thresholds and subjects drawn from a published vocabulary ([ADR-0012](decisions/0012-structured-screening-criteria.md)). LLM extraction of free-text requirements remains available as a labelled exception.
+- Full HR editing of the criteria set, plus an explicit confirmation gate.
 - Multi-file PDF upload (batch).
 - Text extraction from text-layer PDFs.
 - LLM extraction of a structured candidate profile with verbatim evidence spans.
-- Per-requirement matching producing `MATCHED` / `PARTIAL` / `NO_EVIDENCE`.
+- Per-criterion matching producing `MATCHED` / `PARTIAL` / `NO_EVIDENCE` / `NEEDS_REVIEW`, the last of which reports a limit of the screener rather than a finding about the candidate.
 - Deterministic weighted scoring normalized to 0–100.
 - Ranking within a job.
 - Candidate detail view: evidence, gaps, score breakdown, recommendation band.
@@ -115,6 +115,9 @@ The MVP is complete when a recruiter can, in one session, go from a pasted JD to
 | Excluded | Reason |
 |---|---|
 | Automatic rejection or hard filtering | Product principle: the system never removes a candidate from consideration. |
+| University-tier or school-prestige screening | A socioeconomic proxy dressed as a qualification. It is not a criterion type and will not become one ([ADR-0012](decisions/0012-structured-screening-criteria.md)). |
+| Language **proficiency** levels | CVs state them unreliably and self-assessed. A level inferred from "English (fluent)" would be invented, so only presence is screened. |
+| Industry or domain experience as a criterion type | Cannot be read from a CV without judging what counts as an industry, which is the kind of judgement this product keeps out of code. |
 | Interview scheduling, email, candidate communication | Different product; large surface area, no bearing on the screening thesis. |
 | ATS/HRIS integration (Greenhouse, Workday, Lever) | Integration plumbing, not engineering signal. Export is enough. |
 | Multi-tenant SaaS: orgs, billing, RBAC, SSO | Would dominate the build without improving the core. Single workspace only. |
@@ -195,7 +198,7 @@ Everything that must be reproducible, testable without a network call, and expla
 
 ## 9. Requirement taxonomy
 
-Every requirement carries a category. The initial taxonomy:
+Every requirement carries a category, whether it was typed by a recruiter as a structured criterion or extracted from free text. A structured criterion's category follows from its type — a degree or GPA criterion is `EDUCATION`, a duration or internship criterion is `EXPERIENCE`, a skill is `TECHNICAL_SKILL`, a language is `SOFT_SKILL_OTHER` — so nothing downstream has to know which path produced the row. The taxonomy:
 
 | Category | Meaning | Example |
 |---|---|---|
@@ -223,7 +226,7 @@ The flag has two distinct effects, kept separate on purpose:
 1. **Weight.** Must-haves default to a higher weight than nice-to-haves (confirmed defaults: `3` and `1`). Weights are HR-editable per requirement.
 2. **Coverage.** Must-have coverage is computed and displayed as its own figure, independent of the overall score, because a high average can conceal a missing hard requirement — the most misleading failure mode of a weighted-average screener.
 
-The flag is LLM-proposed and **human-owned**: HR can change it during review, and JD language is frequently ambiguous about which requirements are genuinely hard.
+The flag is **human-owned**. On a structured criterion the recruiter sets it directly; on an extracted one the model proposes it and HR can change it during review, because JD language is frequently ambiguous about which requirements are genuinely hard.
 
 ---
 

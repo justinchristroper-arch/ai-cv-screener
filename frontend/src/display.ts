@@ -18,6 +18,7 @@ import type {
   MatchVerdict,
   RecommendationBand,
   RequirementCategory,
+  RequirementSpecType,
 } from "./api/client";
 
 export const VERDICT_LABEL: Record<MatchVerdict, string> = {
@@ -26,6 +27,9 @@ export const VERDICT_LABEL: Record<MatchVerdict, string> = {
   // Never "does not have". A CV is a short, selective document, and its silence
   // is not proof of absence.
   NO_EVIDENCE: "No evidence found in CV",
+  // Distinct from "no evidence" on purpose. This one is about the screener, not
+  // the document: something is written here that we could not read safely.
+  NEEDS_REVIEW: "Needs review",
 };
 
 export const VERDICT_MEANING: Record<MatchVerdict, string> = {
@@ -33,6 +37,8 @@ export const VERDICT_MEANING: Record<MatchVerdict, string> = {
   PARTIAL: "The CV contains related evidence that does not fully meet this requirement.",
   NO_EVIDENCE:
     "This CV contains no verified evidence for this requirement. That is a statement about the document, not about the candidate.",
+  NEEDS_REVIEW:
+    "The screening engine could not determine this criterion confidently, so it was left for a person to read. It is excluded from the score entirely rather than counted as a zero — this says nothing about the candidate either way.",
 };
 
 export const BAND_LABEL: Record<RecommendationBand, string> = {
@@ -49,6 +55,26 @@ export const BAND_CAVEAT =
 export const SCORE_CAVEAT =
   "Scores are only comparable within this job — the requirements and weights differ between jobs.";
 
+/**
+ * What each structured criterion type means, in one line.
+ *
+ * Shown next to the field the recruiter is filling in, because the honest
+ * limits of a criterion — presence rather than proficiency, a stated scale
+ * rather than an assumed one — are easiest to accept while choosing it.
+ */
+export const SPEC_TYPE_HINT: Record<RequirementSpecType, string> = {
+  EDUCATION_MIN: "Matched when the CV states a qualification at this level or above.",
+  GPA_MIN:
+    "You state the scale. A grade written without one cannot be compared, and is left for review rather than guessed at.",
+  EXPERIENCE_MIN: "Measured from dated entries in the CV. Overlapping roles are counted once.",
+  SKILL: "Chosen from the supported list, so the result means the same thing every time.",
+  INTERNSHIP_MIN: "Leave the duration empty to screen for having done one at all.",
+  LANGUAGE_PRESENT:
+    "Presence only. This screener never infers how well someone speaks a language from a CV.",
+  EXPERIENCE_IN_FIELD:
+    "Counts only the roles whose own CV entry evidences this skill, so unrelated experience does not answer it.",
+};
+
 export const CATEGORY_LABEL: Record<RequirementCategory, string> = {
   EDUCATION: "Education",
   TECHNICAL_SKILL: "Technical skill",
@@ -61,6 +87,7 @@ export const METHOD_LABEL: Record<MatchMethod, string> = {
   DETERMINISTIC_EXACT: "Matched by exact skill rule",
   DETERMINISTIC_ALIAS: "Matched by skill alias rule",
   DETERMINISTIC_DURATION: "Decided by date arithmetic",
+  DETERMINISTIC_STRUCTURED: "Decided by the structured screening rules",
   LLM_SEMANTIC: "Judged by the language model",
   DOWNGRADED_UNVERIFIED: "Downgraded — proposed evidence was refused",
 };
@@ -88,7 +115,13 @@ export const FAILURE_LABEL: Record<string, string> = {
 export const WARNING_LABEL: Record<string, string> = {
   MUST_HAVE_NOT_EVIDENCED:
     "A must-have requirement has no evidence in this CV, so the band is capped at Review",
+  MUST_HAVE_NEEDS_REVIEW:
+    "A must-have criterion could not be determined from this CV, so the band is capped at Review. That is not the same as it being missing",
   SCORE_UNDEFINED: "No score could be formed — the job has no weighted requirements",
+  NO_DECIDABLE_CRITERIA:
+    "No score could be formed — none of the criteria could be determined from this CV",
+  CRITERIA_NEED_REVIEW:
+    "Some criteria could not be determined and were left out of the score entirely, rather than counted as zeros",
   EVIDENCE_DOWNGRADED: "Proposed evidence was refused and the verdict was downgraded",
   INSTRUCTION_LIKE_TEXT_IN_CV:
     "This CV contains text that reads as an instruction rather than as a description of the candidate",

@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.api.limits import MaxBodySizeMiddleware
-from app.api.routes import candidates, demo, health, jobs, requirements
+from app.api.routes import candidates, criteria, demo, health, jobs, requirements
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 
@@ -59,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(app)
 
     app.include_router(health.router)
+    app.include_router(criteria.router)
     app.include_router(jobs.router)
     app.include_router(requirements.router)
     app.include_router(candidates.router)

@@ -71,22 +71,28 @@ They change for different reasons. An API schema changes when the frontend needs
 
 ## 3. The pipeline
 
+Since [ADR-0012](decisions/0012-structured-screening-criteria.md) there are two ways through this table. The **structured path** is the default: stages 2, 7 and 10 do not run at all, and no model is called anywhere. The **free-text path** is the original one, still available for a criterion the six types cannot express, and it runs every stage.
+
 | # | Stage | Module | Input | Output | Who decides | Failure is scoped to |
 |---|---|---|---|---|---|---|
-| 1 | JD intake | `api/routes/jobs` | JD text or file | `JobDescription` row | — | the job |
-| 2 | Requirement extraction | `services/jd_extraction` | JD text | `Requirement` rows | **LLM** | the job |
+| 1 | JD intake *(optional)* | `api/routes/jobs` | JD text or file | `JobDescription` row | — | the job |
+| 1b | Criteria intake | `api/routes/jobs`, `services/requirements` | a typed criterion | `Requirement` row with `spec_type` | **Human** | the job |
+| 2 | Requirement extraction *(free-text only)* | `services/jd_extraction` | JD text | `Requirement` rows | **LLM** | the job |
 | 3 | Requirement review | `api/routes/requirements` | HR edits | updated `Requirement` rows | **Human** | — |
 | 4 | Confirmation gate | `api/routes/requirements` | HR confirm | `requirements_confirmed_at` set | **Human** | — |
 | 5 | Upload & validation | `api/routes/candidates` | PDF files | `Candidate` + `CandidateDocument` | Deterministic | one candidate |
 | 6 | Parsing | `services/document_parsing` | PDF bytes | `ParsedDocument` (text + offsets) | Deterministic | one candidate |
-| 7 | Profile extraction | `services/profile_extraction` | document text | `CandidateProfile` + items + spans | **LLM** | one candidate |
+| 6b | Fact extraction | `services/cv_facts` | document text | roles, qualifications, grades, skills, languages — each with its span | Deterministic | one candidate |
+| 7 | Profile extraction *(free-text only)* | `services/profile_extraction` | document text | `CandidateProfile` + items + spans | **LLM** | one candidate |
 | 8 | Evidence verification | `services/evidence` | spans + source text | span offsets + verification status | Deterministic | one span |
-| 9 | Deterministic matching | `services/matching` | profile + requirements | `MatchResult` for decidable pairs | Deterministic | one pair |
-| 10 | Semantic evaluation | `services/semantic_eval` | undecided pairs | `MatchResult` for the rest | **LLM** | one pair |
+| 9 | Matching | `services/matching`, `services/structured_match` | facts or profile + requirements | `MatchResult` | Deterministic | one pair |
+| 10 | Semantic evaluation *(free-text only)* | `services/semantic_eval` | undecided pairs | `MatchResult` for the rest | **LLM** | one pair |
 | 11 | Scoring | `services/scoring` | verdicts + weights | `Score` row | Deterministic | one candidate |
 | 12 | Ranking | `services/ranking` | scores in a job | ordered list | Deterministic | — |
 
 Stages 5–11 run per candidate and are independent across candidates. Stages 1–4 run once per job and **must** complete before stage 5 produces anything scoreable — the confirmation gate is enforced in the service layer, not only in the UI.
+
+A job whose criteria are all structured needs no `CandidateProfile` at all, which is asserted rather than assumed: `tests/test_structured_screening.py` runs the whole path with `client=None`, so anything reaching for a model raises instead of quietly succeeding.
 
 ### 3.1 The confirmation gate
 
@@ -102,19 +108,19 @@ That last point is a direct payoff of keeping the model out of the scoring path:
 
 ## 4. Where the LLM is called
 
-Exactly **three call sites**, all behind `llm/client.py`:
+Exactly **three call sites**, all behind `llm/client.py`, and since ADR-0012 **all three are optional**. A job screened entirely on structured criteria reaches none of them.
 
 | Call site | Service | Frequency | Cached by |
 |---|---|---|---|
-| Requirement extraction | `jd_extraction` | once per JD | JD text hash |
-| Profile extraction | `profile_extraction` | once per document | document text hash |
-| Semantic matching | `semantic_eval` | once per candidate, batched over undecided pairs | profile + requirement-set hash |
+| Requirement extraction | `jd_extraction` | once per JD, free-text path only | JD text hash |
+| Profile extraction | `profile_extraction` | once per document, and only when the job has free-text rows | document text hash |
+| Semantic matching | `semantic_eval` | once per candidate, batched over undecided free-text pairs | profile + requirement-set hash |
 
 Nothing else may call the provider. Every call is recorded in `LlmCallLog` with model id, prompt version, input hash, token usage, latency, and outcome — which is what makes a stored result traceable to what produced it.
 
 ### 4.1 Deterministic-first routing
 
-Stage 9 runs before stage 10 and settles every pair it can — exact skill match, alias match, and date arithmetic for duration requirements. Only the leftovers reach the model.
+Stage 9 runs before stage 10 and settles every pair it can. A structured criterion is always settled there, by `structured_match` — degree ranks compared, months summed over a union of intervals, a skill matched on token boundaries against a curated alias table. A free-text requirement is settled there when the exact, alias or duration matcher can prove it. Only the leftovers reach the model.
 
 This ordering is deliberate and does three things at once: it cuts cost and latency, it makes the easy cases perfectly reproducible, and it makes the deterministic/LLM split *measurable* (`MatchResult.decided_by` records which mechanism decided each pair). If the LLM share is high, that is a signal the alias table needs work — a fact the architecture surfaces rather than hides.
 
@@ -278,7 +284,9 @@ Error responses are structured and never include stack traces, SQL, file paths, 
 | `PUT` | `/api/jobs/{job_id}/description` | Attach or replace the JD (paste or upload) |
 | `POST` | `/api/jobs/{job_id}/requirements/extract` | Run LLM requirement extraction |
 | `GET` | `/api/jobs/{job_id}/requirements` | List requirements |
-| `POST` | `/api/jobs/{job_id}/requirements` | Add a requirement by hand |
+| `POST` | `/api/jobs/{job_id}/requirements` | Add a free-text requirement by hand |
+| `POST` | `/api/jobs/{job_id}/criteria` | Add one of the structured criteria |
+| `GET` | `/api/criteria/vocabulary` | The criterion types, skills, languages and degree levels this build supports |
 | `PATCH` | `/api/requirements/{id}` | Edit text, category, must-have, weight |
 | `DELETE` | `/api/requirements/{id}` | Remove a requirement |
 | `POST` | `/api/jobs/{job_id}/requirements/confirm` | Freeze the requirement set — the gate |
@@ -343,6 +351,8 @@ Settings load from the environment into a typed settings object at startup. **Th
 | Local HTTP calls | `urllib.request` | `httpx`/`requests` | One POST with a JSON body and a timeout. Adding a runtime HTTP client so the LLM boundary could make a single request would be a dependency bought for nothing. |
 | Stage 2's input | Whatever the recruiter typed, in any language | A formal job description | The rest of the pipeline never cared what shape the input had; only the prompt did. Requiring a document first was a barrier with nothing behind it ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)). |
 | A criterion naming a protected characteristic | Refused at the confirmation gate | Neutralised later at screening | Silently scoring it "no evidence" for everybody teaches the recruiter nothing and overrules them without saying so. Refusing names the line and hands the decision back ([ADR-0010](decisions/0010-protected-attribute-guard.md)). |
+| What a recruiter may screen on | Six structured criteria, chosen from a published vocabulary | Free text for everything | Free-text extraction was the least reliable stage in the pipeline, and an unsupported term came back as "no evidence" — indistinguishable from the candidate lacking it. A benchmark found deterministic matching more accurate than the 7B model on the same pairs. Free text survives as a labelled exception ([ADR-0012](decisions/0012-structured-screening-criteria.md)). |
+| A criterion the engine cannot resolve | A fourth verdict, `NEEDS_REVIEW`, excluded from the score on both sides | Score it as zero; or silently drop it | A zero is a claim about the candidate. Dropping it hides that the number covers less of the job than the criteria list does. Excluding it and saying so is the only option that reports what actually happened. |
 | Rate limiting | In-process, per client, on the paid endpoints | A shared store; nothing at all | A brake on accidental hammering that costs one file and no dependency. Its ceilings are documented rather than oversold; a real limit belongs in a proxy. |
 
 ---

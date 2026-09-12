@@ -18,6 +18,7 @@ import {
   getProfile,
   getScore,
   type MatchResult,
+  type Score,
 } from "../api/client";
 import {
   Callout,
@@ -35,6 +36,7 @@ import {
   METHOD_LABEL,
   SCORE_CAVEAT,
   STATUS_LABEL,
+  VERDICT_LABEL,
   VERDICT_MEANING,
   asPercent,
   failureLabel,
@@ -84,6 +86,7 @@ export function CandidatePage({ candidateId }: { candidateId: string }) {
     MATCHED: matches?.results.filter((item) => item.verdict === "MATCHED") ?? [],
     PARTIAL: matches?.results.filter((item) => item.verdict === "PARTIAL") ?? [],
     NO_EVIDENCE: matches?.results.filter((item) => item.verdict === "NO_EVIDENCE") ?? [],
+    NEEDS_REVIEW: matches?.results.filter((item) => item.verdict === "NEEDS_REVIEW") ?? [],
   };
 
   return (
@@ -142,14 +145,26 @@ export function CandidatePage({ candidateId }: { candidateId: string }) {
             <h2 id="verdicts-heading">Requirement by requirement</h2>
             <p className="panel__hint">
               {matches.summary.matched} matched · {matches.summary.partial} partial ·{" "}
-              {matches.summary.no_evidence} without evidence ·{" "}
-              {matches.summary.decided_deterministically} decided by code
+              {matches.summary.no_evidence} without evidence
+              {matches.summary.needs_review > 0 ? (
+                <> · {matches.summary.needs_review} could not be determined</>
+              ) : null}{" "}
+              · {matches.summary.decided_deterministically} decided by code
             </p>
           </div>
 
           <VerdictGroup title="Matched" items={grouped.MATCHED} />
           <VerdictGroup title="Partial" items={grouped.PARTIAL} />
           <VerdictGroup title="Gaps" items={grouped.NO_EVIDENCE} />
+          {/* Last, and framed separately, because it is not a finding about the
+              candidate at all — it is the screener reporting its own limit.
+              Folding these in with the gaps would be the exact confusion that
+              ADR-0012 added a fourth verdict to prevent. */}
+          <VerdictGroup
+            title="Could not be determined"
+            items={grouped.NEEDS_REVIEW}
+            note="Unresolved rather than unmet. These were left out of the score entirely — not counted as zeros — so they need a person to read the CV."
+          />
         </section>
       ) : (
         <section className="panel">
@@ -167,7 +182,7 @@ export function CandidatePage({ candidateId }: { candidateId: string }) {
   );
 }
 
-function ScorePanel({ score }: { score: NonNullable<Awaited<ReturnType<typeof getScore>>> }) {
+function ScorePanel({ score }: { score: Score }) {
   return (
     <section className="panel" aria-labelledby="score-heading">
       <h2 id="score-heading">Score</h2>
@@ -176,6 +191,19 @@ function ScorePanel({ score }: { score: NonNullable<Awaited<ReturnType<typeof ge
         <Callout title="No score could be formed">
           This job has no weighted requirements, so there is nothing to compute. That is not a score
           of zero — nothing was asked of this candidate.
+        </Callout>
+      ) : score.status === "UNDEFINED_NO_DECIDABLE" ? (
+        <Callout title="No score could be formed">
+          <p>
+            There were {score.contributions.length} criteri
+            {score.contributions.length === 1 ? "on" : "a"} on this job, and the screening engine
+            could not determine any of them from this CV. With nothing decidable there is no average
+            to take.
+          </p>
+          <p>
+            This is not a score of zero and it is not a finding about the candidate. Each criterion
+            below says what stopped it; the CV itself is unchanged and still worth reading.
+          </p>
         </Callout>
       ) : (
         <>
@@ -200,14 +228,27 @@ function ScorePanel({ score }: { score: NonNullable<Awaited<ReturnType<typeof ge
             </div>
           </dl>
 
-          {score.capped ? (
-            <Callout tone="warn" title="Band capped at Review">
-              A must-have requirement has no evidence in this CV
-              {score.capped_by_requirement_text ? (
-                <>: “{score.capped_by_requirement_text}”</>
-              ) : null}
-              . The score itself is unchanged; a weighted average can look healthy while a hard
-              requirement is missing entirely. The candidate is not rejected or hidden.
+          {score.capped ? <CappedCallout score={score} /> : null}
+
+          {score.review_flag ? (
+            <Callout title="The score does not cover every criterion">
+              <p>
+                {score.needs_review_count} of {score.contributions.length} criteria could not be
+                determined from this CV
+                {score.must_have_needs_review_count > 0 ? (
+                  <>, including {score.must_have_needs_review_count} marked must-have</>
+                ) : null}
+                . They were excluded from the score on both sides of the average rather than counted
+                as zeros, and their weight was not shared out among the others — so the remaining
+                criteria are worth exactly what you set them to.
+              </p>
+              <p>
+                The practical consequence is that this number is an average over{" "}
+                {score.contributions.length - score.needs_review_count} criteri
+                {score.contributions.length - score.needs_review_count === 1 ? "on" : "a"}, not over{" "}
+                {score.contributions.length}. Comparing it with a candidate whose criteria all
+                resolved is comparing two different questions.
+              </p>
             </Callout>
           ) : null}
 
@@ -232,15 +273,13 @@ function ScorePanel({ score }: { score: NonNullable<Awaited<ReturnType<typeof ge
                         {item.must_have ? <Pill tone="must">Must have</Pill> : null}
                       </td>
                       <td>{trimDecimal(item.weight)}</td>
-                      <td>
-                        {item.verdict === "NO_EVIDENCE"
-                          ? "No evidence"
-                          : item.verdict === "PARTIAL"
-                            ? "Partial"
-                            : "Matched"}
-                      </td>
-                      <td>{trimDecimal(item.verdict_value)}</td>
-                      <td>{trimDecimal(item.points)}</td>
+                      <td>{VERDICT_LABEL[item.verdict]}</td>
+                      {/* An em dash rather than a 0, and the same in both
+                          columns: an unresolved criterion is not worth nothing,
+                          it is outside the sum. Its weight is printed above so
+                          the exclusion is visible rather than implied. */}
+                      <td>{item.verdict_value === null ? "—" : trimDecimal(item.verdict_value)}</td>
+                      <td>{item.points === null ? "excluded" : trimDecimal(item.points)}</td>
                     </tr>
                   ))}
                   <tr className="table__total">
@@ -253,10 +292,12 @@ function ScorePanel({ score }: { score: NonNullable<Awaited<ReturnType<typeof ge
               </table>
             </div>
             <p className="fineprint">
-              Matched counts 1.0, partial 0.5, no evidence 0. The score is{" "}
-              {trimDecimal(score.weighted_sum ?? "0")} ÷ {trimDecimal(score.total_weight ?? "0")} ×
-              100, rounded. Every number here comes from stored verdicts and the weights you set —
-              no model is involved in the arithmetic.
+              Matched counts 1.0, partial 0.5, no evidence 0. A criterion that could not be
+              determined counts as nothing at all — it is left out of both the points and the total
+              weight, which is why the totals below may be less than the weights above add up to.
+              The score is {trimDecimal(score.weighted_sum ?? "0")} ÷{" "}
+              {trimDecimal(score.total_weight ?? "0")} × 100, rounded. Every number here comes from
+              stored verdicts and the weights you set — no model is involved in the arithmetic.
             </p>
           </details>
         </>
@@ -269,7 +310,53 @@ function ScorePanel({ score }: { score: NonNullable<Awaited<ReturnType<typeof ge
   );
 }
 
-function VerdictGroup({ title, items }: { title: string; items: MatchResult[] }) {
+/**
+ * Why the band was capped — and the two reasons are not the same thing.
+ *
+ * A must-have with no evidence says the CV shows nothing for it. A must-have
+ * that could not be determined says the CV shows something the engine could not
+ * read. Printing the first sentence for the second case would report our limit
+ * as the candidate's gap, which is the failure this product is built against.
+ */
+function CappedCallout({ score }: { score: Score }) {
+  const trigger = score.contributions.find(
+    (item) => item.requirement_id === score.capped_by_requirement_id,
+  );
+  const unresolved = trigger?.verdict === "NEEDS_REVIEW";
+  const named = score.capped_by_requirement_text ? (
+    <>: “{score.capped_by_requirement_text}”</>
+  ) : null;
+
+  return (
+    <Callout tone="warn" title="Band capped at Review">
+      {unresolved ? (
+        <>
+          A must-have criterion could not be determined from this CV{named}. That is not the same as
+          it being unmet — the band is capped because a clean label would overstate what was
+          actually established, not because anything is missing. The score itself is unchanged, and
+          the candidate is not rejected or hidden.
+        </>
+      ) : (
+        <>
+          A must-have requirement has no evidence in this CV{named}. The score itself is unchanged;
+          a weighted average can look healthy while a hard requirement is missing entirely. The
+          candidate is not rejected or hidden.
+        </>
+      )}
+    </Callout>
+  );
+}
+
+function VerdictGroup({
+  title,
+  items,
+  note,
+}: {
+  title: string;
+  items: MatchResult[];
+  /** One line under the heading, for a group whose meaning is not obvious. */
+  note?: string;
+}) {
   if (items.length === 0) return null;
 
   return (
@@ -277,6 +364,7 @@ function VerdictGroup({ title, items }: { title: string; items: MatchResult[] })
       <h3 className="subhead">
         {title} <span className="subhead__count">{items.length}</span>
       </h3>
+      {note ? <p className="subhead__note">{note}</p> : null}
       <ul className="verdict-list">
         {items.map((item) => (
           <li key={item.requirement_id} className="verdict-item">

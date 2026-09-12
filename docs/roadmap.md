@@ -1,7 +1,8 @@
 # AI CV Screener — Development Roadmap
 
 **Status:** every phase delivered. Phases 0–7, 9–12 and 14–16 are complete. Six carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/check_llm.py`); **17 and 18** need the README walked from a fresh clone and the repository's GitHub-side metadata set; **19 and 20** need a hosting decision that belongs to the repository owner. The repository is published and CI is green on GitHub Actions, which closed the items Phases 3 and 14 were carrying. Nothing is deployed.
-**Last updated:** 2026-09-08
+**Since then:** one product change landed on top of the finished roadmap — the screening criteria became structured rather than free text ([ADR-0012](decisions/0012-structured-screening-criteria.md)). It is recorded at the end of this file rather than as a twenty-first phase, because it revises Phases 4, 7 and 8 instead of extending them.
+**Last updated:** 2026-09-11
 **Product definition:** [product-spec.md](product-spec.md)
 
 ---
@@ -46,6 +47,7 @@ each.
 | **AI Evaluation Engine** | 9 | ✅ |
 | **Deterministic Ranking** | 10 | ✅ |
 | **Product UI + Demo** | 11, 12 | ✅ |
+| **Structured screening** | revises 4, 7, 8 — see the closing section | ✅ |
 
 Phase 8's semantic evaluation was pulled into this milestone rather than
 deferred, because Phase 7's routing layer has nowhere to route to without it:
@@ -686,3 +688,76 @@ the repository owner and not something this milestone should make for them.
 **What remains for this phase:** the deployed half, which is Phase 19's
 remaining half too. Both need a hosting decision that belongs to the repository
 owner.
+
+---
+
+## After the roadmap — structured screening (ADR-0012)
+
+*Not a phase. A revision of Phases 4, 7 and 8, landed after the roadmap was
+complete, and recorded here so the change is visible from the plan rather than
+only from the code.*
+
+**Why.** Phase 4 let a recruiter type criteria in any language and had a model
+turn them into requirements ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)).
+It demonstrated well and screened badly. Two findings decided it:
+
+- A controlled benchmark over the same `(candidate, requirement)` pairs found
+  deterministic matching **more accurate than the 7B model** — 88.8% against
+  82.0%, with zero over-crediting, every cited quote present in the source, and
+  5.5 ms per CV against roughly 25 seconds.
+- Free-text requirement extraction was the least stable stage in the pipeline.
+  On the same brief the model produced 26 requirements where a careful reading
+  gives 12, padding the list with what a role like that "usually" needs.
+
+There was also a correctness problem no amount of model quality would fix: a
+criterion naming something the matcher did not know came back as `NO_EVIDENCE`,
+which is indistinguishable from the candidate not having it. A gap in our
+vocabulary was being reported as a gap in a person.
+
+**What changed.**
+
+- Six criterion types, fixed and published: minimum degree, minimum GPA, work
+  experience duration, skill, internship, language presence.
+  `GET /api/criteria/vocabulary` serves the whole supported list — 85 skills, 10
+  languages, 8 degree names — and the interface is built from it.
+- A new deterministic reader, `services/cv_facts`, extracts dated roles,
+  qualifications, grades, skills and languages straight from the CV text, each
+  with the span it came from. `services/structured_match` compares those facts
+  with a criterion. Neither module touches a model, a database or a clock.
+- A fourth verdict, `NEEDS_REVIEW`, for a criterion the engine could not resolve
+  safely. It is excluded from the score on **both** sides of the average and its
+  weight is not redistributed; if every criterion comes back that way the score
+  is `UNDEFINED_NO_DECIDABLE` rather than zero.
+- The criteria builder replaced the free-text box as the main interface, and the
+  skill search says *"Skill not currently supported"* rather than accepting a
+  term it cannot evaluate.
+- The demo's default seed screens with six structured criteria and **calls no
+  model at all** — not a cloud one, not a local one, not a recorded one.
+
+**What was deliberately not built,** with reasons in the ADR: university-tier
+screening (a socioeconomic proxy), language proficiency levels (unreadable from
+a CV without inventing them), industry experience, and AI/ML as a criterion type
+rather than a skill-group preset.
+
+**What was kept.** The free-text path still works end to end — extraction,
+profile, semantic evaluation — and is reachable behind a disclosure that states
+what it costs. Phases 8 and 13 still carry their outstanding live-model items;
+nothing here closes them.
+
+**Afterwards.** Screening a real Indonesian CV found five defects in one
+document, all of them in the layer that reads the file rather than in scoring or
+evidence: dated school-society and education lines counted as employment (58
+months of "professional experience" out of about 14), a Sunday-school entry put
+a place of worship into the evidence record, a two-month job written
+`Juni-July 2024` was invisible, an evidence quote was a bare date fragment, and
+`total_months` counted the gap between endpoints so a one-month job counted as
+zero. All are fixed with regression tests over a synthetic equivalent CV. The
+same pass added 29 accounting, tax and finance skills — the vocabulary had been
+entirely software engineering — and a seventh criterion type,
+`EXPERIENCE_IN_FIELD`, so that a duration criterion can be restricted to the
+field the recruiter actually hires for.
+
+**Verification.** 1067 tests pass (939 backend, 128 frontend), 97% backend
+coverage, ruff and eslint clean, the Alembic migration round-trips with no
+drift, and the structured demo workflow was run end to end with `client=None` so
+that any reach for a model would raise rather than quietly succeed.

@@ -15,11 +15,24 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
-from app.core.enums import JdSourceType, RequirementCategory, RequirementOrigin
+from app.core.enums import (
+    JdSourceType,
+    RequirementCategory,
+    RequirementOrigin,
+    RequirementSpecType,
+)
 from app.core.protected_attributes import scan as scan_for_protected_attributes
 from app.core.text import strip_control_characters
+from app.services import structured_match
 
 MAX_TITLE_LENGTH = 200
 MAX_JD_LENGTH = 100_000
@@ -154,6 +167,13 @@ class RequirementResponse(BaseModel):
     weight: Decimal
     display_order: int
     origin: RequirementOrigin
+
+    #: Present on structured criteria (ADR-0012); null on legacy free-text rows.
+    spec_type: RequirementSpecType | None = None
+    subject: str | None = None
+    threshold_value: Decimal | None = None
+    threshold_scale: Decimal | None = None
+
     proposed_text: str | None
     proposed_category: RequirementCategory | None
     proposed_must_have: bool | None
@@ -176,6 +196,74 @@ class RequirementResponse(BaseModel):
         added later covers requirements written before it existed.
         """
         return [flag.as_dict() for flag in scan_for_protected_attributes(self.text)]
+
+
+class StructuredRequirementRequest(BaseModel):
+    """One of the six structured criteria (ADR-0012).
+
+    Deliberately one flat shape with a discriminating `spec_type` rather than
+    six request bodies: the recruiter is filling one row of a form, and the
+    per-type rules below are what stop an ill-formed row from reaching the
+    database, where the same rules exist again as a CHECK constraint.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    spec_type: RequirementSpecType
+    must_have: bool
+
+    #: The thing named: a degree level, a skill, or a language.
+    subject: str | None = Field(default=None, max_length=100)
+
+    #: The bar: months for a duration, a grade for GPA.
+    threshold_value: Decimal | None = Field(default=None, ge=0, le=Decimal("1200"))
+
+    #: GPA only. Stated by the recruiter because the engine never assumes one.
+    threshold_scale: Decimal | None = Field(default=None, gt=0, le=Decimal("10"))
+
+    #: Omitted means "use the default for this must-have flag" (3 or 1).
+    weight: Decimal | None = Field(default=None, ge=0, le=MAX_WEIGHT)
+
+    @model_validator(mode="after")
+    def _shape_matches_the_type(self) -> StructuredRequirementRequest:
+        """Refuse a row the chosen type cannot carry.
+
+        The rules come from `structured_match.SPEC_SHAPES` rather than being
+        restated here, so the form the interface builds and the body this
+        accepts cannot drift apart. The database repeats them a third time as a
+        CHECK constraint — belt and braces, because a malformed criterion is
+        stored for as long as the job exists.
+        """
+        shape = structured_match.SPEC_SHAPES[self.spec_type.value]
+        subject = (self.subject or "").strip()
+
+        # The three fields are checked independently against the shape rather
+        # than as one branching decision. They used to be treated as mutually
+        # exclusive -- a type either named a thing or set a bar -- which was
+        # true of the original six and stopped being true the moment
+        # EXPERIENCE_IN_FIELD needed both.
+        if shape.subject_source:
+            if not subject:
+                raise ValueError(f"{self.spec_type.value} needs a subject")
+        elif self.subject is not None:
+            raise ValueError(f"{self.spec_type.value} takes no subject")
+
+        if shape.threshold_unit is None:
+            if self.threshold_value is not None:
+                raise ValueError(f"{self.spec_type.value} takes no numeric threshold")
+        elif shape.threshold_required and self.threshold_value is None:
+            unit = "a minimum grade" if shape.threshold_unit == "grade" else "a duration in months"
+            raise ValueError(f"{self.spec_type.value} needs {unit}")
+
+        if shape.needs_scale:
+            if self.threshold_scale is None:
+                raise ValueError(f"{self.spec_type.value} needs the scale the minimum is out of")
+            if self.threshold_value is not None and self.threshold_value > self.threshold_scale:
+                raise ValueError("the minimum grade cannot exceed its scale")
+        elif self.threshold_scale is not None:
+            raise ValueError(f"{self.spec_type.value} takes no scale")
+
+        return self
 
 
 class RequirementCreateRequest(BaseModel):

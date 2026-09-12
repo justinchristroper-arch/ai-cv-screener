@@ -12,6 +12,8 @@ import uuid
 
 from pydantic import BaseModel, Field
 
+from app.core.enums import RequirementSpecType
+
 
 class SampleCvResponse(BaseModel):
     """One synthetic CV bundled with the project."""
@@ -19,6 +21,15 @@ class SampleCvResponse(BaseModel):
     filename: str
     label: str
     demonstrates: str = Field(description="What a reader is meant to learn from this file.")
+
+
+class StructuredCriterionResponse(BaseModel):
+    """One criterion the structured demo screens with."""
+
+    spec_type: RequirementSpecType
+    text: str = Field(description="The criterion as it is displayed on the job.")
+    must_have: bool
+    demonstrates: str = Field(description="What a reader is meant to learn from this one.")
 
 
 class SampleCriteriaResponse(BaseModel):
@@ -53,13 +64,28 @@ class DemoSamplesResponse(BaseModel):
             "so the two cannot drift apart. Paste it to walk the workflow by hand."
         )
     )
+    structured_criteria_id: str = Field(
+        description=(
+            "Pass this as `criteria_id` to seed the structured demo. It is also "
+            "the default, so omitting `criteria_id` seeds the same thing."
+        )
+    )
+    structured_criteria: list[StructuredCriterionResponse] = Field(
+        default_factory=list,
+        description=(
+            "The six criteria the structured demo screens with. Unlike the briefs "
+            "below they need no recording of any kind: the structured engine reads "
+            "the CV directly, so this walkthrough runs with no model at all."
+        ),
+    )
     criteria: list[SampleCriteriaResponse] = Field(
         default_factory=list,
         description=(
-            "Every set of screening criteria this build has recordings for — a formal job "
-            "description and three informal briefs, one Indonesian, one mixed and one "
-            "English. Demo mode can only analyse text it has a recording of, so these are "
-            "offered rather than left to be discovered."
+            "The free-text briefs this build has recordings for — a formal job "
+            "description and three informal ones, one Indonesian, one mixed and one "
+            "English. These drive the legacy model-read path (ADR-0009, superseded), "
+            "which can only analyse text it has a recording of, so they are offered "
+            "rather than left to be discovered."
         ),
     )
     cvs: list[SampleCvResponse] = Field(

@@ -97,20 +97,35 @@ export type RequirementCategory =
 export type CandidateStatus =
   "UPLOADED" | "PARSING" | "PARSED" | "EXTRACTING" | "EXTRACTED" | "SCORING" | "SCORED" | "FAILED";
 
-export type MatchVerdict = "MATCHED" | "PARTIAL" | "NO_EVIDENCE";
+export type MatchVerdict = "MATCHED" | "PARTIAL" | "NO_EVIDENCE" | "NEEDS_REVIEW";
 
 export type MatchMethod =
   | "DETERMINISTIC_EXACT"
   | "DETERMINISTIC_ALIAS"
   | "DETERMINISTIC_DURATION"
+  | "DETERMINISTIC_STRUCTURED"
   | "LLM_SEMANTIC"
   | "DOWNGRADED_UNVERIFIED";
+
+/**
+ * The structured screening criteria: the six from ADR-0012, plus
+ * EXPERIENCE_IN_FIELD, which is the only one carrying a subject and a
+ * threshold together.
+ */
+export type RequirementSpecType =
+  | "EDUCATION_MIN"
+  | "GPA_MIN"
+  | "EXPERIENCE_MIN"
+  | "SKILL"
+  | "INTERNSHIP_MIN"
+  | "LANGUAGE_PRESENT"
+  | "EXPERIENCE_IN_FIELD";
 
 export type EvidenceVerification = "VERIFIED_EXACT" | "VERIFIED_NORMALIZED" | "UNVERIFIED";
 
 export type RecommendationBand = "STRONG_MATCH" | "GOOD_MATCH" | "REVIEW" | "LOW_MATCH";
 
-export type ScoreStatus = "COMPUTED" | "UNDEFINED_NO_WEIGHT";
+export type ScoreStatus = "COMPUTED" | "UNDEFINED_NO_WEIGHT" | "UNDEFINED_NO_DECIDABLE";
 
 // --------------------------------------------------------------------------
 // Health
@@ -193,6 +208,16 @@ export interface Requirement {
   weight: string;
   display_order: number;
   origin: "LLM_EXTRACTED" | "HR_ADDED";
+  /**
+   * Set on a structured criterion, null on a legacy free-text row. Its presence
+   * is what tells the UI whether this row was screened by the deterministic
+   * engine or by the model.
+   */
+  spec_type: RequirementSpecType | null;
+  subject: string | null;
+  /** NUMERIC — a string. Months for a duration, a grade for GPA. */
+  threshold_value: string | null;
+  threshold_scale: string | null;
   proposed_text: string | null;
   proposed_category: RequirementCategory | null;
   proposed_must_have: boolean | null;
@@ -262,6 +287,81 @@ export function confirmRequirements(jobId: string): Promise<RequirementList> {
 
 export function unconfirmRequirements(jobId: string): Promise<RequirementList> {
   return jsonRequest<RequirementList>(`/api/jobs/${jobId}/requirements/confirm`, "DELETE");
+}
+
+// --------------------------------------------------------------------------
+// The screening vocabulary (ADR-0012)
+// --------------------------------------------------------------------------
+
+/**
+ * One criterion type and the fields it collects.
+ *
+ * The form is built from this rather than hard-coded, so the six types the
+ * interface offers are exactly the six the engine can evaluate. `subject_source`
+ * names the list in the same response the subject must be chosen from.
+ */
+export interface CriterionType {
+  spec_type: RequirementSpecType;
+  label: string;
+  subject_source: "degrees" | "skills" | "languages" | null;
+  threshold_unit: "months" | "grade" | null;
+  threshold_required: boolean;
+  needs_scale: boolean;
+}
+
+export interface SkillOption {
+  name: string;
+  family: string;
+}
+
+export interface SkillGroup {
+  name: string;
+  skills: string[];
+}
+
+export interface DegreeOption {
+  name: string;
+  /** Equal ranks are the same level under two naming conventions: S1 = Bachelor. */
+  rank: number;
+}
+
+export interface CriteriaVocabulary {
+  spec_types: CriterionType[];
+  skills: SkillOption[];
+  /** Presence only. This screener never infers a proficiency level. */
+  languages: string[];
+  degrees: DegreeOption[];
+  skill_groups: SkillGroup[];
+}
+
+/**
+ * Everything the criteria builder is allowed to offer.
+ *
+ * Static for a given backend build — it depends on no job and no candidate — so
+ * it is fetched once per screen rather than per keystroke.
+ */
+export function getCriteriaVocabulary(signal?: AbortSignal): Promise<CriteriaVocabulary> {
+  return request<CriteriaVocabulary>("/api/criteria/vocabulary", { signal });
+}
+
+export interface CriterionInput {
+  spec_type: RequirementSpecType;
+  must_have: boolean;
+  subject?: string;
+  threshold_value?: string;
+  threshold_scale?: string;
+  weight?: string;
+}
+
+/**
+ * Add one structured criterion.
+ *
+ * A 409 here means the subject is outside the supported vocabulary — the server
+ * refuses it at creation rather than accepting a criterion it could only ever
+ * answer with "needs review".
+ */
+export function addCriterion(jobId: string, body: CriterionInput): Promise<Requirement> {
+  return jsonRequest<Requirement>(`/api/jobs/${jobId}/criteria`, "POST", body);
 }
 
 // --------------------------------------------------------------------------
@@ -395,6 +495,8 @@ export interface MatchResults {
     matched: number;
     partial: number;
     no_evidence: number;
+    /** Criteria the engine could not resolve — not the same as no evidence. */
+    needs_review: number;
     downgraded: number;
     decided_deterministically: number;
     decided_by_model: number;
@@ -417,8 +519,12 @@ export interface Contribution {
   display_order: number;
   weight: string;
   verdict: MatchVerdict;
-  verdict_value: string;
-  points: string;
+  /**
+   * Null for NEEDS_REVIEW. Not zero: an unresolved criterion takes no part in
+   * the arithmetic at all, and its weight is not redistributed either.
+   */
+  verdict_value: string | null;
+  points: string | null;
 }
 
 export interface Score {
@@ -435,6 +541,10 @@ export interface Score {
   capped: boolean;
   capped_by_requirement_id: string | null;
   capped_by_requirement_text: string | null;
+  /** True when at least one criterion was left unresolved. */
+  review_flag: boolean;
+  needs_review_count: number;
+  must_have_needs_review_count: number;
   scoring_config_version: string;
   computed_at: string;
   contributions: Contribution[];
@@ -465,6 +575,8 @@ export interface RankedCandidate {
   band_raw: RecommendationBand | null;
   capped: boolean;
   matched_count: number;
+  /** How much of the criteria list the score does not cover. */
+  needs_review_count: number;
   warnings: string[];
   scoring_config_version: string;
   computed_at: string;
@@ -509,10 +621,23 @@ export interface SampleCriteria {
   full_walkthrough: boolean;
 }
 
+/** One criterion the structured demo screens with. */
+export interface StructuredSampleCriterion {
+  spec_type: RequirementSpecType;
+  text: string;
+  must_have: boolean;
+  demonstrates: string;
+}
+
 export interface DemoSamples {
   demo_mode: boolean;
   job_title: string;
   job_description: string;
+  /** Pass this as the criteria id to seed the structured demo. */
+  structured_criteria_id: string;
+  /** The six criteria that demo screens with. It needs no recordings at all. */
+  structured_criteria: StructuredSampleCriterion[];
+  /** The free-text briefs, which drive the legacy model-read path. */
   criteria: SampleCriteria[];
   cvs: { filename: string; label: string; demonstrates: string }[];
 }

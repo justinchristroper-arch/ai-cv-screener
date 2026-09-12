@@ -152,9 +152,10 @@ def test_llm_calls_are_auditable() -> None:
     assert "prompt_text" not in columns
 
 
-def test_fourteen_enum_types_are_declared() -> None:
-    assert len(ENUM_TYPE_NAMES) == 14
-    assert len(set(ENUM_TYPE_NAMES)) == 14, "enum type names must be unique"
+def test_fifteen_enum_types_are_declared() -> None:
+    """Fourteen from the initial schema, plus `requirement_spec_type` (ADR-0012)."""
+    assert len(ENUM_TYPE_NAMES) == 15
+    assert len(set(ENUM_TYPE_NAMES)) == 15, "enum type names must be unique"
 
 
 def test_no_vector_columns_yet() -> None:

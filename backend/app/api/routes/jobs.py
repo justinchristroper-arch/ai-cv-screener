@@ -25,6 +25,7 @@ from app.schemas.api.jobs import (
     RequirementCreateRequest,
     RequirementListResponse,
     RequirementResponse,
+    StructuredRequirementRequest,
 )
 from app.schemas.api.ranking import (
     FailedCandidateResponse,
@@ -33,7 +34,7 @@ from app.schemas.api.ranking import (
     RankingSummary,
     UnscoredCandidateResponse,
 )
-from app.services import jd_extraction, jobs, ranking, requirements
+from app.services import jd_extraction, jobs, ranking, requirements, structured_match
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -202,6 +203,47 @@ def add_requirement(
 
 
 @router.post(
+    "/{job_id}/criteria",
+    response_model=RequirementResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a structured screening criterion",
+    description=(
+        "The main way requirements are created (ADR-0012). One of six supported "
+        "types, with typed values the screening engine can evaluate "
+        "deterministically. A criterion naming a skill, language or degree "
+        "outside the supported vocabulary is refused here rather than accepted "
+        "and answered with NEEDS_REVIEW forever."
+    ),
+    responses={
+        404: {"description": "Job does not exist"},
+        409: {
+            "description": (
+                "Requirements are confirmed, or the criterion names something "
+                "outside the supported vocabulary"
+            )
+        },
+        422: {"description": "The values do not match the criterion type"},
+    },
+)
+def add_structured_criterion(
+    job_id: uuid.UUID, payload: StructuredRequirementRequest, db: SessionDep
+) -> RequirementResponse:
+    requirement = requirements.add_structured_requirement(
+        db,
+        job_id,
+        spec=structured_match.RequirementSpec(
+            spec_type=payload.spec_type.value,
+            subject=payload.subject,
+            threshold_value=payload.threshold_value,
+            scale=payload.threshold_scale,
+        ),
+        must_have=payload.must_have,
+        weight=payload.weight,
+    )
+    return RequirementResponse.model_validate(requirement)
+
+
+@router.post(
     "/{job_id}/requirements/confirm",
     response_model=RequirementListResponse,
     summary="Confirm the requirement set — the gate",
@@ -282,6 +324,7 @@ def get_job_ranking(job_id: uuid.UUID, db: SessionDep) -> JobRankingResponse:
                 band_raw=entry.score.band_raw,
                 capped=entry.score.capped,
                 matched_count=entry.matched_count,
+                needs_review_count=entry.needs_review_count,
                 warnings=entry.warnings,
                 scoring_config_version=entry.score.scoring_config_version,
                 computed_at=entry.score.computed_at,

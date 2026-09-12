@@ -856,6 +856,14 @@ summary:focus-visible {
   border-color: var(--border-strong);
 }
 
+/* Blue rather than amber. "Needs review" is a statement about the screener,
+   not about the candidate, so it must not read as a negative finding. */
+.verdict--review {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ---------------------------------------------------------- score badge -- */
 
 .score-badge {
@@ -1163,4 +1171,198 @@ code {
   .stat-row {
     gap: 1rem;
   }
+}
+
+/* ------------------------------------------------ the criteria builder -- */
+
+.criteria-add {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+
+.criteria-menu {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  padding: 0.5rem;
+}
+
+.criteria-menu__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.criteria-menu__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.criteria-menu__item:hover,
+.criteria-menu__item:focus-visible {
+  border-color: var(--accent);
+}
+
+.criteria-menu__label {
+  font-weight: 600;
+}
+
+.criteria-menu__hint,
+.criteria-menu__note {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.criteria-menu__note {
+  margin: 0.6rem 0 0.1rem;
+}
+
+.criterion-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.criterion-form__head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.criterion-form__hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.criterion-form__pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.field__note {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.skill-picker__results {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.skill-picker__results .chip {
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.skill-picker__results .chip:hover,
+.skill-picker__results .chip:focus-visible {
+  border-color: var(--accent);
+}
+
+/* The limit of the product, stated where a recruiter meets it. Bordered and
+   coloured like an ordinary notice rather than an error: nothing has gone
+   wrong, the answer is simply that this cannot be screened for. */
+.skill-picker__unsupported {
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.82rem;
+  color: var(--fg);
+}
+
+.skill-picker__chosen {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.skill-groups__label {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.skill-groups__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.skill-groups__row .chip {
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.skill-groups__row .chip:hover:not(:disabled),
+.skill-groups__row .chip:focus-visible {
+  border-color: var(--accent);
+}
+
+.disclosure {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-alt);
+}
+
+.disclosure > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.disclosure__body {
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.disclosure__body > p {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.legacy-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.subhead__note {
+  margin: -0.2rem 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  max-width: 60ch;
 }

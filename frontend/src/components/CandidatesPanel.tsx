@@ -187,9 +187,15 @@ function rankedCardLabel(entry: JobRanking["ranked"][number]): string {
   const who = entry.display_name ?? entry.original_filename ?? "Unnamed candidate";
   const band = entry.band ? BAND_LABEL[entry.band] : "no band";
   const score = entry.score === null ? "no score" : `score ${entry.score} of 100`;
-  const matched = `${entry.matched_count} requirement${entry.matched_count === 1 ? "" : "s"} matched`;
+  const matched = `${entry.matched_count} criteri${entry.matched_count === 1 ? "on" : "a"} matched`;
   const coverage = `must-have coverage ${asPercent(entry.must_have_coverage)}`;
-  return `Position ${entry.position}, ${who}. ${score}, ${band}. ${matched}, ${coverage}.`;
+  // Announced too: a number that covers less than the criteria list must not
+  // reach a screen-reader user as if it covered all of it.
+  const unresolved =
+    entry.needs_review_count > 0
+      ? ` ${entry.needs_review_count} criteri${entry.needs_review_count === 1 ? "on" : "a"} could not be determined and ${entry.needs_review_count === 1 ? "is" : "are"} not in the score.`
+      : "";
+  return `Position ${entry.position}, ${who}. ${score}, ${band}. ${matched}, ${coverage}.${unresolved}`;
 }
 
 function RankingView({ ranking }: { ranking: JobRanking }) {
@@ -230,10 +236,15 @@ function RankingView({ ranking }: { ranking: JobRanking }) {
                       {entry.display_name ?? entry.original_filename ?? "Unnamed candidate"}
                     </span>
                     <span className="ranked-card__meta">
-                      {entry.matched_count} requirement{entry.matched_count === 1 ? "" : "s"}{" "}
-                      matched
+                      {entry.matched_count} criteri{entry.matched_count === 1 ? "on" : "a"} matched
                       {" · must-have coverage "}
                       {asPercent(entry.must_have_coverage)}
+                      {entry.needs_review_count > 0 ? (
+                        <>
+                          {" · "}
+                          {entry.needs_review_count} not determined
+                        </>
+                      ) : null}
                     </span>
                     {entry.warnings.length > 0 ? (
                       <span className="ranked-card__warnings">

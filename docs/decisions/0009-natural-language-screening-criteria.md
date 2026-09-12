@@ -1,6 +1,15 @@
 # ADR-0009: Screening criteria are free text, not a job description
 
-**Status:** Accepted
+**Status:** **Superseded by [ADR-0012](0012-structured-screening-criteria.md).**
+
+> Retired on evidence, not on taste. A deterministic engine measured against the
+> same 89 labelled pairs beat the language model at *judging* a CV against a
+> requirement (88.8% vs 82.0% agreement, zero over-crediting) and lost badly at
+> the job this ADR created for it — turning free prose into requirements, where
+> it produced 26 "requirements" from a job description the model reduced to 12,
+> and could not scope must-have markers across a compound clause. The reasoning
+> below is kept because it explains why the free-text box existed and what its
+> replacement has to give up.
 
 ## Context
 

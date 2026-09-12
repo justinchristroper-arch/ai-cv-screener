@@ -170,6 +170,7 @@ def test_matching_returns_a_verdict_for_every_requirement(api: TestClient, scree
         "matched": 8,
         "partial": 3,
         "no_evidence": 2,
+        "needs_review": 0,
         "downgraded": 0,
         "decided_deterministically": 5,
         "decided_by_model": 8,

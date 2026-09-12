@@ -53,13 +53,29 @@ class ContributionResponse(BaseModel):
     verdict: MatchVerdict = Field(
         description=(
             "NO_EVIDENCE means this CV contains no verified evidence for the "
-            "requirement. It is never a claim that the candidate lacks the skill."
+            "requirement. It is never a claim that the candidate lacks the skill. "
+            "NEEDS_REVIEW means something different again: the CV says something "
+            "here that could not be resolved safely -- a grade with no scale, or "
+            "a criterion outside what this screener can evaluate -- so it was "
+            "left for a person to read."
         )
     )
-    verdict_value: Decimal = Field(
-        description="What this verdict is worth: MATCHED 1.0, PARTIAL 0.5, NO_EVIDENCE 0.0."
+    verdict_value: Decimal | None = Field(
+        description=(
+            "What this verdict is worth: MATCHED 1.0, PARTIAL 0.5, NO_EVIDENCE "
+            "0.0. Null for NEEDS_REVIEW, which has no value because it takes no "
+            "part in the arithmetic at all."
+        )
     )
-    points: Decimal = Field(description="weight x verdict_value.")
+    points: Decimal | None = Field(
+        description=(
+            "weight x verdict_value, and null for the same reason. A "
+            "NEEDS_REVIEW line contributes to neither the weighted sum nor the "
+            "total weight: its weight is not redistributed either, so the "
+            "remaining requirements keep exactly the relative worth the "
+            "recruiter gave them."
+        )
+    )
 
 
 class ScoreResponse(BaseModel):
@@ -70,9 +86,11 @@ class ScoreResponse(BaseModel):
 
     status: ScoreStatus = Field(
         description=(
-            "COMPUTED, or UNDEFINED_NO_WEIGHT when the job has no requirements or "
-            "every weight is zero. An undefined score is not zero: nothing was "
-            "asked of the candidate, so there is nothing to report."
+            "COMPUTED; UNDEFINED_NO_WEIGHT when the job has no requirements or "
+            "every weight is zero; UNDEFINED_NO_DECIDABLE when there were "
+            "criteria but the engine could resolve none of them. An undefined "
+            "score is not zero in either case: nothing was established about "
+            "the candidate, so there is nothing to report."
         )
     )
 
@@ -107,12 +125,31 @@ class ScoreResponse(BaseModel):
     capped: bool = Field(
         description=(
             "True when the displayed band was lowered to Review because a "
-            "must-have requirement has no evidence. The score itself is unchanged."
+            "must-have requirement has no evidence, or because one could not be "
+            "resolved. The verdict on `capped_by_requirement_id` says which. The "
+            "score itself is unchanged either way."
         )
     )
     capped_by_requirement_id: uuid.UUID | None = None
     capped_by_requirement_text: str | None = Field(
         default=None, description="Which unevidenced must-have triggered the cap."
+    )
+
+    review_flag: bool = Field(
+        description=(
+            "True when at least one criterion was left unresolved. The recruiter "
+            "must be shown this next to the number, because the number covers "
+            "less of the job than the criteria list suggests."
+        )
+    )
+    needs_review_count: int = Field(
+        description="How many criteria were unresolved, out of every criterion on the job."
+    )
+    must_have_needs_review_count: int = Field(
+        description=(
+            "How many of those were must-haves. One is enough to cap the "
+            "displayed band at Review, which is why it is reported separately."
+        )
     )
 
     scoring_config_version: str = Field(

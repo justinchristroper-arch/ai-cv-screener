@@ -88,6 +88,21 @@ export const DEMO_SAMPLES = {
     demo_mode: true,
     job_title: "[Demo] Senior Backend Engineer",
     job_description: SAMPLE_JD_TEXT,
+    structured_criteria_id: "structured",
+    structured_criteria: [
+      {
+        spec_type: "SKILL" as const,
+        text: "Skill: Python",
+        must_have: true,
+        demonstrates: "A skill from the supported list.",
+      },
+      {
+        spec_type: "EXPERIENCE_MIN" as const,
+        text: "At least 4 years of professional experience",
+        must_have: true,
+        demonstrates: "Date arithmetic over the dated entries.",
+      },
+    ],
     criteria: [
       {
         id: "jd_backend_engineer",
@@ -116,6 +131,92 @@ export const DEMO_SAMPLES = {
   },
 };
 
+/**
+ * The supported screening vocabulary (ADR-0012).
+ *
+ * A trimmed copy of what the backend publishes — enough types and subjects for
+ * a component test, in the same shape. The six types and their field rules are
+ * the part that matters, so they are reproduced exactly.
+ */
+export const VOCABULARY = {
+  body: {
+    spec_types: [
+      {
+        spec_type: "EDUCATION_MIN",
+        label: "Minimum degree",
+        subject_source: "degrees",
+        threshold_unit: null,
+        threshold_required: false,
+        needs_scale: false,
+      },
+      {
+        spec_type: "GPA_MIN",
+        label: "Minimum GPA",
+        subject_source: null,
+        threshold_unit: "grade",
+        threshold_required: true,
+        needs_scale: true,
+      },
+      {
+        spec_type: "EXPERIENCE_MIN",
+        label: "Work experience duration",
+        subject_source: null,
+        threshold_unit: "months",
+        threshold_required: true,
+        needs_scale: false,
+      },
+      {
+        spec_type: "SKILL",
+        label: "Skill",
+        subject_source: "skills",
+        threshold_unit: null,
+        threshold_required: false,
+        needs_scale: false,
+      },
+      {
+        spec_type: "INTERNSHIP_MIN",
+        label: "Internship",
+        subject_source: null,
+        threshold_unit: "months",
+        threshold_required: false,
+        needs_scale: false,
+      },
+      {
+        spec_type: "LANGUAGE_PRESENT",
+        label: "Language",
+        subject_source: "languages",
+        threshold_unit: null,
+        threshold_required: false,
+        needs_scale: false,
+      },
+      // The only type carrying a subject AND a threshold.
+      {
+        spec_type: "EXPERIENCE_IN_FIELD",
+        label: "Work experience in a field",
+        subject_source: "skills",
+        threshold_unit: "months",
+        threshold_required: true,
+        needs_scale: false,
+      },
+    ],
+    skills: [
+      { name: "Docker", family: "container" },
+      { name: "Kubernetes", family: "container" },
+      { name: "PostgreSQL", family: "datastore" },
+      { name: "Python", family: "language" },
+      { name: "React", family: "web_framework" },
+    ],
+    languages: ["English", "Indonesian", "Japanese"],
+    degrees: [
+      { name: "D3", rank: 2 },
+      { name: "Bachelor", rank: 3 },
+      { name: "S1", rank: 3 },
+      { name: "Master", rank: 4 },
+    ],
+    skill_groups: [{ name: "Cloud & infrastructure", skills: ["Docker", "Kubernetes"] }],
+  },
+};
+
 /** A job whose requirements are confirmed. */
 export function job(overrides: Record<string, unknown> = {}) {
   return {
@@ -140,6 +241,10 @@ export function requirement(overrides: Record<string, unknown> = {}) {
     weight: "3.00",
     display_order: 0,
     origin: "LLM_EXTRACTED",
+    spec_type: null,
+    subject: null,
+    threshold_value: null,
+    threshold_scale: null,
     proposed_text: "Strong experience with Python",
     proposed_category: "TECHNICAL_SKILL",
     proposed_must_have: true,
@@ -161,4 +266,20 @@ export function evidence(overrides: Record<string, unknown> = {}) {
     normalization_version: "text-normalize-v1",
     ...overrides,
   };
+}
+
+/** A structured criterion, as the criteria endpoint returns one. */
+export function criterion(overrides: Record<string, unknown> = {}) {
+  return requirement({
+    id: "crit-1",
+    text: "Skill: Python",
+    category: "TECHNICAL_SKILL",
+    origin: "HR_ADDED",
+    spec_type: "SKILL",
+    subject: "Python",
+    proposed_text: null,
+    proposed_category: null,
+    proposed_must_have: null,
+    ...overrides,
+  });
 }

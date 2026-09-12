@@ -123,9 +123,20 @@ class MatchResult(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         UniqueConstraint(
             "requirement_id", "candidate_id", name="uq_match_result_requirement_candidate"
         ),
-        # The evidence-first principle, enforced by the database.
+        # The evidence-first principle, enforced by the database: a verdict that
+        # makes a positive claim about the document must cite the document.
+        #
+        # NEEDS_REVIEW is exempt because it makes no claim either way, and it
+        # arrives in both shapes: a grade with no stated scale cites the line it
+        # could not interpret, while a skill outside the vocabulary has nothing
+        # to cite at all. Requiring a span would force the engine to invent one;
+        # forbidding a span would throw away the line a recruiter needs to see.
+        #
+        # Compared as text, matching the migration: PostgreSQL will not let an
+        # enum value be used in the same transaction that added it, and naming
+        # it as an enum literal counts as use.
         CheckConstraint(
-            "verdict = 'NO_EVIDENCE' OR evidence_span_id IS NOT NULL",
+            "verdict::text IN ('NO_EVIDENCE', 'NEEDS_REVIEW') OR evidence_span_id IS NOT NULL",
             name="positive_verdict_requires_evidence",
         ),
         Index("ix_match_result_candidate_id", "candidate_id"),

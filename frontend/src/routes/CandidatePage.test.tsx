@@ -37,6 +37,9 @@ const SCORE = {
   capped: false,
   capped_by_requirement_id: null,
   capped_by_requirement_text: null,
+  review_flag: false,
+  needs_review_count: 0,
+  must_have_needs_review_count: 0,
   scoring_config_version: "scoring-v1",
   computed_at: "2026-09-07T11:00:00Z",
   contributions: [
@@ -103,6 +106,7 @@ const MATCHES = {
     matched: 1,
     partial: 0,
     no_evidence: 1,
+    needs_review: 0,
     downgraded: 0,
     decided_deterministically: 1,
     decided_by_model: 1,

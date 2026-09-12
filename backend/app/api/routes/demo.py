@@ -16,6 +16,7 @@ from app.schemas.api.demo import (
     DemoSeedResponse,
     SampleCriteriaResponse,
     SampleCvResponse,
+    StructuredCriterionResponse,
 )
 from app.services import demo
 
@@ -39,6 +40,16 @@ def get_samples(settings: SettingsDep) -> DemoSamplesResponse:
         demo_mode=settings.demo_mode,
         job_title=samples.job_title,
         job_description=samples.job_description,
+        structured_criteria_id=demo.STRUCTURED_CRITERIA_ID,
+        structured_criteria=[
+            StructuredCriterionResponse(
+                spec_type=item.spec.spec_type,
+                text=item.text,
+                must_have=item.must_have,
+                demonstrates=item.demonstrates,
+            )
+            for item in samples.structured_criteria
+        ],
         criteria=[
             SampleCriteriaResponse(
                 id=item.id,
@@ -70,8 +81,12 @@ def get_samples(settings: SettingsDep) -> DemoSamplesResponse:
         "the scanned sample fails at parsing because it genuinely has no text.\n\n"
         "**Refused unless the server is in demo mode.** An endpoint that manufactures "
         "candidate records has no place in a deployment handling real applications.\n\n"
-        "`criteria_id` picks which sample brief to seed from — the formal job "
-        "description by default, or one of the informal ones from `/api/demo/samples`."
+        "`criteria_id` picks what to seed. The default is the structured demo "
+        "(ADR-0012): six typed criteria screened by the deterministic engine, "
+        "which calls no model at all and so needs neither an API key nor a "
+        "recorded fixture. Naming one of the sample briefs from "
+        "`/api/demo/samples` instead seeds the legacy free-text path, which does "
+        "need its recordings."
     ),
     responses={
         404: {"description": "No sample criteria set with that id"},

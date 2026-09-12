@@ -42,6 +42,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.enums import (
+    DETERMINISTIC_METHODS,
     CandidateFailureReason,
     CandidateStatus,
     DatePrecision,
@@ -60,7 +61,7 @@ from app.models.evaluation import EvidenceSpan, MatchResult
 from app.models.job import Requirement
 from app.models.profile import CandidateProfile, ProfileExperience, ProfileSkill
 from app.services import candidates as candidates_service
-from app.services import invalidation, semantic_eval
+from app.services import cv_facts, invalidation, semantic_eval, structured_match
 from app.services import requirements as requirements_service
 from app.services.evidence import SpanWriter
 
@@ -287,6 +288,92 @@ class Decision:
     llm_call_id: uuid.UUID | None = None
 
 
+# --------------------------------------------------------------------------
+# Structured criteria (ADR-0012)
+# --------------------------------------------------------------------------
+
+
+def spec_of(requirement: Requirement) -> structured_match.RequirementSpec | None:
+    """The structured criterion a requirement carries, or None if it is legacy.
+
+    `spec_type IS NULL` marks a row written before ADR-0012, which carries free
+    text instead. The database refuses anything in between, so this is a clean
+    two-way split rather than a guess.
+    """
+    if requirement.spec_type is None:
+        return None
+    return structured_match.RequirementSpec(
+        spec_type=requirement.spec_type.value,
+        subject=requirement.subject,
+        threshold_value=requirement.threshold_value,
+        scale=requirement.threshold_scale,
+    )
+
+
+def decide_structured(
+    requirements: Sequence[Requirement],
+    facts: cv_facts.CvFacts,
+    writer: SpanWriter,
+) -> list[Decision]:
+    """A verdict for every structured requirement, from the CV's own facts.
+
+    No model and no candidate profile: the engine reads the document directly.
+    The span it proposes is still put through the same verifier every other
+    verdict uses, because a quote this module cannot find in the stored text is
+    not evidence no matter which engine produced it (ADR-0002).
+    """
+    decisions: list[Decision] = []
+    for requirement in requirements:
+        spec = spec_of(requirement)
+        if spec is None:  # pragma: no cover - callers pass structured rows only
+            raise ConflictError(f"Requirement {requirement.id} carries no structured spec.")
+
+        outcome = structured_match.match(spec, facts)
+        verdict = outcome.verdict
+        reason = outcome.reason
+        span_id: uuid.UUID | None = None
+        raw_verdict: MatchVerdict | None = None
+        downgraded = False
+
+        if outcome.span is not None:
+            span, verification = writer.add(outcome.span.text)
+            if verification.is_usable:
+                span_id = span.id
+            elif verdict in (MatchVerdict.MATCHED, MatchVerdict.PARTIAL):
+                # The same refusal the model path makes: a positive verdict
+                # whose quote cannot be located, or which reads as instruction
+                # text rather than as CV content, is downgraded rather than
+                # trusted. The original claim is kept in `raw_verdict`.
+                raw_verdict = verdict
+                verdict = MatchVerdict.NO_EVIDENCE
+                downgraded = True
+                reason = (
+                    INSTRUCTION_EVIDENCE_REASON
+                    if verification.instruction_like
+                    else UNVERIFIED_EVIDENCE_REASON
+                )
+            else:
+                # NEEDS_REVIEW keeps its verdict and simply loses the citation.
+                # Turning it into NO_EVIDENCE here would convert "we could not
+                # read this" into "the document does not show it".
+                span_id = None
+
+        decisions.append(
+            Decision(
+                requirement_id=requirement.id,
+                verdict=verdict,
+                decided_by=MatchMethod.DOWNGRADED_UNVERIFIED
+                if downgraded
+                else MatchMethod.DETERMINISTIC_STRUCTURED,
+                reason=reason,
+                evidence_span_id=span_id,
+                raw_verdict=raw_verdict,
+                downgraded=downgraded,
+            )
+        )
+    return decisions
+
+
 def load_alias_map(db: Session) -> dict[str, str]:
     """The curated alias -> canonical lookup, normalized on both sides."""
     return {
@@ -499,38 +586,66 @@ def run_matching(db: Session, candidate_id: uuid.UUID, client: LlmClient) -> Mat
     """
     candidate = candidates_service.get_candidate(db, candidate_id)
 
-    profile = db.scalar(
-        select(CandidateProfile).where(CandidateProfile.candidate_id == candidate_id)
-    )
-    if profile is None:
-        raise ConflictError(
-            "This candidate has no extracted profile yet. Extract the profile before matching."
-        )
-
-    parsed = db.get(ParsedDocument, profile.parsed_document_id)
-    if parsed is None:  # pragma: no cover - cascade makes this unreachable
-        raise ConflictError("The parsed document this profile was extracted from is missing.")
-
     # The gate. Raises RequirementsNotConfirmedError when the human has not
     # confirmed, and that is the only accessor this stage is allowed to use.
     requirement_rows = requirements_service.get_confirmed_requirements(db, candidate.job_id)
     if not requirement_rows:
         raise ConflictError("This job has no requirements to match against.")
 
-    skills = list(db.scalars(select(ProfileSkill).where(ProfileSkill.profile_id == profile.id)))
-    roles = list(
-        db.scalars(select(ProfileExperience).where(ProfileExperience.profile_id == profile.id))
-    )
-    usable_span_ids = _usable_span_ids(db, skills, roles)
+    # Two generations of requirement, split by the column the database
+    # guarantees is all-or-nothing. Structured rows are screened from the CV
+    # text with no model and no profile; legacy free-text rows still take the
+    # deterministic-then-model route they were written for.
+    structured_rows = [row for row in requirement_rows if row.spec_type is not None]
+    legacy_rows = [row for row in requirement_rows if row.spec_type is None]
 
-    decided, undecided = decide_deterministically(
-        requirement_rows,
-        skills,
-        roles,
-        load_alias_map(db),
-        usable_span_ids,
-        as_of=date.today(),
+    profile = db.scalar(
+        select(CandidateProfile).where(CandidateProfile.candidate_id == candidate_id)
     )
+    if profile is None and legacy_rows:
+        # Only the legacy path needs an extracted profile. Requiring one for a
+        # wholly structured job would demand a model call the product no longer
+        # makes.
+        raise ConflictError(
+            "This candidate has no extracted profile yet. Extract the profile before matching."
+        )
+
+    parsed = (
+        db.get(ParsedDocument, profile.parsed_document_id)
+        if profile is not None
+        else candidates_service.get_parsed_document(db, candidate_id)
+    )
+    if parsed is None:
+        raise ConflictError("This candidate has no parsed document to read evidence from.")
+
+    as_of = date.today()
+    writer = SpanWriter(db, parsed)
+    decided: list[Decision] = []
+
+    if structured_rows:
+        facts = cv_facts.extract_facts(
+            parsed.full_text, as_of_year=as_of.year, as_of_month=as_of.month
+        )
+        decided.extend(decide_structured(structured_rows, facts, writer))
+
+    undecided: list[Requirement] = []
+    if legacy_rows:
+        assert profile is not None  # guarded above
+        skills = list(db.scalars(select(ProfileSkill).where(ProfileSkill.profile_id == profile.id)))
+        roles = list(
+            db.scalars(select(ProfileExperience).where(ProfileExperience.profile_id == profile.id))
+        )
+        usable_span_ids = _usable_span_ids(db, skills, roles)
+
+        legacy_decided, undecided = decide_deterministically(
+            legacy_rows,
+            skills,
+            roles,
+            load_alias_map(db),
+            usable_span_ids,
+            as_of=as_of,
+        )
+        decided.extend(legacy_decided)
 
     evaluation: semantic_eval.SemanticEvaluation | None = None
     if undecided:
@@ -555,7 +670,6 @@ def run_matching(db: Session, candidate_id: uuid.UUID, client: LlmClient) -> Mat
             mark_matching_failed(db, candidate, str(exc))
             raise
 
-    writer = SpanWriter(db, parsed)
     if evaluation is not None:
         decided.extend(
             _apply_policy(proposal, writer, evaluation.llm_call_id)
@@ -564,16 +678,7 @@ def run_matching(db: Session, candidate_id: uuid.UUID, client: LlmClient) -> Mat
 
     results = _persist(db, candidate, requirement_rows, decided)
 
-    deterministic = sum(
-        1
-        for decision in decided
-        if decision.decided_by
-        in (
-            MatchMethod.DETERMINISTIC_EXACT,
-            MatchMethod.DETERMINISTIC_ALIAS,
-            MatchMethod.DETERMINISTIC_DURATION,
-        )
-    )
+    deterministic = sum(1 for decision in decided if decision.decided_by in DETERMINISTIC_METHODS)
     downgraded = sum(1 for decision in decided if decision.downgraded)
     logger.info(
         "Matching for candidate %s: %s decided deterministically, %s by the model, %s downgraded",

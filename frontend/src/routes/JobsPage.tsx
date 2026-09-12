@@ -22,8 +22,9 @@ export function JobsPage() {
   const create = useAction();
   const seed = useAction();
   const [title, setTitle] = useState("");
-  // Which sample brief to seed from. Empty means the formal job description,
-  // which is what the server defaults to.
+  // What to seed with. Empty until the person chooses, which is resolved
+  // below to the structured demo — the server's default, and the one that
+  // needs no model of any kind.
   const [criteriaId, setCriteriaId] = useState("");
 
   const onCreate = async (event: React.FormEvent) => {
@@ -43,7 +44,7 @@ export function JobsPage() {
   const onSeed = async () => {
     let seeded: { job_id: string } | null = null;
     const ok = await seed.run(async () => {
-      seeded = await seedDemoJob(criteriaId || undefined);
+      seeded = await seedDemoJob(selectedCriteria);
     });
     if (ok && seeded) navigate(href.job((seeded as { job_id: string }).job_id));
   };
@@ -51,6 +52,12 @@ export function JobsPage() {
   const samples = demo.resource.state === "ready" ? demo.resource.data : null;
   const demoAvailable = samples !== null && samples.demo_mode;
   const criteria: SampleCriteria[] = demoAvailable ? samples.criteria : [];
+  // Resolved rather than stored, so the select's value always names an option
+  // it actually offers: a controlled select whose value matches no option
+  // displays the first entry while reporting something else.
+  const structuredId = samples?.structured_criteria_id ?? "structured";
+  const selectedCriteria = criteriaId || structuredId;
+  const structuredSelected = selectedCriteria === structuredId;
 
   return (
     <div className="stack">
@@ -82,18 +89,36 @@ export function JobsPage() {
                 injected instructions, and a scan with no text layer. No API key, no cost, and no
                 real applicant&rsquo;s data.
               </p>
+              <p className="demo-strip__hint">
+                {structuredSelected ? (
+                  <>
+                    The default run uses {samples.structured_criteria.length} structured criteria
+                    and calls no language model at all — not even a recorded one. Every verdict is
+                    arithmetic over the CV&rsquo;s own text, so it works with nothing installed.
+                  </>
+                ) : (
+                  <>
+                    This brief is read by the language model, which in demo mode means a recorded
+                    response rather than a live one. It is the earlier approach, kept so the
+                    difference is visible.
+                  </>
+                )}
+              </p>
             </div>
             <div className="demo-strip__actions">
-              {criteria.length > 1 ? (
+              {criteria.length > 0 ? (
                 <label className="field field--inline">
-                  <span className="field__label">Screening criteria</span>
+                  <span className="field__label">Screen with</span>
                   <select
-                    value={criteriaId}
+                    value={selectedCriteria}
                     onChange={(event) => setCriteriaId(event.target.value)}
                   >
+                    <option value={samples.structured_criteria_id}>
+                      Structured criteria (no model)
+                    </option>
                     {criteria.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.label} ({item.language})
+                        Free text — {item.label} ({item.language})
                       </option>
                     ))}
                   </select>

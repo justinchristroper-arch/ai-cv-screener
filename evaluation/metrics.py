@@ -24,12 +24,6 @@ from app.services import ranking, scoring
 from app.services.matching import Decision, decide_deterministically, load_alias_map
 from evaluation.loader import Dataset
 
-DETERMINISTIC_METHODS = (
-    MatchMethod.DETERMINISTIC_EXACT,
-    MatchMethod.DETERMINISTIC_ALIAS,
-    MatchMethod.DETERMINISTIC_DURATION,
-)
-
 
 @dataclass
 class Metric:

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import LlmClientDep, SessionDep, SettingsDep, StorageDep
 from app.api.limits import model_calls, uploads
-from app.core.enums import MatchMethod, MatchVerdict
+from app.core.enums import DETERMINISTIC_METHODS, MatchVerdict
 from app.core.errors import ConflictError, NotFoundError
 from app.models.candidate import Candidate
 from app.models.evaluation import EvidenceSpan, Score
@@ -52,12 +52,6 @@ from app.services import profile_extraction as profile_service
 from app.services import scoring as scoring_service
 
 router = APIRouter(tags=["candidates"])
-
-_DETERMINISTIC_METHODS = (
-    MatchMethod.DETERMINISTIC_EXACT,
-    MatchMethod.DETERMINISTIC_ALIAS,
-    MatchMethod.DETERMINISTIC_DURATION,
-)
 
 
 def _candidate_response(db: Session, candidate: Candidate) -> CandidateResponse:
@@ -329,12 +323,13 @@ def _match_results_response(db: Session, candidate: Candidate) -> MatchResultsRe
             matched=sum(1 for row in rows if row.result.verdict is MatchVerdict.MATCHED),
             partial=sum(1 for row in rows if row.result.verdict is MatchVerdict.PARTIAL),
             no_evidence=sum(1 for row in rows if row.result.verdict is MatchVerdict.NO_EVIDENCE),
+            needs_review=sum(1 for row in rows if row.result.verdict is MatchVerdict.NEEDS_REVIEW),
             downgraded=sum(1 for row in rows if row.result.downgraded),
             decided_deterministically=sum(
-                1 for row in rows if row.result.decided_by in _DETERMINISTIC_METHODS
+                1 for row in rows if row.result.decided_by in DETERMINISTIC_METHODS
             ),
             decided_by_model=sum(
-                1 for row in rows if row.result.decided_by not in _DETERMINISTIC_METHODS
+                1 for row in rows if row.result.decided_by not in DETERMINISTIC_METHODS
             ),
         ),
     )
@@ -474,6 +469,9 @@ def _score_response(
         capped=row.capped,
         capped_by_requirement_id=row.capped_by_requirement_id,
         capped_by_requirement_text=capped_text,
+        review_flag=breakdown.review_flag,
+        needs_review_count=len(breakdown.needs_review),
+        must_have_needs_review_count=len(breakdown.must_have_needs_review),
         scoring_config_version=row.scoring_config_version,
         computed_at=row.computed_at,
         contributions=[

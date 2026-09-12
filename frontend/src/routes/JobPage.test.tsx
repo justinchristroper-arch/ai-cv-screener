@@ -9,7 +9,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JobPage } from "./JobPage";
-import { HEALTH_DEMO, DEMO_SAMPLES, job, requirement, stubFetch } from "../testing/stubs";
+import {
+  HEALTH_DEMO,
+  DEMO_SAMPLES,
+  job,
+  requirement,
+  stubFetch,
+  VOCABULARY,
+} from "../testing/stubs";
 
 const EMPTY_RANKING = {
   body: {
@@ -30,6 +37,7 @@ function stubJob(options: { confirmed: boolean; ranking?: unknown } = { confirme
       body: HEALTH_DEMO.body,
     },
     "GET /api/demo/samples": DEMO_SAMPLES,
+    "GET /api/criteria/vocabulary": VOCABULARY,
     "GET /api/jobs/job-1": { body: job({ requirements_confirmed_at: confirmedAt }) },
     "GET /api/jobs/job-1/description": {
       body: {
@@ -74,9 +82,9 @@ describe("JobPage", () => {
     render(<JobPage jobId="job-1" />);
 
     expect(
-      await screen.findByRole("heading", { name: /1 · screening criteria/i }),
+      await screen.findByRole("heading", { name: /1 · job description/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /2 · requirements/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /2 · screening criteria/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /3 · candidates/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /4 · results/i })).toBeInTheDocument();
   });
@@ -94,7 +102,7 @@ describe("JobPage", () => {
         /nothing is matched or scored against a requirement set no one has agreed to/i,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /confirm requirements/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /confirm criteria/i })).toBeInTheDocument();
   });
 
   it("says what stays editable after confirmation, and what unconfirming costs", async () => {
@@ -102,12 +110,12 @@ describe("JobPage", () => {
 
     render(<JobPage jobId="job-1" />);
 
-    // "Requirements confirmed" appears twice — the header pill and the callout
+    // "Criteria confirmed" appears twice — the header pill and the callout
     // title — and they arrive from two separate requests, so query for the
     // callout body instead of the ambiguous phrase.
     expect(await screen.findByText(/weight and must-have stay editable/i)).toBeInTheDocument();
     expect(screen.getByText(/discards every verdict and score in this job/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/requirements confirmed/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/criteria confirmed/i).length).toBeGreaterThan(1);
   });
 
   it("labels a demo job as synthetic", async () => {
@@ -116,6 +124,7 @@ describe("JobPage", () => {
         body: HEALTH_DEMO.body,
       },
       "GET /api/demo/samples": DEMO_SAMPLES,
+      "GET /api/criteria/vocabulary": VOCABULARY,
       "GET /api/jobs/job-1": { body: job({ title: "[Demo] Senior Backend Engineer" }) },
       "GET /api/jobs/job-1/description": { status: 404, body: { code: "not_found" } },
       "GET /api/jobs/job-1/requirements": {
@@ -135,6 +144,7 @@ describe("JobPage", () => {
         body: HEALTH_DEMO.body,
       },
       "GET /api/demo/samples": DEMO_SAMPLES,
+      "GET /api/criteria/vocabulary": VOCABULARY,
       "GET /api/jobs/job-1": { body: job({ has_description: false, requirement_count: 0 }) },
       "GET /api/jobs/job-1/description": { status: 404, body: { code: "not_found" } },
       "GET /api/jobs/job-1/requirements": {
@@ -145,8 +155,10 @@ describe("JobPage", () => {
 
     render(<JobPage jobId="job-1" />);
 
-    expect(await screen.findByLabelText(/your screening criteria/i)).toBeInTheDocument();
-    expect(screen.getByText(/add a job description first/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/job description or notes/i)).toBeInTheDocument();
+    // Criteria no longer depend on a description: step 2 is usable immediately,
+    // and says what to add rather than what is missing.
+    expect(screen.getByText(/no criteria yet/i)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

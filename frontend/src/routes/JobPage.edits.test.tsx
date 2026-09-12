@@ -22,7 +22,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JobPage } from "./JobPage";
-import { HEALTH_DEMO, DEMO_SAMPLES, job, requirement, stubFetch } from "../testing/stubs";
+import {
+  HEALTH_DEMO,
+  DEMO_SAMPLES,
+  job,
+  requirement,
+  stubFetch,
+  VOCABULARY,
+} from "../testing/stubs";
 
 const DELAY = { delayMs: 5 };
 
@@ -67,6 +74,7 @@ function stubJob() {
     {
       "GET /health": HEALTH,
       "GET /api/demo/samples": DEMO_SAMPLES,
+      "GET /api/criteria/vocabulary": VOCABULARY,
       "GET /api/jobs/job-1": { body: job() },
       "GET /api/jobs/job-1/description": DESCRIPTION,
       "GET /api/jobs/job-1/requirements": () => ({
@@ -142,7 +150,7 @@ describe("inline requirement edits", () => {
     await new Promise((resolve) => setTimeout(resolve, 2));
     expect(screen.queryByText(/loading job…/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/loading requirements…/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /1 · screening criteria/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /1 · job description/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /4 · results/i })).toBeInTheDocument();
     expect(screen.getByText("Strong experience with Python")).toBeInTheDocument();
 
@@ -174,6 +182,7 @@ describe("inline requirement edits", () => {
       {
         "GET /health": HEALTH,
         "GET /api/demo/samples": DEMO_SAMPLES,
+        "GET /api/criteria/vocabulary": VOCABULARY,
         "GET /api/jobs/job-1": { body: job() },
         "GET /api/jobs/job-1/description": DESCRIPTION,
         "GET /api/jobs/job-1/requirements": () => ({
@@ -216,6 +225,7 @@ describe("inline requirement edits", () => {
       {
         "GET /health": HEALTH,
         "GET /api/demo/samples": DEMO_SAMPLES,
+        "GET /api/criteria/vocabulary": VOCABULARY,
         "GET /api/jobs/job-1": () => ({ body: job({ requirements_confirmed_at: confirmedAt }) }),
         "GET /api/jobs/job-1/description": { status: 404, body: { code: "not_found" } },
         "GET /api/jobs/job-1/requirements": () => ({
@@ -237,12 +247,12 @@ describe("inline requirement edits", () => {
     );
 
     render(<JobPage jobId="job-1" />);
-    await user.click(await screen.findByRole("button", { name: /confirm requirements/i }));
+    await user.click(await screen.findByRole("button", { name: /confirm criteria/i }));
 
     await waitFor(() => expect(countOf(calls, "GET /api/jobs/job-1")).toBeGreaterThan(1));
     const header = screen.getByRole("banner");
     await waitFor(() =>
-      expect(within(header).queryByText(/requirements not confirmed/i)).not.toBeInTheDocument(),
+      expect(within(header).queryByText(/criteria not confirmed/i)).not.toBeInTheDocument(),
     );
   });
   it("shows the weight the server stored, not the one that was typed", async () => {
@@ -254,6 +264,7 @@ describe("inline requirement edits", () => {
       {
         "GET /health": HEALTH,
         "GET /api/demo/samples": DEMO_SAMPLES,
+        "GET /api/criteria/vocabulary": VOCABULARY,
         "GET /api/jobs/job-1": { body: job() },
         "GET /api/jobs/job-1/description": DESCRIPTION,
         "GET /api/jobs/job-1/requirements": () => ({

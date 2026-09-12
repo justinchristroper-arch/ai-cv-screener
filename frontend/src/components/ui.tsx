@@ -114,6 +114,7 @@ const VERDICT_CLASS: Record<MatchVerdict, string> = {
   MATCHED: "verdict--matched",
   PARTIAL: "verdict--partial",
   NO_EVIDENCE: "verdict--none",
+  NEEDS_REVIEW: "verdict--review",
 };
 
 export function VerdictPill({ verdict }: { verdict: MatchVerdict }) {

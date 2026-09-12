@@ -64,18 +64,21 @@ erDiagram
 |---|---|---|
 | `requirement_category` | `EDUCATION`, `TECHNICAL_SKILL`, `EXPERIENCE`, `PROJECT`, `SOFT_SKILL_OTHER` | `requirement` |
 | `requirement_origin` | `LLM_EXTRACTED`, `HR_ADDED` | `requirement` |
+| `requirement_spec_type` | `EDUCATION_MIN`, `GPA_MIN`, `EXPERIENCE_MIN`, `SKILL`, `INTERNSHIP_MIN`, `LANGUAGE_PRESENT`, `EXPERIENCE_IN_FIELD` | `requirement` |
 | `jd_source_type` | `PASTED`, `UPLOADED` | `job_description` |
 | `candidate_status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `EXTRACTED`, `SCORING`, `SCORED`, `FAILED` | `candidate` |
 | `candidate_failure_reason` | `CORRUPT_FILE`, `NO_TEXT_LAYER`, `UNSUPPORTED_LANGUAGE`, `PARSE_TIMEOUT`, `EXTRACTION_FAILED`, `MATCHING_FAILED` | `candidate` |
-| `match_verdict` | `MATCHED`, `PARTIAL`, `NO_EVIDENCE` | `match_result` |
-| `match_method` | `DETERMINISTIC_EXACT`, `DETERMINISTIC_ALIAS`, `DETERMINISTIC_DURATION`, `LLM_SEMANTIC`, `DOWNGRADED_UNVERIFIED` | `match_result` |
+| `match_verdict` | `MATCHED`, `PARTIAL`, `NO_EVIDENCE`, `NEEDS_REVIEW` | `match_result` |
+| `match_method` | `DETERMINISTIC_EXACT`, `DETERMINISTIC_ALIAS`, `DETERMINISTIC_DURATION`, `DETERMINISTIC_STRUCTURED`, `LLM_SEMANTIC`, `DOWNGRADED_UNVERIFIED` | `match_result` |
 | `evidence_verification` | `VERIFIED_EXACT`, `VERIFIED_NORMALIZED`, `UNVERIFIED` | `evidence_span` |
 | `recommendation_band` | `STRONG_MATCH`, `GOOD_MATCH`, `REVIEW`, `LOW_MATCH` | `score` |
-| `score_status` | `COMPUTED`, `UNDEFINED_NO_WEIGHT` | `score` |
+| `score_status` | `COMPUTED`, `UNDEFINED_NO_WEIGHT`, `UNDEFINED_NO_DECIDABLE` | `score` |
 | `date_precision` | `DAY`, `MONTH`, `YEAR`, `UNKNOWN` | `profile_experience` |
 | `llm_purpose` | `JD_EXTRACTION`, `PROFILE_EXTRACTION`, `SEMANTIC_MATCH` | `llm_call_log` |
 | `llm_source` | `LIVE`, `FIXTURE` | `llm_call_log` |
 | `llm_status` | `SUCCESS`, `SCHEMA_INVALID`, `PROVIDER_ERROR`, `TIMEOUT` | `llm_call_log` |
+
+`match_verdict` gained `NEEDS_REVIEW` in [ADR-0012](decisions/0012-structured-screening-criteria.md). It is not a softer `NO_EVIDENCE`: the two say opposite things about the document. `NO_EVIDENCE` means the CV shows nothing for the criterion; `NEEDS_REVIEW` means it shows something that could not be read safely — a grade with no scale, a criterion outside the supported vocabulary. Only the second is a statement about the screener rather than about the document, which is why it is excluded from the arithmetic instead of being valued at zero.
 
 `candidate_status` carries transient states (`PARSING`, `EXTRACTING`, `SCORING`) as well as settled ones. They exist for two concrete reasons: the UI needs per-file progress during a batch, and a candidate sitting in a transient state past a timeout is how a job lost to a server restart is detected (see [architecture.md §7](architecture.md#7-processing-model)).
 
@@ -120,11 +123,21 @@ One JD per job in the MVP, enforced by the unique constraint. Replacing a JD rep
 | `weight` | NUMERIC(5,2) | no | `CHECK weight >= 0`. Default **3** when `must_have`, **1** otherwise |
 | `display_order` | INTEGER | no | Stable ordering for the review table |
 | `origin` | `requirement_origin` | no | |
+| `spec_type` | `requirement_spec_type` | yes | Set on a structured criterion; `NULL` on a legacy free-text row |
+| `subject` | TEXT | yes | The thing named: a degree level, a skill, or a language |
+| `threshold_value` | NUMERIC(6,2) | yes | The bar: months for a duration, a grade for GPA |
+| `threshold_scale` | NUMERIC(4,2) | yes | GPA only — the scale the recruiter says the threshold is out of |
 | `proposed_text` | TEXT | yes | What the LLM originally proposed |
 | `proposed_category` | `requirement_category` | yes | " |
 | `proposed_must_have` | BOOLEAN | yes | " |
 | `llm_call_id` | UUID | yes | FK → `llm_call_log` |
 | `created_at` / `updated_at` | TIMESTAMPTZ | no | |
+
+`EXPERIENCE_IN_FIELD` is the only type that carries a `subject` **and** a `threshold_value`. Every branch of the original constraint demanded one or the other and forbade the pair, so migration `e7c95a2f1b08` drops and recreates it with a branch for the new type — a CHECK expression cannot be amended in place.
+
+**The four structured columns are shape-checked by the database, not only by the API.** `ck_requirement_spec_is_complete` is a `CASE` over `spec_type`: a subject-bearing type must carry a subject and no numbers, `GPA_MIN` must carry both a value and a scale, `EXPERIENCE_MIN` must carry a value, and a row with no `spec_type` must carry none of the four. It is written as `CASE ... ELSE FALSE` rather than as a chain of `IN` tests because a NULL `spec_type` makes `spec_type IN (...)` evaluate to NULL, and PostgreSQL **accepts** a CHECK that evaluates to NULL — which let a malformed row through during development.
+
+`text` is still written for a structured criterion, as the human-readable rendering of the spec (`structured_match.describe`), so every existing display, export and score breakdown keeps working against one without knowing it is structured.
 
 The three `proposed_*` columns are written once at extraction and never updated. They cost almost nothing and buy something valuable: `proposed_* != current` is exactly the set of human corrections to machine output — a labeled evaluation signal that accumulates from ordinary use, which is what the specification promises in feature F3. They are `NULL` for `HR_ADDED` requirements.
 
@@ -287,7 +300,7 @@ One row per (requirement, candidate) pair.
 Constraints:
 
 - `UNIQUE (requirement_id, candidate_id)` — one verdict per pair, always.
-- `CHECK (verdict = 'NO_EVIDENCE' OR evidence_span_id IS NOT NULL)` — **a positive verdict without evidence cannot be stored.** The evidence-first principle is a database constraint, not a convention someone might forget.
+- `CHECK (verdict::text IN ('NO_EVIDENCE', 'NEEDS_REVIEW') OR evidence_span_id IS NOT NULL)` — **a positive verdict without evidence cannot be stored.** The evidence-first principle is a database constraint, not a convention someone might forget. `NEEDS_REVIEW` joined the exemption in ADR-0012: an unresolved criterion is not a positive verdict, and there is often nothing in the document to point at. It is compared as `::text` so the constraint can be created in the same migration that adds the enum value — PostgreSQL refuses to use a freshly added label in the transaction that added it.
 
 Keeping `raw_verdict` alongside `verdict` is what makes downgrades measurable: the count of `downgraded = true` rows is the hallucinated-or-injected-evidence rate, reported directly in Phase 13.
 
@@ -310,7 +323,7 @@ Keeping `raw_verdict` alongside `verdict` is what makes downgrades measurable: t
 | `scoring_config_version` | TEXT | no | Identifies the value/threshold bundle used |
 | `computed_at` | TIMESTAMPTZ | no | |
 
-**Edge case, decided here rather than in Phase 9.** If a job has no requirements, or every weight is `0`, the score is not `0` — it is **undefined**. `status = UNDEFINED_NO_WEIGHT`, and `score`, `band`, and the arithmetic columns are `NULL`. Returning `0` would render as "terrible candidate" when the truth is "nothing was asked of them". This is the same distinction as `NO_EVIDENCE` versus "does not have the skill", applied to arithmetic, and it removes the division-by-zero case by construction.
+**Edge case, decided here rather than in Phase 9.** If a job has no requirements, or every weight is `0`, the score is not `0` — it is **undefined**. `status = UNDEFINED_NO_WEIGHT`, and `score`, `band`, and the arithmetic columns are `NULL`. There is a second way to reach the same place: if every criterion came back `NEEDS_REVIEW`, `status = UNDEFINED_NO_DECIDABLE`. Criteria were asked and none could be answered, which is a different fact from none having been asked, so it is a different status. Returning `0` would render as "terrible candidate" when the truth is "nothing was asked of them". This is the same distinction as `NO_EVIDENCE` versus "does not have the skill", applied to arithmetic, and it removes the division-by-zero case by construction.
 
 `scoring_config_version` names the bundle `{MATCHED: 1.0, PARTIAL: 0.5, NO_EVIDENCE: 0.0, thresholds: 90/75/60, must_have_guard: on}`. Changing any constant means a new version string, so a stored score is always interpretable against the rules that produced it.
 
@@ -427,7 +440,7 @@ Ranking joins `candidate` (filtered by `job_id`) to `score`. At MVP scale — te
 
 Phase 10 needs a deterministic order. Defined here so it is fixed before implementation:
 
-1. `score.score` **descending** — candidates with `status = UNDEFINED_NO_WEIGHT` sort last, never as `0`.
+1. `score.score` **descending** — candidates with either undefined status sort last, never as `0`.
 2. `score.must_have_coverage` **descending**, nulls last.
 3. Count of `match_result.verdict = 'MATCHED'` **descending** — prefers concrete evidence over accumulated partials at the same score.
 4. `candidate.created_at` **ascending**, then `candidate.id` — a total order, so repeated runs on identical data always produce an identical list.

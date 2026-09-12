@@ -96,7 +96,22 @@ class ScoringConfig:
             return self.matched
         if verdict is MatchVerdict.PARTIAL:
             return self.partial
-        return self.no_evidence
+        if verdict is MatchVerdict.NO_EVIDENCE:
+            return self.no_evidence
+        # NEEDS_REVIEW has no value, by construction. It is excluded from both
+        # sides of the average (ADR-0012), so anything that reaches here is
+        # asking the wrong question and would silently score it as a zero.
+        raise ValueError(f"{verdict.value} is not a scoreable verdict")
+
+
+#: The verdicts that participate in the average. NEEDS_REVIEW is absent on
+#: purpose: it says the engine could not read the document, not that the
+#: document is empty, and averaging the two together would erase the difference.
+SCOREABLE_VERDICTS = (
+    MatchVerdict.MATCHED,
+    MatchVerdict.PARTIAL,
+    MatchVerdict.NO_EVIDENCE,
+)
 
 
 #: `PARTIAL = 0.5` and the 90/75/60 thresholds are conventions, not
@@ -134,8 +149,15 @@ class Contribution:
     display_order: int
     weight: Decimal
     verdict: MatchVerdict
-    verdict_value: Decimal
-    points: Decimal
+
+    #: Both are None for NEEDS_REVIEW. A 0 here would be indistinguishable from
+    #: a genuine NO_EVIDENCE in every table and export that reads a breakdown.
+    verdict_value: Decimal | None
+    points: Decimal | None
+
+    @property
+    def is_scoreable(self) -> bool:
+        return self.verdict in SCOREABLE_VERDICTS
 
 
 @dataclass(frozen=True)
@@ -158,6 +180,24 @@ class ScoreBreakdown:
     @property
     def is_defined(self) -> bool:
         return self.status is ScoreStatus.COMPUTED
+
+    @property
+    def needs_review(self) -> list[Contribution]:
+        """Requirements the engine could not resolve. Derived, never stored.
+
+        Recomputed from the same verdicts a stored score was built from, so a
+        review flag survives a reload without a column of its own.
+        """
+        return [item for item in self.contributions if not item.is_scoreable]
+
+    @property
+    def review_flag(self) -> bool:
+        """Whether the recruiter must be shown that something was unresolved."""
+        return bool(self.needs_review)
+
+    @property
+    def must_have_needs_review(self) -> list[Contribution]:
+        return [item for item in self.needs_review if item.must_have]
 
 
 def _round_half_up(value: Decimal) -> int:
@@ -191,23 +231,34 @@ def compute_score(
     nothing here reads a clock, a database or a network. `pairs` carries plain
     requirement rows, so a test can build them without a database at all.
     """
-    contributions = [
-        Contribution(
-            requirement_id=requirement.id,
-            requirement_text=requirement.text,
-            category=requirement.category,
-            must_have=requirement.must_have,
-            display_order=requirement.display_order,
-            weight=Decimal(requirement.weight),
-            verdict=verdict,
-            verdict_value=config.value_of(verdict),
-            points=Decimal(requirement.weight) * config.value_of(verdict),
-        )
-        for requirement, verdict in pairs
-    ]
+    contributions = [_contribution(requirement, verdict, config) for requirement, verdict in pairs]
     contributions.sort(key=lambda item: (item.display_order, str(item.requirement_id)))
 
-    total_weight = sum((item.weight for item in contributions), Decimal("0"))
+    # NEEDS_REVIEW is excluded from BOTH sides of the average (ADR-0012): its
+    # weight never reaches the denominator, and the weight is NOT redistributed
+    # across the others -- doing that would quietly change what the remaining
+    # requirements are worth relative to what the recruiter set.
+    scoreable = [item for item in contributions if item.is_scoreable]
+
+    if contributions and not scoreable:
+        # Everything came back unresolved. There is no average to take, and a 0
+        # would report a failure the evaluation never actually reached.
+        return ScoreBreakdown(
+            status=ScoreStatus.UNDEFINED_NO_DECIDABLE,
+            contributions=contributions,
+            weighted_sum=None,
+            total_weight=None,
+            score_raw=None,
+            score=None,
+            must_have_coverage=None,
+            band_raw=None,
+            band=None,
+            capped=False,
+            capped_by_requirement_id=None,
+            config_version=config.version,
+        )
+
+    total_weight = sum((item.weight for item in scoreable), Decimal("0"))
 
     if total_weight <= 0:
         # No requirements at all, or every weight is zero. Not a score of 0:
@@ -228,7 +279,7 @@ def compute_score(
             config_version=config.version,
         )
 
-    weighted_sum = sum((item.points for item in contributions), Decimal("0"))
+    weighted_sum = sum((item.points for item in scoreable), Decimal("0"))
     score_raw = (weighted_sum / total_weight).quantize(RATIO_PLACES, rounding=ROUND_HALF_UP)
     # Scaled from the *stored* `score_raw`, not from the unrounded division, so
     # the 0-100 figure follows from the number the recruiter can see rather than
@@ -254,6 +305,26 @@ def compute_score(
     )
 
 
+def _contribution(
+    requirement: Requirement, verdict: MatchVerdict, config: ScoringConfig
+) -> Contribution:
+    """One requirement's line of the arithmetic, or an unresolved placeholder."""
+    weight = Decimal(requirement.weight)
+    scoreable = verdict in SCOREABLE_VERDICTS
+    value = config.value_of(verdict) if scoreable else None
+    return Contribution(
+        requirement_id=requirement.id,
+        requirement_text=requirement.text,
+        category=requirement.category,
+        must_have=requirement.must_have,
+        display_order=requirement.display_order,
+        weight=weight,
+        verdict=verdict,
+        verdict_value=value,
+        points=None if value is None else weight * value,
+    )
+
+
 def _must_have_coverage(contributions: Sequence[Contribution]) -> Decimal | None:
     """The same weighted average, restricted to must-have requirements.
 
@@ -265,7 +336,7 @@ def _must_have_coverage(contributions: Sequence[Contribution]) -> Decimal | None
     zero -- in both cases there is no ratio to report, and inventing one would
     be worse than saying so.
     """
-    must_haves = [item for item in contributions if item.must_have]
+    must_haves = [item for item in contributions if item.must_have and item.is_scoreable]
     if not must_haves:
         return None
 
@@ -305,10 +376,26 @@ def _apply_must_have_guard(
         ),
         None,
     )
-    if trigger is None:
-        return band_raw, False, None
+    if trigger is not None:
+        return RecommendationBand.REVIEW, True, trigger.requirement_id
 
-    return RecommendationBand.REVIEW, True, trigger.requirement_id
+    # A must-have the engine could not resolve is NOT missing evidence, so it
+    # does not trip the guard above -- but the label must not read as a clean
+    # pass either. The band is capped and the requirement named, while the
+    # verdict itself stays NEEDS_REVIEW so the reason is recoverable from the
+    # stored row rather than from a second column (ADR-0012).
+    unresolved = next(
+        (
+            item
+            for item in contributions
+            if item.must_have and item.verdict is MatchVerdict.NEEDS_REVIEW
+        ),
+        None,
+    )
+    if unresolved is not None:
+        return RecommendationBand.REVIEW, True, unresolved.requirement_id
+
+    return band_raw, False, None
 
 
 # --------------------------------------------------------------------------
