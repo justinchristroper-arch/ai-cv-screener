@@ -198,6 +198,14 @@ export const VOCABULARY = {
         threshold_required: true,
         needs_scale: false,
       },
+      {
+        spec_type: "CERTIFICATION_PRESENT",
+        label: "Certification",
+        subject_source: "certifications",
+        threshold_unit: null,
+        threshold_required: false,
+        needs_scale: false,
+      },
     ],
     skills: [
       { name: "Docker", family: "container" },
@@ -207,6 +215,7 @@ export const VOCABULARY = {
       { name: "React", family: "web_framework" },
     ],
     languages: ["English", "Indonesian", "Japanese"],
+    certifications: ["Brevet A", "Brevet B", "CPA", "TOEFL"],
     degrees: [
       { name: "D3", rank: 2 },
       { name: "Bachelor", rank: 3 },

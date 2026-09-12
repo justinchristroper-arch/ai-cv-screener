@@ -72,10 +72,10 @@ reading — and leave every judgement that has to be defensible to ordinary code
 
 ## What the system does
 
-1. **Take the recruiter's criteria**, chosen from seven supported types: degree
+1. **Take the recruiter's criteria**, chosen from eight supported types: degree
    level, GPA, work-experience duration, skill, internship, language presence,
-   and experience in a named field. Each is typed — a threshold, a subject from
-   a published list, or both.
+   experience in a named field, and a certification. Each is typed — a
+   threshold, a subject from a published list, or both.
 2. **Stop, and wait for a human.** Nothing is screened until the recruiter has
    reviewed, weighted and **confirmed** the criteria set.
 3. **Parse uploaded CVs** into text with page-level provenance.
@@ -172,6 +172,7 @@ all, which is not the same as a score of nought.
 | **Internship** | Presence, optionally a duration | Dated entries whose title says internship |
 | **Language** | One of ten languages | Presence only — never a level |
 | **Experience in a field** | A skill **and** a duration | The same date arithmetic, counting only roles whose CV entry evidences that skill |
+| **Certification** | One credential from a list of 24 | The line that claims it. Presence only — no dates compared, no equivalences |
 
 Everything else is **not supported, and says so**. The criteria builder lists
 exactly these types and states that others are not available yet; searching for a

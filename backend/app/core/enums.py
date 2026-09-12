@@ -57,6 +57,13 @@ class RequirementSpecType(str, enum.Enum):
     #: readable, rather than judging what counts as an industry.
     EXPERIENCE_IN_FIELD = "EXPERIENCE_IN_FIELD"
 
+    #: A credential the CV claims: Brevet A, CPA, AWS Certified. Presence
+    #: only -- never a grade, never a date, and never an inference that one
+    #: certificate implies another. Indonesian CVs lean on credentials much
+    #: more than Western ones, and for an accounting vacancy Brevet A/B is
+    #: often a stated requirement rather than a nice-to-have.
+    CERTIFICATION_PRESENT = "CERTIFICATION_PRESENT"
+
 
 class JdSourceType(str, enum.Enum):
     PASTED = "PASTED"

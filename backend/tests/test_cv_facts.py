@@ -683,3 +683,51 @@ def test_genuinely_shallow_wording_is_still_caught(line: str) -> None:
     found = facts(line).skills
     assert found, line
     assert all(item.substantive is False for item in found), line
+
+
+# --------------------------------------------------------------------------
+# Certifications: a credential is a claim, not a mention
+# --------------------------------------------------------------------------
+
+
+def cert_names(text: str) -> set[str]:
+    return {item.name for item in facts(text).certifications}
+
+
+@pytest.mark.parametrize(
+    ("cv", "expected"),
+    [
+        ("SERTIFIKAT\nBrevet A & B Perpajakan, IAI - 2023", {"Brevet A", "Brevet B"}),
+        ("SERTIFIKAT\nBrevet AB - 2022", {"Brevet A", "Brevet B"}),
+        ("SERTIFIKAT\nBrevet A saja - 2021", {"Brevet A"}),
+        ("CERTIFICATIONS\nCPA Indonesia - 2024", {"CPA"}),
+        ("PENGALAMAN\nAWS Certified Solutions Architect, 2024", {"AWS Certified"}),
+        ("PENDIDIKAN\nBersertifikat Brevet A dan Brevet B perpajakan", {"Brevet A", "Brevet B"}),
+        ("SERTIFIKAT\nTOEFL ITP score 540 - 2024", {"TOEFL"}),
+    ],
+)
+def test_a_credential_claim_is_read(cv: str, expected: set[str]) -> None:
+    assert expected <= cert_names(cv)
+
+
+@pytest.mark.parametrize(
+    ("cv", "not_expected"),
+    [
+        # Three letters are not evidence. These are the ways that goes wrong.
+        ("PENGALAMAN\nBekerja dengan tim CPA di kantor pusat.", "CPA"),
+        ("PENGALAMAN\nKualifikasi: wajib memiliki CPA dan Brevet A.", "CPA"),
+        ("PENGALAMAN\nKualifikasi: wajib memiliki CPA dan Brevet A.", "Brevet A"),
+        ("SERTIFIKAT\nBelum memiliki Brevet A.", "Brevet A"),
+        ("EXPERIENCE\nWe are looking for a CFA charterholder.", "CFA"),
+    ],
+)
+def test_a_mention_that_is_not_a_claim_is_refused(cv: str, not_expected: str) -> None:
+    """Awarding somebody a qualification they never claimed is the worst way
+    this particular fact could fail, so the gate is deliberately strict."""
+    assert not_expected not in cert_names(cv)
+
+
+def test_a_certification_span_is_the_line_that_claimed_it() -> None:
+    cv = "SERTIFIKAT\nBrevet A & B Perpajakan, IAI - 2023"
+    found = [item for item in facts(cv).certifications if item.name == "Brevet A"]
+    assert found and found[0].span.text == "Brevet A & B Perpajakan, IAI - 2023"

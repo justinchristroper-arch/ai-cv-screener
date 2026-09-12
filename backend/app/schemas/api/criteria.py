@@ -24,7 +24,7 @@ class CriterionTypeResponse(BaseModel):
 
     spec_type: RequirementSpecType
     label: str = Field(description="What the recruiter sees in the add-criterion menu")
-    subject_source: Literal["degrees", "skills", "languages"] | None = Field(
+    subject_source: Literal["degrees", "skills", "languages", "certifications"] | None = Field(
         description=(
             "Which list in this response the subject must be chosen from. Null "
             "when the type takes no subject."
@@ -86,4 +86,12 @@ class CriteriaVocabularyResponse(BaseModel):
         description="Detected by presence only. This screener never infers a proficiency level."
     )
     degrees: list[DegreeOption]
+    certifications: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Credentials detected by presence only. This screener never compares a "
+            "certificate's date, ranks one level above another, or treats one "
+            "certificate as covering another."
+        ),
+    )
     skill_groups: list[SkillGroupResponse]

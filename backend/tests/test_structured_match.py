@@ -15,6 +15,7 @@ import pytest
 from app.core.enums import MatchVerdict
 from app.services.cv_facts import extract_facts
 from app.services.structured_match import (
+    CERTIFICATION_PRESENT,
     EDUCATION_MIN,
     EXPERIENCE_IN_FIELD,
     EXPERIENCE_MIN,
@@ -518,3 +519,56 @@ def test_a_skill_absent_from_the_whole_cv_is_still_absence() -> None:
 
     assert result.verdict is MatchVerdict.NO_EVIDENCE
     assert "dated experience in Python" in result.reason
+
+
+# --------------------------------------------------------------------------
+# Certification presence
+# --------------------------------------------------------------------------
+
+CREDENTIALED_CV = """Rina Halim (fictional)
+Staff Akuntansi
+
+SERTIFIKAT
+Brevet A & B Perpajakan, IAI - 2023
+TOEFL ITP score 540 - 2024
+"""
+
+
+def cert(subject: str) -> RequirementSpec:
+    return RequirementSpec(CERTIFICATION_PRESENT, subject=subject)
+
+
+def test_a_claimed_credential_matches() -> None:
+    result = outcome(cert("Brevet A"), CREDENTIALED_CV)
+    assert result.verdict is MatchVerdict.MATCHED
+    assert result.span is not None and "Brevet A" in result.span.text
+
+
+def test_a_combined_brevet_answers_either_level() -> None:
+    """ "Brevet A & B" is one certificate covering both, and the ordinary spelling."""
+    assert verdict(cert("Brevet A"), CREDENTIALED_CV) is MatchVerdict.MATCHED
+    assert verdict(cert("Brevet B"), CREDENTIALED_CV) is MatchVerdict.MATCHED
+
+
+def test_a_credential_the_cv_does_not_claim_is_absence() -> None:
+    assert verdict(cert("CPA"), CREDENTIALED_CV) is MatchVerdict.NO_EVIDENCE
+
+
+def test_an_unsupported_credential_needs_review() -> None:
+    assert verdict(cert("Blockchain Practitioner"), CREDENTIALED_CV) is MatchVerdict.NEEDS_REVIEW
+
+
+def test_no_credential_is_ever_ranked_above_another() -> None:
+    """Brevet C does not imply Brevet A, and CPA does not cover CA.
+
+    Ranking credentials would be the screener deciding what a qualification is
+    worth, which is the recruiter's judgement rather than arithmetic over a
+    document.
+    """
+    cv = "SERTIFIKAT\nBrevet C Perpajakan - 2024\n"
+    assert verdict(cert("Brevet A"), cv) is MatchVerdict.NO_EVIDENCE
+    assert verdict(cert("Brevet C"), cv) is MatchVerdict.MATCHED
+
+
+def test_a_certification_criterion_renders_for_display() -> None:
+    assert describe(cert("Brevet A")) == "Certification: Brevet A"

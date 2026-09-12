@@ -25,7 +25,8 @@ particular document.
 
 ## What comes out
 
-`CvFacts` -- skills, education, dated roles, GPA, internships, languages -- with
+`CvFacts` -- skills, education, dated roles, GPA, internships, languages and
+certifications -- with
 every item carrying the exact line it was read from. Nothing is inferred from a
 name, a photo, an address or an employer's identity (ADR-0003).
 """
@@ -43,6 +44,7 @@ from app.services.skill_taxonomy import (  # noqa: F401 - COMMON_WORD_TERMS used
     LANGUAGES,
     SHORT_AMBIGUOUS_TERMS,
     alias_index,
+    certification_aliases,
     family_of,
 )
 
@@ -361,6 +363,12 @@ class LanguageFact:
     span: Span
 
 
+@dataclass(frozen=True)
+class CertificationFact:
+    name: str
+    span: Span
+
+
 @dataclass
 class CvFacts:
     skills: list[SkillFact] = field(default_factory=list)
@@ -368,6 +376,7 @@ class CvFacts:
     education: list[EducationFact] = field(default_factory=list)
     gpa: list[GpaFact] = field(default_factory=list)
     languages: list[LanguageFact] = field(default_factory=list)
+    certifications: list[CertificationFact] = field(default_factory=list)
 
     @property
     def highest_education(self) -> EducationFact | None:
@@ -876,6 +885,85 @@ _LANGUAGE_CONTEXT = (
 )
 
 
+#: Words that make a line a credential claim rather than a mention. A credential
+#: is a thing somebody was awarded, and CVs say so: "Certified", "Brevet",
+#: "bersertifikat", or the name sitting under a CERTIFICATIONS heading.
+#:
+#: Required because three letters are not evidence. "CPA" appears in prose about
+#: what a finance team needs, "CA" is an ordinary abbreviation, and crediting a
+#: candidate with a professional qualification they never claimed is the worst
+#: direction for this particular fact to fail in.
+_CERTIFICATION_CONTEXT = (
+    "certified",
+    "certificate",
+    "certification",
+    "certifications",
+    "sertifikat",
+    "sertifikasi",
+    "bersertifikat",
+    "brevet",
+    "licensed",
+    "license",
+    "lisensi",
+    "qualified",
+    "credential",
+    "charter",
+    "passed",
+    "lulus",
+    "score",
+    "skor",
+)
+
+
+def extract_certifications(
+    text: str, ranges: list[tuple[int, int, str]]
+) -> list[CertificationFact]:
+    """Credentials the CV claims. Presence only -- never a grade or a date.
+
+    Two gates, and the second is the one that matters. The name must be present
+    as a whole token, and the line must read as a credential claim: either it
+    sits under a certifications heading, or it carries a word like "Certified",
+    "Brevet" or "bersertifikat".
+
+    Without the second gate this would be keyword matching on three-letter
+    strings. "CPA" turns up in a sentence about what a finance team needs and
+    "CA" is an ordinary abbreviation, and awarding somebody a professional
+    qualification they never claimed is the worst way this fact could fail.
+    """
+    facts: list[CertificationFact] = []
+    lower = text.lower()
+    seen: set[tuple[str, int]] = set()
+
+    for alias, canonical in certification_aliases():
+        cursor = 0
+        while True:
+            found = find_token(alias, lower[cursor:])
+            if found == -1:
+                break
+            offset = cursor + found
+            cursor = offset + 1
+
+            if _mentions(NEGATION_CUES, _before(text, offset)):
+                continue
+            if _mentions(DEMAND_CUES, _around(text, offset, len(alias))):
+                continue
+
+            span = line_at(text, offset)
+            section = _section_at(offset, ranges)
+            lowered = span.text.lower()
+            if section != "certifications" and not any(
+                cue in lowered for cue in _CERTIFICATION_CONTEXT
+            ):
+                continue
+
+            key = (canonical, span.start)
+            if key in seen:
+                continue
+            seen.add(key)
+            facts.append(CertificationFact(canonical, span))
+    return facts
+
+
 def _looks_like_language_entry(line: str, alias: str) -> bool:
     lowered = line.lower()
     if any(token in lowered for token in _LANGUAGE_CONTEXT):
@@ -901,6 +989,7 @@ def extract_facts(cv_text: str, *, as_of_year: int, as_of_month: int = 12) -> Cv
         education=extract_education(text, ranges),
         gpa=extract_gpa(text),
         languages=extract_languages(text, ranges),
+        certifications=extract_certifications(text, ranges),
     )
 
 

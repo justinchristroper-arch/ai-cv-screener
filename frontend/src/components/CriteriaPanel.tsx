@@ -558,6 +558,24 @@ function CriterionForm({
         </label>
       ) : null}
 
+      {type.subject_source === "certifications" ? (
+        <label className="field">
+          <span className="field__label">Certification</span>
+          <select value={subject} onChange={(event) => setSubject(event.target.value)}>
+            <option value="">Choose a certification…</option>
+            {vocabulary.certifications.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <span className="field__note">
+            Presence only. A certificate&rsquo;s date is never compared, and one credential never
+            stands in for another.
+          </span>
+        </label>
+      ) : null}
+
       {type.threshold_unit === "months" ? (
         <label className="field">
           <span className="field__label">

@@ -150,6 +150,7 @@ _SPEC_CATEGORY: dict[RequirementSpecType, RequirementCategory] = {
     RequirementSpecType.EXPERIENCE_MIN: RequirementCategory.EXPERIENCE,
     RequirementSpecType.INTERNSHIP_MIN: RequirementCategory.EXPERIENCE,
     RequirementSpecType.EXPERIENCE_IN_FIELD: RequirementCategory.EXPERIENCE,
+    RequirementSpecType.CERTIFICATION_PRESENT: RequirementCategory.EDUCATION,
     RequirementSpecType.SKILL: RequirementCategory.TECHNICAL_SKILL,
     RequirementSpecType.LANGUAGE_PRESENT: RequirementCategory.SOFT_SKILL_OTHER,
 }
@@ -174,6 +175,12 @@ def validate_spec(spec: structured_match.RequirementSpec) -> None:
         if (spec.subject or "") not in skill_taxonomy.LANGUAGES:
             raise ConflictError(
                 f"{spec.subject!r} is not a language this screener supports. "
+                "Choose one from the supported list."
+            )
+    elif spec.spec_type == structured_match.CERTIFICATION_PRESENT:
+        if (spec.subject or "") not in skill_taxonomy.CERTIFICATIONS:
+            raise ConflictError(
+                f"{spec.subject!r} is not a certification this screener supports. "
                 "Choose one from the supported list."
             )
     elif spec.spec_type == structured_match.EDUCATION_MIN:

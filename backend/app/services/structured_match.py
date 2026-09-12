@@ -32,7 +32,8 @@ from app.services import skill_taxonomy
 from app.services.cv_facts import CvFacts, Span, total_months
 
 # --------------------------------------------------------------------------
-# The vocabulary. Six types from ADR-0012, plus EXPERIENCE_IN_FIELD.
+# The vocabulary. Six types from ADR-0012, plus EXPERIENCE_IN_FIELD and
+# CERTIFICATION_PRESENT.
 # --------------------------------------------------------------------------
 
 EDUCATION_MIN = "EDUCATION_MIN"
@@ -42,6 +43,7 @@ SKILL = "SKILL"
 INTERNSHIP_MIN = "INTERNSHIP_MIN"
 LANGUAGE_PRESENT = "LANGUAGE_PRESENT"
 EXPERIENCE_IN_FIELD = "EXPERIENCE_IN_FIELD"
+CERTIFICATION_PRESENT = "CERTIFICATION_PRESENT"
 
 SPEC_TYPES = (
     EDUCATION_MIN,
@@ -51,6 +53,7 @@ SPEC_TYPES = (
     INTERNSHIP_MIN,
     LANGUAGE_PRESENT,
     EXPERIENCE_IN_FIELD,
+    CERTIFICATION_PRESENT,
 )
 
 #: Degree names the recruiter can choose, and their rank. Mirrors the levels
@@ -116,6 +119,7 @@ SPEC_SHAPES: dict[str, SpecShape] = {
         threshold_unit="months",
         threshold_required=True,
     ),
+    CERTIFICATION_PRESENT: SpecShape("Certification", subject_source="certifications"),
 }
 
 #: How far below the bar still counts as partial. Applied to durations only,
@@ -277,6 +281,28 @@ def _match_experience(spec: RequirementSpec, facts: CvFacts) -> MatchOutcome:
     return _duration_outcome(months, spec.threshold_value, facts.roles[0].span, "experience")
 
 
+def _match_certification(spec: RequirementSpec, facts: CvFacts) -> MatchOutcome:
+    """Presence of a credential. No grade, no date, no equivalences.
+
+    Deliberately as plain as the language criterion. A certificate is dated, and
+    it would be easy to compare that date against something, or to rank Brevet C
+    above Brevet A, or to treat CPA as covering CA. All three would be the
+    screener deciding what a credential is worth, which is the recruiter's
+    judgement and not arithmetic over a document.
+    """
+    name = spec.subject or ""
+    if name not in skill_taxonomy.CERTIFICATIONS:
+        return MatchOutcome(
+            MatchVerdict.NEEDS_REVIEW,
+            None,
+            f"{name!r} is not in the certifications this screener can evaluate.",
+        )
+    found = [item for item in facts.certifications if item.name == name]
+    if not found:
+        return _no_evidence(f"the {name} certification")
+    return MatchOutcome(MatchVerdict.MATCHED, found[0].span, f"The CV claims {name}.")
+
+
 def _match_experience_in_field(spec: RequirementSpec, facts: CvFacts) -> MatchOutcome:
     """Duration, counting only the roles whose own entry evidences the field.
 
@@ -392,6 +418,7 @@ _MATCHERS = {
     INTERNSHIP_MIN: _match_internship,
     LANGUAGE_PRESENT: _match_language,
     EXPERIENCE_IN_FIELD: _match_experience_in_field,
+    CERTIFICATION_PRESENT: _match_certification,
 }
 
 
@@ -419,6 +446,8 @@ def describe(spec: RequirementSpec) -> str:
         return f"At least {_months(spec.threshold_value)} of internship experience"
     if spec.spec_type == EXPERIENCE_IN_FIELD:
         return f"At least {_months(spec.threshold_value)} of {spec.subject} experience"
+    if spec.spec_type == CERTIFICATION_PRESENT:
+        return f"Certification: {spec.subject}"
     if spec.spec_type == SKILL:
         return f"Skill: {spec.subject}"
     return f"Language: {spec.subject}"
@@ -437,6 +466,7 @@ def _months(value: Decimal | None) -> str:
 __all__ = [
     "DEGREE_CHOICES",
     "EDUCATION_MIN",
+    "CERTIFICATION_PRESENT",
     "EXPERIENCE_IN_FIELD",
     "EXPERIENCE_MIN",
     "GPA_MIN",

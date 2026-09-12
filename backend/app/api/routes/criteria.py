@@ -55,6 +55,7 @@ def get_vocabulary() -> CriteriaVocabularyResponse:
             for name in skill_taxonomy.supported_skills()
         ],
         languages=skill_taxonomy.supported_languages(),
+        certifications=skill_taxonomy.supported_certifications(),
         degrees=[
             DegreeOption(name=name, rank=rank)
             for name, rank in sorted(

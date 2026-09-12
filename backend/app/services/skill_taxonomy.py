@@ -232,6 +232,54 @@ LANGUAGES: dict[str, tuple[str, ...]] = {
     "Dutch": ("dutch", "nederlands", "belanda"),
 }
 
+#: Credentials the screener can detect. Presence only -- never a grade, never a
+#: date comparison, and never an inference that one certificate implies another.
+#:
+#: A credential is not a skill, and keeping the two lists apart matters. "CPA"
+#: in a sentence about what a team needs is not a credential the candidate
+#: holds, and a certification criterion answered from loose prose would be the
+#: keyword matching this engine exists to avoid. `cv_facts.extract_certifications`
+#: therefore requires the line to look like a credential claim, not merely to
+#: contain the name.
+#:
+#: Weighted towards Indonesia because that is who uses this. Brevet A/B is the
+#: tax credential named on most Indonesian accounting adverts, and USKP is its
+#: consultant exam; the accountancy bodies are IAI (CA) and IAPI (CPA).
+CERTIFICATIONS: dict[str, tuple[str, ...]] = {
+    # tax and accounting, Indonesia
+    # Indonesian CVs almost never write these separately: "Brevet A & B" is the
+    # ordinary spelling, and one certificate covers both levels. Each combined
+    # form therefore appears under both names, so a CV claiming "Brevet A & B"
+    # answers a criterion for either.
+    "Brevet A": ("brevet a & b", "brevet a dan b", "brevet a/b", "brevet ab", "brevet a"),
+    "Brevet B": ("brevet a & b", "brevet a dan b", "brevet a/b", "brevet ab", "brevet b"),
+    "Brevet C": ("brevet c",),
+    "USKP": ("uskp", "ujian sertifikasi konsultan pajak"),
+    "CA": ("chartered accountant", "ca (iai)"),
+    "CPA": ("certified public accountant", "cpa"),
+    "CPSAK": ("cpsak",),
+    "CPMA": ("cpma",),
+    # accountancy and finance, international
+    "ACCA": ("acca",),
+    "CMA": ("certified management accountant", "cma"),
+    "CIA": ("certified internal auditor",),
+    "CISA": ("cisa",),
+    "CFA": ("cfa",),
+    "CFP": ("certified financial planner", "cfp"),
+    # general professional
+    "BNSP": ("bnsp",),
+    "PMP": ("project management professional", "pmp"),
+    "Scrum Master": ("certified scrummaster", "professional scrum master", "scrum master"),
+    # technology
+    "AWS Certified": ("aws certified",),
+    "Azure Certified": ("azure certified", "microsoft certified: azure"),
+    "GCP Certified": ("google cloud certified", "gcp certified"),
+    "CCNA": ("ccna",),
+    "CKA": ("certified kubernetes administrator", "cka"),
+    "TOEFL": ("toefl",),
+    "IELTS": ("ielts",),
+}
+
 
 def alias_index() -> list[tuple[str, str]]:
     """Every surface form, longest first, paired with its canonical name.
@@ -263,15 +311,31 @@ def supported_languages() -> list[str]:
     return sorted(LANGUAGES)
 
 
+def supported_certifications() -> list[str]:
+    return sorted(CERTIFICATIONS)
+
+
+def certification_aliases() -> list[tuple[str, str]]:
+    """Every credential surface form, longest first, with its canonical name."""
+    pairs = [
+        (alias, canonical) for canonical, aliases in CERTIFICATIONS.items() for alias in aliases
+    ]
+    pairs.sort(key=lambda pair: -len(pair[0]))
+    return pairs
+
+
 __all__ = [
+    "CERTIFICATIONS",
     "COMMON_WORD_TERMS",
     "LANGUAGES",
     "SHORT_AMBIGUOUS_TERMS",
     "SKILLS",
     "SKILL_GROUPS",
     "alias_index",
+    "certification_aliases",
     "family_of",
     "is_supported",
+    "supported_certifications",
     "supported_languages",
     "supported_skills",
 ]

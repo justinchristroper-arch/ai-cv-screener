@@ -64,7 +64,7 @@ erDiagram
 |---|---|---|
 | `requirement_category` | `EDUCATION`, `TECHNICAL_SKILL`, `EXPERIENCE`, `PROJECT`, `SOFT_SKILL_OTHER` | `requirement` |
 | `requirement_origin` | `LLM_EXTRACTED`, `HR_ADDED` | `requirement` |
-| `requirement_spec_type` | `EDUCATION_MIN`, `GPA_MIN`, `EXPERIENCE_MIN`, `SKILL`, `INTERNSHIP_MIN`, `LANGUAGE_PRESENT`, `EXPERIENCE_IN_FIELD` | `requirement` |
+| `requirement_spec_type` | `EDUCATION_MIN`, `GPA_MIN`, `EXPERIENCE_MIN`, `SKILL`, `INTERNSHIP_MIN`, `LANGUAGE_PRESENT`, `EXPERIENCE_IN_FIELD`, `CERTIFICATION_PRESENT` | `requirement` |
 | `jd_source_type` | `PASTED`, `UPLOADED` | `job_description` |
 | `candidate_status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `EXTRACTED`, `SCORING`, `SCORED`, `FAILED` | `candidate` |
 | `candidate_failure_reason` | `CORRUPT_FILE`, `NO_TEXT_LAYER`, `UNSUPPORTED_LANGUAGE`, `PARSE_TIMEOUT`, `EXTRACTION_FAILED`, `MATCHING_FAILED` | `candidate` |

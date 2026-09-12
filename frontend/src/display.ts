@@ -73,6 +73,8 @@ export const SPEC_TYPE_HINT: Record<RequirementSpecType, string> = {
     "Presence only. This screener never infers how well someone speaks a language from a CV.",
   EXPERIENCE_IN_FIELD:
     "Counts only the roles whose own CV entry evidences this skill, so unrelated experience does not answer it.",
+  CERTIFICATION_PRESENT:
+    "Presence only. The CV has to claim the credential — a date is never compared, and one certificate never stands in for another.",
 };
 
 export const CATEGORY_LABEL: Record<RequirementCategory, string> = {

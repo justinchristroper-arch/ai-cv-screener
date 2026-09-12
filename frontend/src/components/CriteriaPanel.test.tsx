@@ -84,6 +84,7 @@ describe("the criteria a recruiter is offered", () => {
       "Internship",
       "Language",
       "Work experience in a field",
+      "Certification",
     ]) {
       expect(screen.getByRole("button", { name: new RegExp(`^${label}`) })).toBeInTheDocument();
     }
@@ -450,5 +451,35 @@ describe("experience in a field", () => {
     await openMenu(user);
 
     expect(screen.getByText(/unrelated experience does not answer it/i)).toBeInTheDocument();
+  });
+});
+
+describe("certification", () => {
+  it("offers the supported credentials and posts the chosen one", async () => {
+    const user = userEvent.setup();
+    const stub = renderPanel([], {
+      extra: { "POST /api/jobs/job-1/criteria": { status: 201, body: criterion() } },
+    });
+    await chooseType(user, /^Certification/);
+
+    const select = screen.getByLabelText(/^certification/i);
+    await user.selectOptions(select, "Brevet A");
+    await user.click(screen.getByRole("button", { name: /^add criterion$/i }));
+
+    await waitFor(() =>
+      expect(postedCriteria(stub)).toEqual([
+        { spec_type: "CERTIFICATION_PRESENT", must_have: false, subject: "Brevet A" },
+      ]),
+    );
+  });
+
+  it("states the limits of a credential check where it is chosen", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await chooseType(user, /^Certification/);
+
+    expect(
+      screen.getByText(/date is never compared, and one credential never stands in for another/i),
+    ).toBeInTheDocument();
   });
 });

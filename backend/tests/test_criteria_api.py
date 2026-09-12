@@ -185,10 +185,12 @@ def test_every_published_criterion_type_can_actually_be_created(api: TestClient)
     and posts it.
     """
     vocabulary = api.get(VOCABULARY).json()
+    # One subject per list the vocabulary names, taken from that same response.
     subjects = {
         "degrees": vocabulary["degrees"][0]["name"],
         "skills": vocabulary["skills"][0]["name"],
         "languages": vocabulary["languages"][0],
+        "certifications": vocabulary["certifications"][0],
     }
     job_id = _create_job(api)
 
@@ -426,3 +428,52 @@ def test_an_ill_formed_field_criterion_is_refused(
     job_id = _create_job(api)
     response = _criterion(api, job_id, **payload)
     assert response.status_code == status, f"{why}: {response.text}"
+
+
+@pytest.mark.requires_db
+def test_a_certification_criterion_is_stored_and_rendered(api: TestClient) -> None:
+    job_id = _create_job(api)
+    response = _criterion(
+        api, job_id, spec_type="CERTIFICATION_PRESENT", subject="Brevet A", must_have=True
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["spec_type"] == "CERTIFICATION_PRESENT"
+    assert body["subject"] == "Brevet A"
+    assert body["threshold_value"] is None
+    assert body["text"] == "Certification: Brevet A"
+    assert body["category"] == "EDUCATION"
+
+
+@pytest.mark.requires_db
+@pytest.mark.parametrize(
+    ("payload", "why", "status"),
+    [
+        ({"spec_type": "CERTIFICATION_PRESENT"}, "no credential named", 422),
+        (
+            {"spec_type": "CERTIFICATION_PRESENT", "subject": "Brevet A", "threshold_value": "12"},
+            "a duration on a presence check",
+            422,
+        ),
+        (
+            {"spec_type": "CERTIFICATION_PRESENT", "subject": "Blockchain Practitioner"},
+            "a credential outside the vocabulary",
+            409,
+        ),
+        # Case matters: the subject is chosen from a list, not typed.
+        ({"spec_type": "CERTIFICATION_PRESENT", "subject": "brevet a"}, "wrong case", 409),
+    ],
+)
+def test_an_ill_formed_certification_criterion_is_refused(
+    api: TestClient, payload: dict, why: str, status: int
+) -> None:
+    job_id = _create_job(api)
+    response = _criterion(api, job_id, **payload)
+    assert response.status_code == status, f"{why}: {response.text}"
+
+
+def test_the_vocabulary_publishes_the_certifications(client: TestClient) -> None:
+    body = client.get(VOCABULARY).json()
+    assert body["certifications"] == skill_taxonomy.supported_certifications()
+    assert "Brevet A" in body["certifications"]

@@ -189,3 +189,45 @@ without joining them up is `NEEDS_REVIEW`, citing the line that made the claim �
 so it leaves the score entirely rather than counting as a zero, and a person is
 asked to read it. `MATCHED` still requires the CV's own entry for a dated role
 to evidence the skill.
+
+---
+
+## Amendment: an eighth type, `CERTIFICATION_PRESENT`
+
+This ADR listed Certification as a V2 item. It is promoted here because
+Indonesian CVs lean on credentials far more heavily than the Western CVs the
+original six were shaped around: on one real school-leaver's CV, four of the
+entries were certificates and none of them was a job. For an accounting vacancy
+**Brevet A/B** is frequently a stated requirement rather than a nice-to-have,
+and until now there was no way to ask for it.
+
+**Presence only, and deliberately as plain as the language criterion.** A
+certificate carries a date, an issuing body and often a level, and each of those
+invites a comparison the screener should not make:
+
+- **No date comparison.** "Certified within the last three years" would need a
+  policy about how quickly a credential goes stale, which is the recruiter's
+  judgement.
+- **No ranking.** Brevet C does not imply Brevet A, and CPA does not cover CA.
+  Ordering credentials means deciding what a qualification is worth.
+- **No equivalences.** One certificate never stands in for another.
+
+**The gate is stricter than for a skill, on purpose.** A credential name is
+often three letters — CPA, CFA, CIA, CKA — and three letters in prose prove
+nothing. `cv_facts.extract_certifications` therefore requires the line either to
+sit under a certifications heading, or to carry a word like "Certified",
+"Brevet", "bersertifikat" or "lulus". Awarding somebody a professional
+qualification they never claimed is the worst direction for this particular fact
+to fail in, and the tests cover each way it could: a mention in prose, an advert
+quoting requirements, and a denial.
+
+**One curation note.** Indonesian CVs almost never write the tax brevets
+separately: "Brevet A & B" is the ordinary spelling and one certificate covers
+both levels. Each combined surface form is therefore listed under both names, so
+a CV claiming "Brevet A & B" answers a criterion for either.
+
+**Known limit.** The list is 24 credentials. A CV carrying a course-attendance
+certificate — which is what most of that school-leaver's certificates were —
+correctly reports `NO_EVIDENCE` for every named credential, and there is no
+"holds any certification" criterion. Adding one would mean deciding what counts
+as a certification, which is the judgement this design avoids.

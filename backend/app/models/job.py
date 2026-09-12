@@ -136,7 +136,7 @@ class Requirement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 CASE
     WHEN spec_type IS NULL THEN
         subject IS NULL AND threshold_value IS NULL AND threshold_scale IS NULL
-    WHEN spec_type IN ('EDUCATION_MIN', 'SKILL', 'LANGUAGE_PRESENT') THEN
+    WHEN spec_type IN ('EDUCATION_MIN', 'SKILL', 'LANGUAGE_PRESENT', 'CERTIFICATION_PRESENT') THEN
         subject IS NOT NULL AND threshold_value IS NULL AND threshold_scale IS NULL
     WHEN spec_type = 'GPA_MIN' THEN
         subject IS NULL AND threshold_value IS NOT NULL

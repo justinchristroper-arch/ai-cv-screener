@@ -119,7 +119,8 @@ export type RequirementSpecType =
   | "SKILL"
   | "INTERNSHIP_MIN"
   | "LANGUAGE_PRESENT"
-  | "EXPERIENCE_IN_FIELD";
+  | "EXPERIENCE_IN_FIELD"
+  | "CERTIFICATION_PRESENT";
 
 export type EvidenceVerification = "VERIFIED_EXACT" | "VERIFIED_NORMALIZED" | "UNVERIFIED";
 
@@ -303,7 +304,7 @@ export function unconfirmRequirements(jobId: string): Promise<RequirementList> {
 export interface CriterionType {
   spec_type: RequirementSpecType;
   label: string;
-  subject_source: "degrees" | "skills" | "languages" | null;
+  subject_source: "degrees" | "skills" | "languages" | "certifications" | null;
   threshold_unit: "months" | "grade" | null;
   threshold_required: boolean;
   needs_scale: boolean;
@@ -330,6 +331,8 @@ export interface CriteriaVocabulary {
   skills: SkillOption[];
   /** Presence only. This screener never infers a proficiency level. */
   languages: string[];
+  /** Credentials, by presence only: no dates, no levels, no equivalences. */
+  certifications: string[];
   degrees: DegreeOption[];
   skill_groups: SkillGroup[];
 }
