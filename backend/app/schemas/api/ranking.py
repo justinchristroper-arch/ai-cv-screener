@@ -93,8 +93,8 @@ class RankedCandidateResponse(BaseModel):
             "Stable codes a recruiter should read next to the number: "
             "MUST_HAVE_NOT_EVIDENCED, MUST_HAVE_NEEDS_REVIEW, SCORE_UNDEFINED, "
             "NO_DECIDABLE_CRITERIA, CRITERIA_NEED_REVIEW, EVIDENCE_DOWNGRADED, "
-            "INSTRUCTION_LIKE_TEXT_IN_CV. None of them changes the score or the "
-            "position."
+            "INSTRUCTION_LIKE_TEXT_IN_CV, MULTI_COLUMN_LAYOUT. None of them changes "
+            "the score or the position."
         ),
     )
 

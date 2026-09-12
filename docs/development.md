@@ -781,12 +781,63 @@ between environments without a data migration.
 evidence quote be traced back to a page **without asking a model where it came
 from** — the model quotes, our code locates.
 
+### Column layout
+
+Extraction flattens a page into one stream of lines. For a two-column CV that
+stream interleaves two unrelated narratives, and the damage is not obvious in
+the output. On one real CV an education line from the left column landed after
+the experience heading from the right, and the screener counted a school stream
+as a job — 58 months of "professional experience" out of about fourteen.
+
+`detect_columns` looks at **where the text sits**, never at what it says. Each
+text run's origin is collected through pypdf's `extract_text(visitor_text=...)`
+callback — `cm[0]*tm[4] + cm[2]*tm[5] + cm[4]` for x and `cm[1]*tm[4] +
+cm[3]*tm[5] + cm[5]` for y, the text matrix composed with the graphics matrix of
+the text object it sits inside. The distinct x positions are sorted and the
+widest gap between neighbours becomes a candidate gutter. Then four things must
+hold at once:
+
+| Condition | Constant | Rules out |
+|---|---|---|
+| The gutter is wider than a fifth of the page | `COLUMN_GAP_SHARE` | paragraph indents |
+| Each side carries 15% of the runs | `COLUMN_MIN_SHARE` | one stray run in the margin |
+| The two sides share half of the shorter one's vertical extent | `COLUMN_MIN_VERTICAL_OVERLAP` | a **centred name block** stacked above the body |
+| A quarter of the right side's lines sit on baselines of their own | `COLUMN_MIN_OWN_BASELINES` | a **right-aligned date column** |
+
+Fewer than eight runs on the page means no opinion at all.
+
+The last two conditions were added because the first two, on their own, flagged
+two entirely ordinary CV shapes. A CV with right-aligned dates has most of the
+page between its bullet text and its dates, and a terse one puts a fifth of its
+runs in that date column — but no date ever has a line to itself. A CV with a
+centred header clears all of the first three-and-a-half tests and its header
+lines do have their own baselines — but the header is stacked above the body
+rather than running beside it. Both shapes are common; flagging them would make
+the warning worthless, which is the real failure mode for a caution a recruiter
+is asked to act on. Both are now fixtures in `tests/pdf_fixtures.py`.
+
+The detector errs towards silence: a thin sidebar — four contact lines beside a
+full page of prose — fails the share test and is missed. That is the right
+direction to be wrong in. It is checked against both synthetic fixtures and two
+real two-column CVs.
+
+`parsed_document.multi_column_pages` is nullable JSONB, so a parse recorded
+before this existed has no opinion about its layout, which is true.
+
+**It is not repaired.** The flag becomes a `MULTI_COLUMN_LAYOUT` warning on the
+ranked list and a callout on the candidate page, telling the recruiter to read
+the original file for that candidate. Reordering the lines would mean guessing
+at the intended reading order — a second way to get it wrong, applied silently
+to a document a human can simply open.
+
 ### Known limitations
 
 - **No OCR** (above).
 - **Multi-column and table-heavy layouts** can extract in the wrong reading
   order. pypdf reads the text layer as the PDF stores it; it does not
-  reconstruct visual columns.
+  reconstruct visual columns. `detect_columns` notices the geometry while the
+  page is open and records the page number in `parsed_document.multi_column_pages`
+  (see "Column layout" above). The layout is **reported, not corrected**.
 - **Character-level offsets within a page are not recorded** — only page
   ranges. Evidence verification searches the text directly, so sentence-level
   spans are located at verification time rather than pre-computed here.

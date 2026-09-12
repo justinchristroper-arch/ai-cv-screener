@@ -137,6 +137,15 @@ class ParsedDocument(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     #: never stripped.
     injection_flags: Mapped[list[dict] | None] = mapped_column(JSONB)
 
+    #: [1, 2] — page numbers whose text sits in two or more separated columns.
+    #: Extraction flattens a page into one stream of lines, and for a
+    #: two-column CV that stream interleaves two unrelated narratives: on one
+    #: real CV it placed an education line after the experience heading, and a
+    #: school stream was counted as a job. Stored because the geometry is only
+    #: visible at parse time, and surfaced so a recruiter is told the reading
+    #: order may be wrong rather than shown a confident wrong answer.
+    multi_column_pages: Mapped[list[int] | None] = mapped_column(JSONB)
+
     #: Cache key for profile extraction.
     text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
 

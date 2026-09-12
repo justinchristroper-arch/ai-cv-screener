@@ -186,11 +186,14 @@ The three `proposed_*` columns are written once at extraction and never updated.
 | `has_text_layer` | BOOLEAN | no | `false` ⇒ scanned/image-only ⇒ candidate fails honestly |
 | `language_detected` | TEXT | yes | ISO code; non-English is flagged, not silently processed |
 | `injection_flags` | JSONB | yes | `[{"pattern":"...","offset":N,"excerpt":"..."}]` — flagged, never stripped |
+| `multi_column_pages` | JSONB | yes | `[1]` — pages whose text sits in separated columns, so the flattened reading order is unreliable |
 | `text_sha256` | CHAR(64) | no | Cache key for profile extraction |
 | `parser_name` / `parser_version` | TEXT | no | Extraction quality is parser-dependent; record which one ran |
 | `created_at` | TIMESTAMPTZ | no | When extraction ran. Named for the project-wide convention in section 1, not `parsed_at`. |
 
 `page_offsets` is the reason page numbers never have to be asked of the model: given a verified character offset, the page is a lookup.
+
+`multi_column_pages` is stored rather than derived later for the same reason as `injection_flags`: the column geometry is only visible while the PDF is open, and by the time anything reads `full_text` the positions are gone. It is nullable, so an older parse has no opinion about its layout instead of a fabricated empty one. Nothing downstream reorders the text on the strength of it — it becomes a `MULTI_COLUMN_LAYOUT` warning telling a recruiter to open the original file, which is the honest response to "the reading order here cannot be trusted".
 
 ### 4.7 `candidate_profile`
 

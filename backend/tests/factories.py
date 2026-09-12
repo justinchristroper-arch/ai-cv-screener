@@ -32,6 +32,7 @@ def make_parsed_candidate(
     *,
     filename: str = "candidate.pdf",
     status: CandidateStatus = CandidateStatus.PARSED,
+    multi_column_pages: list[int] | None = None,
 ) -> tuple[Candidate, ParsedDocument]:
     """A candidate whose document has already been parsed to `text`.
 
@@ -67,6 +68,7 @@ def make_parsed_candidate(
         text_sha256=sha256_text(text),
         parser_name=document_parsing.PARSER_NAME,
         parser_version=document_parsing.PARSER_VERSION,
+        multi_column_pages=multi_column_pages or None,
     )
     db.add(parsed)
     db.commit()

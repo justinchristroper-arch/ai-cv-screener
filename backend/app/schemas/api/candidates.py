@@ -93,6 +93,16 @@ class ParsedDocumentSummary(BaseModel):
             "a human, never removed, and never acted on."
         ),
     )
+    multi_column_pages: list[int] = Field(
+        default_factory=list,
+        description=(
+            "Pages whose text sits in two or more separated columns. Extraction "
+            "flattens a page into one stream of lines, so for such a page that "
+            "stream may interleave unrelated sections and the reading order "
+            "cannot be relied on. Reported rather than corrected: the recruiter "
+            "is told what the reader was unsure of."
+        ),
+    )
 
 
 class CandidateResponse(BaseModel):

@@ -437,7 +437,7 @@ Stated plainly, because a specification that hides these is not credible.
 
 **Document processing**
 - Scanned or image-only PDFs contain no text layer; without OCR they cannot be read. The system reports this rather than scoring an empty CV.
-- Multi-column layouts, tables, headers, and text boxes can extract in the wrong reading order, degrading extraction quality in ways that are hard to detect automatically.
+- Multi-column layouts, tables, headers, and text boxes can extract in the wrong reading order, degrading extraction quality. A two-column page is detected from the text positions and flagged to the recruiter; tables, headers and text boxes are not, and no layout is repaired.
 - PDF only. **Screening criteria** may be written in any language, and Indonesian, English and mixed input are exercised by tests ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)); a **CV** in a language other than English has never been evaluated, and `language_detected` is always NULL, so nothing detects or flags one.
 
 **Language model**

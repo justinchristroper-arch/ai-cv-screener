@@ -126,6 +126,9 @@ class ParsedText:
     parser_name: str
     parser_version: str
     injection_flags: list[dict] = field(default_factory=list)
+    #: Pages whose text sits in two or more separated columns, so the
+    #: flattened reading order may interleave unrelated sections.
+    multi_column_pages: list[int] = field(default_factory=list)
 
 
 def validate_upload(
@@ -191,6 +194,119 @@ def validate_upload(
     return page_count
 
 
+#: How wide a horizontal gap between text columns has to be, as a share of the
+#: page, before it counts as a gutter. A fifth of a page is far wider than any
+#: paragraph indent.
+COLUMN_GAP_SHARE = 0.2
+
+#: How much of a page's text each side of that gutter must carry. One stray run
+#: in the margin is not a column.
+COLUMN_MIN_SHARE = 0.15
+
+#: How much of the shorter side's vertical extent the two sides must share.
+#: Columns run *beside* each other; a centred name block sits *above* the body
+#: and shares none of its vertical range.
+COLUMN_MIN_VERTICAL_OVERLAP = 0.5
+
+#: What share of the right side's lines must sit on baselines of their own.
+#: A column has its own line rhythm. A right-aligned date column has one run
+#: per employer line and shares every baseline with the text beside it.
+COLUMN_MIN_OWN_BASELINES = 0.25
+
+#: How far apart two baselines can be and still be the same visual line.
+BASELINE_TOLERANCE_POINTS = 2.0
+
+
+def detect_columns(page: pypdf.PageObject) -> bool:
+    """Whether this page's text sits in two or more separated columns.
+
+    Extraction flattens a page into one stream of lines, and for a two-column
+    CV that stream interleaves two unrelated narratives. On one real CV it put
+    an education line from the left column after the experience heading from
+    the right, and the screener counted a school stream as a job.
+
+    The README listed multi-column layout as a known limitation. It is not a
+    footnote: Indonesian CVs very often use a two-column template, and a wrong
+    reading order produces a wrong screening result silently. This project
+    already has the right pattern for input it cannot read -- a scan fails as
+    `NO_TEXT_LAYER` rather than being scored as an empty CV -- so a layout that
+    may have been misread is flagged and shown to the recruiter.
+
+    Read from the text's own geometry, never from its content: the origin of
+    every text run is collected, the widest gap between neighbouring x
+    positions is taken as a candidate gutter, and four things have to hold at
+    once for the page to be called two columns.
+
+    Each of the last three exists because of a layout that passes the others.
+    A CV with **right-aligned dates** clears the gutter test easily -- the white
+    space between the bullet text and the dates is most of the page -- and a
+    terse one clears the share test too, because with few bullets the dates are
+    a fifth of the runs. What it cannot do is put a date on a line of its own:
+    every date shares a baseline with the employer beside it. A CV with a
+    **centred name block** above left-aligned body text clears the gutter and
+    share tests as well, and its header lines do sit on baselines of their own
+    -- but the header is stacked above the body, not beside it, so the two
+    sides share none of their vertical range. Both layouts are common enough
+    that flagging them would make the warning worthless, which is the real
+    failure mode for a caution a recruiter is asked to act on.
+
+    A thin sidebar -- four contact lines beside a full page of prose -- is
+    missed by the share test. That is the deliberate direction to err in: a
+    warning that fires on ordinary CVs gets ignored, and then it protects
+    nobody.
+    """
+    runs: list[tuple[float, float]] = []
+
+    def visitor(text: str, cm: list[float], tm: list[float], *_: object) -> None:
+        if text.strip():
+            # The run's origin in page space: the text matrix composed with the
+            # graphics matrix of the text object it sits inside.
+            runs.append(
+                (
+                    cm[0] * tm[4] + cm[2] * tm[5] + cm[4],
+                    cm[1] * tm[4] + cm[3] * tm[5] + cm[5],
+                )
+            )
+
+    try:
+        page.extract_text(visitor_text=visitor)
+        width = float(page.mediabox.width)
+    except (PyPdfError, ValueError, KeyError, TypeError, RecursionError, AttributeError):
+        # Position data is a bonus, never a requirement. A page whose geometry
+        # cannot be read is simply not flagged.
+        return False
+
+    if len(runs) < 8 or width <= 0:
+        return False
+
+    positions = sorted({round(x) for x, _ in runs})
+    if len(positions) < 2:
+        return False
+
+    gap, boundary = max(
+        (positions[i + 1] - positions[i], positions[i]) for i in range(len(positions) - 1)
+    )
+    if gap / width < COLUMN_GAP_SHARE:
+        return False
+
+    left = [y for x, y in runs if x <= boundary]
+    right = [y for x, y in runs if x > boundary]
+    minimum = COLUMN_MIN_SHARE * len(runs)
+    if len(left) < minimum or len(right) < minimum:
+        return False
+
+    shared = min(max(left), max(right)) - max(min(left), min(right))
+    extent = min(max(left) - min(left), max(right) - min(right))
+    if extent <= 0 or shared / extent < COLUMN_MIN_VERTICAL_OVERLAP:
+        return False
+
+    lines = sorted({round(y) for y in right})
+    own = sum(
+        1 for y in lines if not any(abs(y - other) <= BASELINE_TOLERANCE_POINTS for other in left)
+    )
+    return own / len(lines) >= COLUMN_MIN_OWN_BASELINES
+
+
 def extract_text(data: bytes) -> ParsedText:
     """Extract text page by page, recording where each page lands.
 
@@ -224,6 +340,7 @@ def extract_text(data: bytes) -> ParsedText:
             )
 
     page_texts: list[str] = []
+    multi_column: list[int] = []
     for index, page in enumerate(reader.pages):
         if time.monotonic() - started > PARSE_TIME_BUDGET_SECONDS:
             raise PdfExtractionError(
@@ -231,6 +348,9 @@ def extract_text(data: bytes) -> ParsedText:
                 f"Extraction exceeded {PARSE_TIME_BUDGET_SECONDS:.0f} seconds "
                 f"after {index} of {len(reader.pages)} pages.",
             )
+        if detect_columns(page):
+            multi_column.append(index + 1)
+
         try:
             raw = page.extract_text() or ""
         except (PyPdfError, ValueError, KeyError, TypeError, RecursionError) as exc:
@@ -266,6 +386,7 @@ def extract_text(data: bytes) -> ParsedText:
         parser_name=PARSER_NAME,
         parser_version=PARSER_VERSION,
         injection_flags=scan_for_injection(full_text),
+        multi_column_pages=multi_column,
     )
 
 

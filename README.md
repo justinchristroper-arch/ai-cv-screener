@@ -694,7 +694,9 @@ Recorded up front rather than discovered later:
   90/75/60 thresholds have no empirical backing and are configurable.
 - **Scores are comparable only within a single job.**
 - **Multi-column and table-heavy CV layouts** can extract in the wrong reading
-  order.
+  order. A two-column page is now **detected and flagged** for the recruiter,
+  but the reading order is not repaired: extraction still flattens the page,
+  and material can be lost when a heading lands in the wrong place.
 - **The evaluation set is small and synthetic.** Eight invented CVs. The metrics
   describe this application's deterministic code on that set, with sample sizes
   stated. They are not production accuracy, not model quality, and not a bias

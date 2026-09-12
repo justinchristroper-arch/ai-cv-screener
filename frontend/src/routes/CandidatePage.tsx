@@ -133,6 +133,25 @@ export function CandidatePage({ candidateId }: { candidateId: string }) {
         </Callout>
       ) : null}
 
+      {candidate.parsed && candidate.parsed.multi_column_pages.length > 0 ? (
+        <Callout tone="warn" title="This CV is laid out in columns">
+          <p>
+            {candidate.parsed.multi_column_pages.length === 1
+              ? `Page ${candidate.parsed.multi_column_pages[0]} has`
+              : `Pages ${candidate.parsed.multi_column_pages.join(", ")} have`}{" "}
+            text in two or more separated columns. Reading a PDF turns the page into one stream of
+            lines, and for a column layout that stream can interleave sections that belong apart —
+            an education line can land under the experience heading.
+          </p>
+          <p>
+            Nothing here is corrected automatically, because guessing at the intended order would be
+            a second way to get it wrong. The verdicts below still quote real lines of this
+            document, but which section a line belongs to may be wrong, so this is a CV worth
+            opening alongside them.
+          </p>
+        </Callout>
+      ) : null}
+
       {/* Evidence first, then the number.
           The score badge is still in the header, because a reader arriving from
           a ranked list needs to know which candidate they are looking at. But

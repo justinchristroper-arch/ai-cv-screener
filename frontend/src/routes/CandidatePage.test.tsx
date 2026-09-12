@@ -20,7 +20,7 @@ const CANDIDATE = {
   failure_detail: null,
   created_at: "2026-09-07T09:00:00Z",
   document: { original_filename: "alex.pdf", size_bytes: 2191, page_count: 1 },
-  parsed: { page_count: 1, char_count: 1117, injection_flag_count: 0 },
+  parsed: { page_count: 1, char_count: 1117, injection_flag_count: 0, multi_column_pages: [] },
 };
 
 const SCORE = {
@@ -332,6 +332,29 @@ describe("CandidatePage", () => {
 
     expect(await screen.findByText(/contains instruction-like text/i)).toBeInTheDocument();
     expect(screen.getByText(/cannot be used as evidence/i)).toBeInTheDocument();
+  });
+
+  it("flags a CV laid out in columns, naming the pages", async () => {
+    stubCandidate({
+      "GET /api/candidates/cand-1": {
+        body: { ...CANDIDATE, parsed: { ...CANDIDATE.parsed, multi_column_pages: [1, 3] } },
+      },
+    });
+
+    render(<CandidatePage candidateId="cand-1" />);
+
+    expect(await screen.findByText(/laid out in columns/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pages 1, 3 have/)).toBeInTheDocument();
+    expect(screen.getByText(/worth opening alongside them/i)).toBeInTheDocument();
+  });
+
+  it("says nothing about layout for an ordinary single-column CV", async () => {
+    stubCandidate();
+
+    render(<CandidatePage candidateId="cand-1" />);
+
+    await screen.findByText("82");
+    expect(screen.queryByText(/laid out in columns/i)).not.toBeInTheDocument();
   });
 
   it("treats a missing score as a state rather than an error", async () => {

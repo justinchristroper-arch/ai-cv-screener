@@ -241,6 +241,7 @@ def _parse_candidate(
             # Phase 5 deliverable, so this stays NULL rather than guessed.
             language_detected=None,
             injection_flags=parsed.injection_flags or None,
+            multi_column_pages=parsed.multi_column_pages or None,
             text_sha256=parsed.text_sha256,
             parser_name=parsed.parser_name,
             parser_version=parsed.parser_version,

@@ -127,6 +127,8 @@ export const WARNING_LABEL: Record<string, string> = {
   EVIDENCE_DOWNGRADED: "Proposed evidence was refused and the verdict was downgraded",
   INSTRUCTION_LIKE_TEXT_IN_CV:
     "This CV contains text that reads as an instruction rather than as a description of the candidate",
+  MULTI_COLUMN_LAYOUT:
+    "This CV is laid out in columns, so the order it was read in may not match the page — worth opening the original before trusting these verdicts",
 };
 
 /** Human-readable label for a warning code, falling back to the code itself. */

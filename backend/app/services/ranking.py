@@ -58,6 +58,10 @@ WARNING_NOTHING_DECIDABLE = "NO_DECIDABLE_CRITERIA"
 WARNING_CRITERIA_UNRESOLVED = "CRITERIA_NEED_REVIEW"
 WARNING_EVIDENCE_DOWNGRADED = "EVIDENCE_DOWNGRADED"
 WARNING_INSTRUCTION_LIKE_TEXT = "INSTRUCTION_LIKE_TEXT_IN_CV"
+#: The CV is laid out in columns, so the flattened reading order may have
+#: interleaved unrelated sections. Not a failure and not a verdict -- a
+#: caution that what was read may not be what the page says.
+WARNING_MULTI_COLUMN_LAYOUT = "MULTI_COLUMN_LAYOUT"
 
 
 @dataclass(frozen=True)
@@ -149,6 +153,7 @@ def _warnings_for(
     injection_flag_count: int,
     needs_review_count: int,
     must_have_no_evidence: int,
+    multi_column: bool,
 ) -> list[str]:
     """Things a recruiter should see next to a number, in a fixed order.
 
@@ -178,6 +183,8 @@ def _warnings_for(
         warnings.append(WARNING_EVIDENCE_DOWNGRADED)
     if injection_flag_count:
         warnings.append(WARNING_INSTRUCTION_LIKE_TEXT)
+    if multi_column:
+        warnings.append(WARNING_MULTI_COLUMN_LAYOUT)
     return warnings
 
 
@@ -241,6 +248,7 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
             func.coalesce(must_have_gaps.c.no_evidence, 0),
             CandidateDocument.original_filename,
             ParsedDocument.injection_flags,
+            ParsedDocument.multi_column_pages,
         )
         .outerjoin(Score, Score.candidate_id == Candidate.id)
         .outerjoin(matched, matched.c.candidate_id == Candidate.id)
@@ -266,6 +274,7 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
         must_have_no_evidence,
         filename,
         flags,
+        columns,
     ) in rows:
         # Status is checked before the score: a failed candidate is reported as
         # failed even if an earlier run left a score behind, because a number
@@ -286,6 +295,7 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
             must_have_no_evidence,
             filename,
             flags,
+            columns,
         )
         inputs.append(
             RankingInputs(
@@ -308,6 +318,7 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
             must_have_no_evidence,
             filename,
             flags,
+            columns,
         ) = scored[entry.candidate_id]
         ranked.append(
             RankedEntry(
@@ -323,6 +334,7 @@ def rank_job_candidates(db: Session, job_id: uuid.UUID) -> JobRanking:
                     injection_flag_count=len(flags or []),
                     needs_review_count=unresolved_count,
                     must_have_no_evidence=must_have_no_evidence,
+                    multi_column=bool(columns),
                 ),
             )
         )
@@ -348,6 +360,7 @@ __all__ = [
     "WARNING_CRITERIA_UNRESOLVED",
     "WARNING_EVIDENCE_DOWNGRADED",
     "WARNING_INSTRUCTION_LIKE_TEXT",
+    "WARNING_MULTI_COLUMN_LAYOUT",
     "WARNING_MUST_HAVE_NOT_EVIDENCED",
     "WARNING_MUST_HAVE_UNRESOLVED",
     "WARNING_NOTHING_DECIDABLE",

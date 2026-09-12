@@ -27,11 +27,17 @@ from tests.pdf_fixtures import (
     EMPTY_BYTES,
     FAKE_PDF_PNG_BYTES,
     FAKE_PDF_TEXT_BYTES,
+    TWO_COLUMN_CV_LEFT,
+    TWO_COLUMN_CV_RIGHT,
+    build_pdf,
+    centred_header_cv_pdf,
     image_only_pdf,
     injection_cv_pdf,
     many_pages_pdf,
     multipage_cv_pdf,
+    right_aligned_dates_cv_pdf,
     simple_cv_pdf,
+    two_column_cv_pdf,
     whitespace_heavy_pdf,
 )
 
@@ -304,3 +310,97 @@ def test_the_scanner_is_a_signal_not_a_filter() -> None:
 
     assert flags
     assert flags[0]["excerpt"] in text
+
+
+# --------------------------------------------------------------------------
+# Column layout — reported, never rearranged
+# --------------------------------------------------------------------------
+
+
+def test_a_two_column_page_is_reported() -> None:
+    assert extract_text(two_column_cv_pdf()).multi_column_pages == [1]
+
+
+def test_single_column_cvs_are_not_reported() -> None:
+    """The flag costs a recruiter attention, so it must not cry wolf."""
+    for pdf in (simple_cv_pdf(), injection_cv_pdf(), whitespace_heavy_pdf()):
+        assert extract_text(pdf).multi_column_pages == []
+
+    assert extract_text(multipage_cv_pdf()).multi_column_pages == []
+
+
+def test_the_flag_is_warranted_the_same_content_reads_differently() -> None:
+    """Why the flag exists, demonstrated rather than asserted.
+
+    The same lines, laid out in two columns and in one, extract into two
+    different documents. In the two-column version the reading order interleaves
+    the sidebar with the experience narrative, and the organisation entry lands
+    between the education heading and the school it belongs to -- so a reader
+    working from headings would attribute it to the wrong section.
+
+    Nothing here is a bug to fix. Flattening a page into one stream of lines is
+    what text extraction is, and no reordering can recover an order the file
+    does not state. The point is that the damage is invisible in the output,
+    which is why the page is flagged for a human instead.
+    """
+    single_column = build_pdf([TWO_COLUMN_CV_LEFT + [""] + TWO_COLUMN_CV_RIGHT])
+
+    flattened = extract_text(two_column_cv_pdf()).full_text
+    intended = extract_text(single_column).full_text
+
+    assert extract_text(two_column_cv_pdf()).multi_column_pages == [1]
+    assert extract_text(single_column).multi_column_pages == []
+
+    # Same content either way -- nothing is dropped, and nothing is invented.
+    for line in ("PENGALAMAN KERJA", "KEAHLIAN", "PENDIDIKAN", "Accurate", "Toko Fiktif Jaya"):
+        assert line in flattened
+        assert line in intended
+
+    # But the order is not the document's. The experience heading from the
+    # right column arrives before the sidebar it sits beside...
+    assert flattened.index("PENGALAMAN KERJA") < flattened.index("KEAHLIAN")
+    assert intended.index("KEAHLIAN") < intended.index("PENGALAMAN KERJA")
+
+    # ...and the organisation entry is cut into the education section, landing
+    # between the education heading and the qualification underneath it.
+    assert (
+        flattened.index("PENDIDIKAN")
+        < flattened.index("Anggota, 2019 - 2020")
+        < flattened.index("Akuntansi, 2021")
+    )
+    assert intended.index("Anggota, 2019 - 2020") > intended.index("Akuntansi, 2021")
+
+
+def test_an_unreadable_page_is_not_called_multi_column() -> None:
+    """No text positions means no opinion, not a guess."""
+    assert extract_text(build_pdf([["one line only"]])).multi_column_pages == []
+
+
+def test_right_aligned_dates_are_not_a_second_column() -> None:
+    """The most common CV shape that looks like two columns and is not.
+
+    Most of the page separates the bullet text from the dates, so the gutter
+    and share tests do not settle it. What does is that no date has a line to
+    itself: each shares a baseline with the employer beside it.
+    """
+    assert extract_text(right_aligned_dates_cv_pdf()).multi_column_pages == []
+
+
+def test_right_aligned_dates_are_not_a_second_column_even_when_there_is_little_else() -> None:
+    """With no bullet text the dates are a large share of the runs.
+
+    The share test alone would pass this one, which is why it is not the only
+    test. A CV like this reaching the recruiter with a layout warning on it
+    would be a false alarm on an entirely ordinary document.
+    """
+    assert extract_text(right_aligned_dates_cv_pdf(bullets=0)).multi_column_pages == []
+
+
+def test_a_centred_header_is_not_a_second_column() -> None:
+    """A centred name block over left-aligned body text. Also very common.
+
+    Unlike the dates, these lines do each have a baseline of their own. What
+    rules them out is that the block is stacked above the body rather than
+    running beside it, so the two sides share none of their vertical range.
+    """
+    assert extract_text(centred_header_cv_pdf()).multi_column_pages == []

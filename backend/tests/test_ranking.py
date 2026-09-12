@@ -26,10 +26,15 @@ from app.core.enums import (
     ScoreStatus,
 )
 from app.core.errors import NotFoundError
+from app.llm.fixtures import fixture_cv_text
 from app.models.candidate import Candidate
 from app.models.evaluation import Score
 from app.services import jobs, matching, profile_extraction, ranking, requirements, scoring
-from tests.factories import make_candidate_from_fixture, make_job_with_requirements
+from tests.factories import (
+    make_candidate_from_fixture,
+    make_job_with_requirements,
+    make_parsed_candidate,
+)
 
 # --------------------------------------------------------------------------
 # The tie-break, as a pure function
@@ -457,6 +462,33 @@ def test_a_cv_with_instruction_like_text_is_flagged(db_session: Session, replay_
     result = ranking.rank_job_candidates(db_session, job.id)
 
     assert ranking.WARNING_INSTRUCTION_LIKE_TEXT in result.ranked[0].warnings
+
+
+@pytest.mark.requires_db
+def test_a_cv_laid_out_in_columns_is_flagged(db_session: Session, replay_client) -> None:
+    """Parsing recorded the layout; the ranked list is where it reaches a human.
+
+    A flagged candidate is still scored and still ranked on the same terms as
+    everyone else. The warning says the reading order could not be relied on --
+    it does not withhold a result, and it does not move anyone down the list.
+    """
+    job = make_job_with_requirements(db_session, replay_client)
+    candidate, _ = make_parsed_candidate(
+        db_session,
+        job.id,
+        fixture_cv_text("cv_alex_rivera"),
+        filename="cv_alex_rivera.pdf",
+        multi_column_pages=[1],
+    )
+    profile_extraction.extract_profile(db_session, candidate.id, replay_client)
+    matching.run_matching(db_session, candidate.id, replay_client)
+    scoring.score_candidate(db_session, candidate.id)
+
+    result = ranking.rank_job_candidates(db_session, job.id)
+
+    entry = result.ranked[0]
+    assert ranking.WARNING_MULTI_COLUMN_LAYOUT in entry.warnings
+    assert entry.score.score == 82, "the warning does not change the score"
 
 
 @pytest.mark.requires_db

@@ -24,7 +24,7 @@ const CANDIDATE = {
   failure_detail: null,
   created_at: "2026-09-07T09:00:00Z",
   document: { original_filename: "rana.pdf", size_bytes: 1800, page_count: 1 },
-  parsed: { page_count: 1, char_count: 900, injection_flag_count: 0 },
+  parsed: { page_count: 1, char_count: 900, injection_flag_count: 0, multi_column_pages: [] },
 };
 
 const UNRESOLVED_GPA = {

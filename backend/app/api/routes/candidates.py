@@ -77,6 +77,7 @@ def _candidate_response(db: Session, candidate: Candidate) -> CandidateResponse:
                 text_sha256=parsed.text_sha256,
                 language_detected=parsed.language_detected,
                 injection_flag_count=len(parsed.injection_flags or []),
+                multi_column_pages=parsed.multi_column_pages or [],
             )
             if parsed
             else None

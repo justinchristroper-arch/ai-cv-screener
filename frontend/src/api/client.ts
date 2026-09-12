@@ -397,7 +397,13 @@ export interface Candidate {
   failure_detail: string | null;
   created_at: string;
   document: { original_filename: string; size_bytes: number; page_count: number | null } | null;
-  parsed: { page_count: number; char_count: number; injection_flag_count: number } | null;
+  parsed: {
+    page_count: number;
+    char_count: number;
+    injection_flag_count: number;
+    /** Pages laid out in columns, where the reading order may be wrong. */
+    multi_column_pages: number[];
+  } | null;
 }
 
 export function uploadCandidates(jobId: string, files: File[]): Promise<UploadBatch> {
