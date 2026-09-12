@@ -134,16 +134,31 @@ SHALLOW_CUES = (
     "course",
     "coursework",
     "bootcamp",
-    "training",
     "certificate",
     "certification",
     "self-taught",
-    "learning",
     "beginner",
     "kursus",
     "pelatihan",
     "sertifikat",
     "sedang belajar",
+    # "learning" and "training" were single words here until the structured
+    # evaluation caught what that cost. Both are ordinary vocabulary in this
+    # industry: "MSc Machine Learning" is a degree title and "built training
+    # pipelines" is a job, and either within fifty characters of a skill
+    # downgraded it to exposure. On one CV that marked Python, Docker and SQL
+    # as things the candidate had merely been taught.
+    #
+    # The phrases below mean what the cue was reaching for -- not yet
+    # proficient -- and cannot be satisfied by naming a field of study.
+    "currently learning",
+    "still learning",
+    "learning about",
+    "self-learning",
+    "training course",
+    "attended training",
+    "completed training",
+    "in training",
 )
 
 #: Section headers, in both languages. A bare token under SKILLS is a claim;
@@ -679,8 +694,15 @@ def extract_roles(
     """
     facts: list[RoleFact] = []
     seen: set[int] = set()
+    # Nobody has worked a month that has not happened. A CV written "2023 -
+    # 2026" states a year range whose end is December, and counting to December
+    # credited months still in the future -- over-crediting, in the direction
+    # that costs most. The stated end is kept when it is in the past; otherwise
+    # it is read as "until now", which is what such an entry means.
+    today = as_of_year * 12 + (as_of_month - 1)
 
     def accept(offset: int, begin: int, finish: int) -> None:
+        finish = min(finish, today)
         if finish < begin:
             return
         span = entry_at(text, offset)

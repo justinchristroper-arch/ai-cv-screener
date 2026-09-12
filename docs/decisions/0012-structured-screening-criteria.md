@@ -175,3 +175,17 @@ and reading only the title would miss it.
 dated line between them, the block boundary is approximate and a skill could be
 attributed to the wrong role. The block ends at the next *dated* role, so an
 undated entry in between is absorbed.
+
+**Refined while building its evaluation.** Designing the labelled set for
+`EXPERIENCE_IN_FIELD` exposed a flaw in its first version. Most CVs list skills
+in a `SKILLS` block and dated roles in an `EXPERIENCE` block, and never say
+which role used which skill. The first version answered `NO_EVIDENCE` for those
+— reporting a gap in the CV's *formatting* as a gap in the candidate, which is
+the exact confusion this ADR added `NEEDS_REVIEW` to prevent.
+
+Two documents are now told apart. A CV that never mentions the skill shows
+nothing, and absence is honest. A CV that claims the skill and lists dated roles
+without joining them up is `NEEDS_REVIEW`, citing the line that made the claim —
+so it leaves the score entirely rather than counting as a zero, and a person is
+asked to read it. `MATCHED` still requires the CV's own entry for a dated role
+to evidence the skill.

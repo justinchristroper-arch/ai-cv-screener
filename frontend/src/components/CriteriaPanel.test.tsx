@@ -2,10 +2,11 @@
  * Choosing what to screen for, now that the choice is a closed one.
  *
  * These tests are mostly about the boundary rather than about the form
- * mechanics. ADR-0012 narrowed the product to six criteria it can answer from a
- * CV by arithmetic, and the whole value of that narrowing depends on the
- * interface being honest about it: the menu has to say these six are all there
- * is, an unsupported skill has to be refused in words a recruiter can act on,
+ * mechanics. ADR-0012 narrowed the product to a closed set of criteria it can
+ * answer from a CV by arithmetic, and the whole value of that narrowing depends
+ * on the interface being honest about it: the menu has to say those are all
+ * there is, an unsupported skill has to be refused in words a recruiter can act
+ * on,
  * and the free-text path has to remain reachable with its cost stated rather
  * than quietly removed.
  *
@@ -344,7 +345,7 @@ describe("the free-text path", () => {
     renderPanel([criterion()]);
 
     expect(
-      await screen.findByText(/screen for something these six cannot express/i),
+      await screen.findByText(/screen for something these criteria cannot express/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/read by the language model rather than by the screening rules/i),
@@ -359,7 +360,7 @@ describe("the free-text path", () => {
 
     expect(await screen.findByText(/criteria confirmed/i)).toBeInTheDocument();
     expect(
-      screen.queryByText(/screen for something these six cannot express/i),
+      screen.queryByText(/screen for something these criteria cannot express/i),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /add criterion/i })).not.toBeInTheDocument();
   });

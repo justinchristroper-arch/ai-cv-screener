@@ -72,9 +72,10 @@ reading — and leave every judgement that has to be defensible to ordinary code
 
 ## What the system does
 
-1. **Take the recruiter's criteria**, chosen from six supported types: degree
-   level, GPA, work-experience duration, skill, internship, language presence.
-   Each is typed — a threshold, or a subject from a published list.
+1. **Take the recruiter's criteria**, chosen from seven supported types: degree
+   level, GPA, work-experience duration, skill, internship, language presence,
+   and experience in a named field. Each is typed — a threshold, a subject from
+   a published list, or both.
 2. **Stop, and wait for a human.** Nothing is screened until the recruiter has
    reviewed, weighted and **confirmed** the criteria set.
 3. **Parse uploaded CVs** into text with page-level provenance.
@@ -91,7 +92,7 @@ reading — and leave every judgement that has to be defensible to ordinary code
 9. **Show the evidence**, criterion by criterion, so the recruiter can disagree
    with any of it.
 
-A free-text criterion the six cannot express is still accepted, and is still
+A free-text criterion these types cannot express is still accepted, and is still
 read by a language model — but it is now the exception behind a disclosure
 rather than the main path, and the interface says what it costs.
 
@@ -203,7 +204,7 @@ Indonesian spellings adverts and CVs actually use — `akuntansi`, `pembukuan`,
 `laporan keuangan`, `rekonsiliasi bank`, `faktur pajak`, `PPh`, `PPN`, plus
 Accurate, Zahir, MYOB, SAP, QuickBooks and Xero.
 
-**What free text can still do.** A criterion the six cannot express is available
+**What free text can still do.** A criterion these types cannot express is available
 behind a disclosure, is read by the language model, and is labelled in the
 results as decided by the model rather than by the screening rules. It is slower,
 needs the model to be reachable, and its verdict cannot be reconstructed by
@@ -240,7 +241,7 @@ honestly.
 **The default seed uses no recording either.** It screens with six structured
 criteria, so the whole walkthrough — criteria, confirmation, upload, matching,
 scoring, ranking — completes with no model call of any kind. The strong CV
-scores 83 (Good Match), the injected one 50 (Low Match), and the scan fails as
+scores 83 (Good Match), the injected one 38 (Low Match), and the scan fails as
 `NO_TEXT_LAYER`.
 
 The four free-text briefs are still offered — formal English, informal
@@ -517,7 +518,7 @@ The frontend reads one variable of its own, `VITE_API_BASE_URL` (see
 Everything below runs offline, with no API key.
 
 ```powershell
-.\tasks.ps1 test          # 1067 passing: 939 backend, 128 frontend
+.\tasks.ps1 test          # 1136 passing: 1006 backend, 130 frontend
 .\tasks.ps1 lint          # ruff + eslint + prettier, both halves
 .\tasks.ps1 coverage      # 97% of backend/app by statement
 .\tasks.ps1 audit         # pip-audit + npm audit
@@ -527,7 +528,7 @@ Everything below runs offline, with no API key.
 .\tasks.ps1 evaluate      # regenerates evaluation/RESULTS.md
 ```
 
-The backend suite collects 940 tests and skips one: an opt-in live-Ollama check
+The backend suite collects 1007 tests and skips one: an opt-in live-Ollama check
 that needs a running model server, enabled with `OLLAMA_LIVE_TEST=1`. Everything
 else runs with no provider configured at all.
 
@@ -542,13 +543,35 @@ commit.
 ## Evaluation
 
 `.\tasks.ps1 evaluate` scores the pipeline against eight synthetic CVs and 89
-hand-labelled `(candidate, requirement)` pairs. Full output, with every
-numerator and denominator, is in [evaluation/RESULTS.md](evaluation/RESULTS.md).
+hand-labelled free-text `(candidate, requirement)` pairs, plus 61 hand-labelled
+structured pairs for the engine that answers the default path. Full output, with
+every numerator and denominator, is in
+[evaluation/RESULTS.md](evaluation/RESULTS.md).
 
 Read the boundary before the numbers. Everything measured describes **this
-application's deterministic code** — the exact, alias and duration matchers, the
-evidence verifier, the scorer, the ranker. None of it describes how well a
-language model reads a CV, and none of it is real-world screening accuracy.
+application's deterministic code** on eight invented documents. None of it
+describes how well a language model reads a CV, and none of it is real-world
+screening accuracy.
+
+**The default path** — `cv_facts` and `structured_match`, the engine that
+answers a structured criterion with no model involved:
+
+| | |
+|---|---|
+| Verdict agreement with the hand-written label | 61/61 |
+| Over-crediting (the costlier direction) | 0/55 |
+| Under-crediting | 0/55 |
+| Cited quotes found verbatim in the CV | 29/29 |
+| Positive verdicts carrying a quote | 23/23 |
+| Cited quotes naming no protected characteristic | 29/29 |
+| Identical on a second run | 61/61 |
+
+Four of those need no labels at all — a quote either is or is not in the source
+text — which is why they are the ones worth trusting most. The labelled ones
+rest on 61 pairs written by the same author as the CVs, so a single
+disagreement moves a percentage by more than a point.
+
+**The free-text path**, kept as the exception:
 
 | | |
 |---|---|
@@ -575,6 +598,15 @@ over-crediting candidates: the skill `Go` matched the word "go" in *"the ability
 to go deep on latency problems"*, and *"within 2 years"* was read as a minimum
 of two years' experience. Both are fixed, and `RESULTS.md` records the recall
 those fixes cost as well as the precision they bought.
+
+Extending it to the structured engine paid for itself the same way. The first
+run scored 59/61, and both disagreements were one defect: `learning` was a bare
+cue for "not yet proficient", so the degree title *"MSc Machine Learning"*
+sitting within fifty characters of a skills list marked Python, Docker and SQL
+as things the candidate had merely been taught. Every machine-learning CV was
+affected, and `training` had the same flaw — *"built training pipelines"* is a
+job, not a course. Both are phrases rather than words now, with regression
+tests.
 
 ---
 
@@ -691,8 +723,8 @@ The full list is in
 | Demo mode | ✅ A structured seed that calls no model at all, plus four free-text briefs, over three synthetic CVs. Each walkable end to end. No API key, no cost, no real applicant data. |
 | Local AI mode | ✅ Ollama, `qwen2.5:7b-instruct`, the default when demo mode is off. No account, no key, no per-call cost. |
 | Cloud AI mode | 🟡 Anthropic, opt-in via `LLM_PROVIDER=anthropic`. Implemented and wired; **never exercised against a real key in this repository**, so no claim about it is made. |
-| Tests | ✅ 1067 passing (939 backend, 128 frontend), 97% backend coverage. The backend suite collects 940; the single skip is the opt-in live-Ollama check, which needs a running model server. |
-| Evaluation | ✅ [`evaluation/`](evaluation/) — 8 synthetic candidates, 89 labelled pairs, 11 metrics measured and 6 reported as not measurable offline, with reasons. |
+| Tests | ✅ 1136 passing (1006 backend, 130 frontend), 97% backend coverage. The backend suite collects 1007; the single skip is the opt-in live-Ollama check, which needs a running model server. |
+| Evaluation | ✅ [`evaluation/`](evaluation/) — 8 synthetic candidates, 61 structured plus 89 free-text labelled pairs, 18 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
 | Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, deployment, 12 ADRs. |
 | CI | ✅ [Running on GitHub Actions](https://github.com/justinchristroper-arch/ai-cv-screener/actions/workflows/ci.yml) on every push to `main` — [three jobs](.github/workflows/ci.yml): backend against a real PostgreSQL service container, frontend suite and production build, documentation checks. Green on the current commit. |

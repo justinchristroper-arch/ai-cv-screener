@@ -28,6 +28,55 @@ Every number below describes **this application's deterministic code** — the e
 
 ## Measured — deterministic application behaviour
 
+### `structured_verdict_agreement` — 100.0% (61/61)
+
+- **Definition.** Pairs where the structured engine's verdict equals the hand-written label, over all labelled pairs.
+- **What it actually measures.** services/structured_match over services/cv_facts. No model involved.
+- **Kind.** Deterministic; no model call in its path.
+- **Limitations.** Eight invented CVs and 61 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
+
+### `structured_over_crediting` — 0.0% (0/55)
+
+- **Definition.** Pairs where the engine returned a more favourable verdict than the document supports, over pairs comparable on the MATCHED/PARTIAL/NO_EVIDENCE scale. The costlier direction of error.
+- **What it actually measures.** Whether the engine credits a candidate for something the CV does not say.
+- **Kind.** Deterministic; no model call in its path.
+- **Limitations.** Eight invented CVs and 61 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy. NEEDS_REVIEW is outside the scale, so a disagreement involving it is counted in agreement but in neither credit direction.
+
+### `structured_under_crediting` — 0.0% (0/55)
+
+- **Definition.** The same comparison in the other direction.
+- **What it actually measures.** Whether the engine withholds credit the CV does support.
+- **Kind.** Deterministic; no model call in its path.
+- **Limitations.** Eight invented CVs and 61 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
+
+### `structured_evidence_located` — 100.0% (29/29)
+
+- **Definition.** Cited quotes found verbatim in the candidate's own CV text, over all quotes the engine cited.
+- **What it actually measures.** Whether a verdict's quotation is real. Needs no label: the quote is either in the document or it is not.
+- **Kind.** Deterministic; no model call in its path.
+- **Limitations.** Locating a quote says it exists, not that it supports the verdict.
+
+### `structured_positive_verdicts_cite_evidence` — 100.0% (23/23)
+
+- **Definition.** MATCHED or PARTIAL verdicts carrying a quote, over all such verdicts.
+- **What it actually measures.** ADR-0002 as an engine property rather than a database constraint.
+- **Kind.** Deterministic; no model call in its path.
+- **Limitations.** Eight invented CVs and 61 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
+
+### `structured_spans_free_of_protected_attributes` — 100.0% (29/29)
+
+- **Definition.** Cited quotes naming no protected characteristic, over all quotes cited.
+- **What it actually measures.** ADR-0003 at the point it is most easily broken. A real CV put a place of worship into an evidence quote by having a volunteering line read as a job.
+- **Kind.** Deterministic; no model call in its path.
+- **Limitations.** The scanner reads Indonesian and English patterns and will miss a paraphrase or a venue name it does not know.
+
+### `structured_repeatability` — 100.0% (61/61)
+
+- **Definition.** Pairs whose verdict and quote are identical on a second run.
+- **What it actually measures.** That the engine reads no clock and holds no state.
+- **Kind.** Deterministic; no model call in its path.
+- **Limitations.** Two runs in one process. Says nothing about a different build.
+
 ### `routing_restraint` — 100.0% (69/69)
 
 - **Definition.** Of the pairs a reader should settle, the share the deterministic matchers correctly left undecided.

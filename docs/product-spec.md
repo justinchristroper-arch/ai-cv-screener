@@ -97,7 +97,7 @@ The MVP is complete when a recruiter can, in one session, go from a pasted JD to
 **In scope:**
 
 - Job creation; JD entry by paste or file upload.
-- Screening criteria chosen from six supported types — minimum degree, minimum GPA, work experience duration, skill, internship, language presence — with typed thresholds and subjects drawn from a published vocabulary ([ADR-0012](decisions/0012-structured-screening-criteria.md)). LLM extraction of free-text requirements remains available as a labelled exception.
+- Screening criteria chosen from seven supported types — minimum degree, minimum GPA, work experience duration, skill, internship, language presence, and experience in a named field — with typed thresholds and subjects drawn from a published vocabulary ([ADR-0012](decisions/0012-structured-screening-criteria.md)). LLM extraction of free-text requirements remains available as a labelled exception.
 - Full HR editing of the criteria set, plus an explicit confirmation gate.
 - Multi-file PDF upload (batch).
 - Text extraction from text-layer PDFs.

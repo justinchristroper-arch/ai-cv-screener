@@ -310,6 +310,23 @@ def _match_experience_in_field(spec: RequirementSpec, facts: CvFacts) -> MatchOu
 
     in_field = [role for role in facts.roles if role.evidences(facts.skills, name)]
     if not in_field:
+        # Two very different documents reach this point, and calling both
+        # "no evidence" would be the mistake this engine exists to avoid.
+        #
+        # A CV that never mentions the skill at all shows nothing, and absence
+        # is the honest answer. A CV that lists the skill under SKILLS and
+        # separately lists four years of dated roles shows both halves and
+        # simply does not join them up -- it never says which role used it.
+        # That is not absence, it is a question the document does not answer,
+        # and most CVs are written that way.
+        claimed_elsewhere = any(item.name == name for item in facts.skills)
+        if claimed_elsewhere:
+            return MatchOutcome(
+                MatchVerdict.NEEDS_REVIEW,
+                next(item.span for item in facts.skills if item.name == name),
+                f"The CV claims {name} and lists dated roles, but does not say which "
+                f"role used it, so the time spent on {name} cannot be measured.",
+            )
         return _no_evidence(f"dated experience in {name}")
 
     months = total_months(in_field)

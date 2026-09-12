@@ -1,9 +1,9 @@
 /**
  * Step 2: choose what to screen for, then confirm it.
  *
- * The recruiter picks from six structured criteria rather than typing a
+ * The recruiter picks from a closed set of structured criteria rather than typing a
  * sentence (ADR-0012). That is a narrowing, and the screen is honest about it:
- * the menu says these six are everything the engine can evaluate, the skill
+ * the menu says those are everything the engine can evaluate, the skill
  * search says so again for a term that is not in the list, and the free-text
  * path is still reachable — labelled with what it costs — rather than removed.
  *
@@ -167,7 +167,7 @@ export function CriteriaPanel({
           ) : null}
 
           <details className="disclosure">
-            <summary>Screen for something these six cannot express</summary>
+            <summary>Screen for something these criteria cannot express</summary>
             <div className="disclosure__body">
               <p>
                 A criterion written as a sentence is read by the language model rather than by the

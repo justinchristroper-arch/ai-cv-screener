@@ -187,7 +187,7 @@ def test_the_seeded_job_ranks_the_way_the_samples_describe(db_session: Session, 
     """The demo a reader sees: a strong match, a flagged one, and an honest failure."""
     result = ranking.rank_job_candidates(db_session, seeded.job.id)
 
-    assert [entry.score.score for entry in result.ranked] == [83, 50]
+    assert [entry.score.score for entry in result.ranked] == [83, 38]
     assert [entry.score.band for entry in result.ranked] == [
         RecommendationBand.GOOD_MATCH,
         RecommendationBand.LOW_MATCH,
@@ -261,7 +261,7 @@ def test_seeding_over_http_returns_a_browsable_job(api: TestClient) -> None:
 
     ranked = api.get(f"/api/jobs/{body['job_id']}/ranking").json()
     assert ranked["summary"] == {"total": 3, "ranked": 2, "not_yet_scored": 0, "failed": 1}
-    assert [row["score"] for row in ranked["ranked"]] == [83, 50]
+    assert [row["score"] for row in ranked["ranked"]] == [83, 38]
 
 
 @pytest.mark.requires_db

@@ -476,3 +476,45 @@ def test_a_denial_inside_the_entry_does_not_credit_the_field() -> None:
 
 def test_a_field_criterion_renders_for_display() -> None:
     assert describe(field("Accounting", "24")) == "At least 2 years of Accounting experience"
+
+
+def test_a_skill_listed_but_not_tied_to_a_role_is_unresolved_not_absent() -> None:
+    """The shape most CVs actually have, and the distinction that matters.
+
+    A CV listing Python under SKILLS and four years of dated roles shows both
+    halves without joining them: it never says which role used Python. Calling
+    that "no evidence of Python experience" would report a gap in the CV's
+    formatting as a gap in the candidate. Calling it MATCHED would invent the
+    connection. Unresolved is the only honest answer, and it keeps the
+    criterion out of the score rather than counting it as a zero.
+    """
+    cv = (
+        "EXPERIENCE\n"
+        "Northwind (fictional) - Backend Engineer, January 2022 - December 2025\n"
+        "Designed and operated REST services in production.\n"
+        "\n"
+        "SKILLS\n"
+        "Python, Docker\n"
+    )
+    result = outcome(field("Python", "24"), cv)
+
+    assert result.verdict is MatchVerdict.NEEDS_REVIEW
+    assert "does not say which role used it" in result.reason
+    # It still points at the line that made the claim.
+    assert result.span is not None and "Python" in result.span.text
+
+
+def test_a_skill_absent_from_the_whole_cv_is_still_absence() -> None:
+    """The other half: nothing to resolve means the plain answer is absence."""
+    cv = (
+        "EXPERIENCE\n"
+        "Northwind (fictional) - Backend Engineer, January 2022 - December 2025\n"
+        "Designed and operated REST services in production.\n"
+        "\n"
+        "SKILLS\n"
+        "Excel, SQL\n"
+    )
+    result = outcome(field("Python", "24"), cv)
+
+    assert result.verdict is MatchVerdict.NO_EVIDENCE
+    assert "dated experience in Python" in result.reason

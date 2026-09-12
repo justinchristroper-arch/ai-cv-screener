@@ -1,0 +1,384 @@
+{
+  "description": "Structured screening criteria (ADR-0012) and their hand-written labels, for measuring services/cv_facts and services/structured_match -- the engine that answers the product's default path. The existing jobs.json and labels.json measure the older profile-and-model path, which is now the exception. Every verdict here was read from the candidate's own CV text in candidates.json and from the criterion's stated meaning; none was copied from the engine's output, because a label taken from the thing under test measures nothing.",
+  "verdict_values": [
+    "MATCHED",
+    "PARTIAL",
+    "NO_EVIDENCE",
+    "NEEDS_REVIEW"
+  ],
+  "criteria": {
+    "job-backend": [
+      {
+        "id": "s0",
+        "spec_type": "EDUCATION_MIN",
+        "subject": "S1",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "s1",
+        "spec_type": "EXPERIENCE_MIN",
+        "threshold_value": "48",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "s2",
+        "spec_type": "SKILL",
+        "subject": "Python",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "s3",
+        "spec_type": "SKILL",
+        "subject": "Docker",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "s4",
+        "spec_type": "INTERNSHIP_MIN",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "s5",
+        "spec_type": "LANGUAGE_PRESENT",
+        "subject": "English",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "s6",
+        "spec_type": "EXPERIENCE_IN_FIELD",
+        "subject": "Python",
+        "threshold_value": "24",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "s7",
+        "spec_type": "GPA_MIN",
+        "threshold_value": "3.00",
+        "threshold_scale": "4.00",
+        "must_have": false,
+        "weight": "1.00"
+      }
+    ],
+    "job-data-platform": [
+      {
+        "id": "t0",
+        "spec_type": "SKILL",
+        "subject": "R",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "t1",
+        "spec_type": "SKILL",
+        "subject": "Go",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "t2",
+        "spec_type": "SKILL",
+        "subject": "C",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "t3",
+        "spec_type": "SKILL",
+        "subject": "Kubernetes",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "t4",
+        "spec_type": "EXPERIENCE_MIN",
+        "threshold_value": "24",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "t5",
+        "spec_type": "EXPERIENCE_IN_FIELD",
+        "subject": "Python",
+        "threshold_value": "12",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "t6",
+        "spec_type": "EDUCATION_MIN",
+        "subject": "S1",
+        "must_have": false,
+        "weight": "1.00"
+      }
+    ]
+  },
+  "labels": {
+    "ada-whitfield": {
+      "s0": {
+        "verdict": "MATCHED",
+        "why": "The CV states a BSc, which is S1 or above."
+      },
+      "s1": {
+        "verdict": "MATCHED",
+        "why": "Mar 2022-Feb 2026 plus Jun 2021-Feb 2022 is 57 months against a 48-month bar."
+      },
+      "s2": {
+        "verdict": "MATCHED",
+        "why": "Python is listed under SKILLS."
+      },
+      "s3": {
+        "verdict": "MATCHED",
+        "why": "Docker is listed under SKILLS."
+      },
+      "s4": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No internship. 'Junior Developer' is a job title, not an internship."
+      },
+      "s5": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s6": {
+        "verdict": "NEEDS_REVIEW",
+        "why": "Python is listed under SKILLS and two dated roles are listed, but neither entry says Python, so the CV does not say how long was spent on it."
+      },
+      "s7": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No grade is stated."
+      }
+    },
+    "bao-nguyen-okafor": {
+      "s0": {
+        "verdict": "MATCHED",
+        "why": "The CV states a BSc, which is S1 or above."
+      },
+      "s1": {
+        "verdict": "MATCHED",
+        "why": "Mar 2022-Feb 2026 plus Jun 2021-Feb 2022 is 57 months against a 48-month bar."
+      },
+      "s2": {
+        "verdict": "MATCHED",
+        "why": "Python is listed under SKILLS."
+      },
+      "s3": {
+        "verdict": "MATCHED",
+        "why": "Docker is listed under SKILLS."
+      },
+      "s4": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No internship. 'Junior Developer' is a job title, not an internship."
+      },
+      "s5": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s6": {
+        "verdict": "NEEDS_REVIEW",
+        "why": "Python is listed under SKILLS and two dated roles are listed, but neither entry says Python, so the CV does not say how long was spent on it."
+      },
+      "s7": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No grade is stated."
+      }
+    },
+    "priya-raman": {
+      "s0": {
+        "verdict": "MATCHED",
+        "why": "An MSc is above S1."
+      },
+      "s1": {
+        "verdict": "MATCHED",
+        "why": "Jan 2020-Jan 2026 is 73 months against a 48-month bar."
+      },
+      "s2": {
+        "verdict": "MATCHED",
+        "why": "Python is listed under SKILLS."
+      },
+      "s3": {
+        "verdict": "MATCHED",
+        "why": "Docker is listed under SKILLS."
+      },
+      "s4": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s5": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s6": {
+        "verdict": "NEEDS_REVIEW",
+        "why": "Python is listed under SKILLS; the one role entry describes ranking models and does not name Python."
+      },
+      "s7": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No grade is stated."
+      }
+    },
+    "sam-okonkwo": {
+      "s0": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV has no education section at all."
+      },
+      "s1": {
+        "verdict": "PARTIAL",
+        "why": "Jun 2023-Jun 2026 is 37 months, short of 48 but well within the band."
+      },
+      "s2": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The skills are Excel, SQL and Tableau."
+      },
+      "s3": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s4": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s5": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s6": {
+        "verdict": "NO_EVIDENCE",
+        "why": "Python appears nowhere in this CV, so there is nothing to resolve."
+      },
+      "s7": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No grade is stated."
+      }
+    },
+    "jordan-blake": {
+      "s0": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV has no education section."
+      },
+      "s1": {
+        "verdict": "PARTIAL",
+        "why": "The CV claims 2023-2026. As of 2026-09 that is 45 elapsed months, short of 48; months still ahead cannot be counted."
+      },
+      "s2": {
+        "verdict": "MATCHED",
+        "why": "Python is listed under SKILLS."
+      },
+      "s3": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s4": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s5": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "s6": {
+        "verdict": "MATCHED",
+        "why": "The role's own entry says 'Maintained internal tooling in Python', and that role runs 45 months against a 24-month bar."
+      },
+      "s7": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No grade is stated."
+      }
+    },
+    "rina-costa": {
+      "t0": {
+        "verdict": "MATCHED",
+        "why": "R is named in the skills list."
+      },
+      "t1": {
+        "verdict": "MATCHED",
+        "why": "Go is named in the skills list."
+      },
+      "t2": {
+        "verdict": "MATCHED",
+        "why": "C is named in the skills list."
+      },
+      "t3": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "t4": {
+        "verdict": "MATCHED",
+        "why": "Jan 2021-Jan 2026 is 61 months against a 24-month bar."
+      },
+      "t5": {
+        "verdict": "NEEDS_REVIEW",
+        "why": "Python is listed; the role entry describes batch pipelines and does not name it."
+      },
+      "t6": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV has no education section."
+      }
+    },
+    "tom-becker": {
+      "t0": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "t1": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "t2": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "t3": {
+        "verdict": "MATCHED",
+        "why": "Kubernetes is listed under SKILLS."
+      },
+      "t4": {
+        "verdict": "MATCHED",
+        "why": "Jan 2019 to the stated present is 93 months against a 24-month bar."
+      },
+      "t5": {
+        "verdict": "NEEDS_REVIEW",
+        "why": "Python is listed; the role entry describes the container platform and does not name it."
+      },
+      "t6": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV has no education section."
+      }
+    },
+    "lena-fischer": {
+      "t0": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "t1": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "t2": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "t3": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing on this."
+      },
+      "t4": {
+        "verdict": "PARTIAL",
+        "why": "Jan 2025-Mar 2026 is 15 months, short of 24 but inside the band."
+      },
+      "t5": {
+        "verdict": "NEEDS_REVIEW",
+        "why": "Python is listed; the role entry describes ingestion jobs and does not name it."
+      },
+      "t6": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV has no education section."
+      }
+    }
+  }
+}

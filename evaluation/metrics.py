@@ -567,8 +567,14 @@ def _fixed_time(index: int) -> Any:
 
 def collect(dataset: Dataset, alias_map: dict[str, str]) -> tuple[list[PairOutcome], list[Metric]]:
     """Run everything and return the pair-level outcomes plus every metric."""
+    from evaluation.structured_metrics import structured_metrics
+
     outcomes = run_pairs(dataset, alias_map)
     metrics = [
+        # The default screening path first, because it is the one the product
+        # actually uses; the routing and verdict metrics below measure the
+        # profile-and-model path that ADR-0012 made the exception.
+        *structured_metrics(dataset),
         *routing_metrics(outcomes),
         *verdict_metrics(outcomes),
         *evidence_metrics(dataset),

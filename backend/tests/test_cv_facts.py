@@ -613,3 +613,73 @@ def test_a_certificate_is_exposure_rather_than_applied_accounting() -> None:
         if item.name == "Accounting"
     ]
     assert found and all(item.substantive is False for item in found)
+
+
+def test_a_role_ending_in_the_future_is_counted_only_up_to_now() -> None:
+    """Nobody has worked a month that has not happened.
+
+    A CV written "2023 - 2026" states a year range whose end is December, and
+    counting to December credited months still ahead -- over-crediting, in the
+    direction that costs most. Such an entry means "until now", so that is how
+    it is read.
+    """
+    cv = "EXPERIENCE\nHarbourline (fictional) - Engineer, 2023 - 2026\n"
+    # January 2023 through the supplied as_of of January 2026, inclusive: 37.
+    # Reading the stated December 2026 would have credited 48.
+    assert total_months(facts(cv).roles) == 37
+
+
+def test_a_stated_end_in_the_past_is_respected() -> None:
+    cv = "EXPERIENCE\nNorthwind (fictional) - Engineer, January 2024 - June 2024\n"
+    assert total_months(facts(cv).roles) == 6
+
+
+# --------------------------------------------------------------------------
+# "Learning" and "training" are ordinary words in this industry
+# --------------------------------------------------------------------------
+
+
+def test_a_machine_learning_degree_does_not_downgrade_the_skills_beside_it() -> None:
+    """Found by the structured evaluation, not by review.
+
+    `learning` was a bare shallow cue, so "MSc Machine Learning" -- a degree
+    title within fifty characters of the skills list -- marked Python, Docker
+    and SQL as things the candidate had merely been taught. Every machine
+    learning CV was affected.
+    """
+    cv = (
+        "EXPERIENCE\n"
+        "Calder Systems (fictional) - ML Engineer, January 2020 - January 2026\n"
+        "Trained and deployed ranking models served to internal tools.\n"
+        "\n"
+        "SKILLS\n"
+        "Python, Docker, SQL\n"
+        "\n"
+        "EDUCATION\n"
+        "MSc Machine Learning, Fictional Institute of Technology, 2019\n"
+    )
+    found = {item.name: item.substantive for item in facts(cv).skills}
+    for name in ("Python", "Docker", "SQL"):
+        assert found.get(name) is True, f"{name} was downgraded to exposure"
+
+
+def test_building_training_pipelines_is_work_not_a_training_course() -> None:
+    cv = "EXPERIENCE\nBuilt training pipelines in Python for the ranking models.\n"
+    found = [item for item in facts(cv).skills if item.name == "Python"]
+    assert found and found[0].substantive is True
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "SKILLS\nCurrently learning Rust",
+        "SKILLS\nStill learning Kubernetes",
+        "SKILLS\nCompleted training in Docker",
+        "SKILLS\nAttended training on Kubernetes",
+    ],
+)
+def test_genuinely_shallow_wording_is_still_caught(line: str) -> None:
+    """The cue must keep doing the job it was added for."""
+    found = facts(line).skills
+    assert found, line
+    assert all(item.substantive is False for item in found), line
