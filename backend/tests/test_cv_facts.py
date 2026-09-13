@@ -731,3 +731,134 @@ def test_a_certification_span_is_the_line_that_claimed_it() -> None:
     cv = "SERTIFIKAT\nBrevet A & B Perpajakan, IAI - 2023"
     found = [item for item in facts(cv).certifications if item.name == "Brevet A"]
     assert found and found[0].span.text == "Brevet A & B Perpajakan, IAI - 2023"
+
+
+# --------------------------------------------------------------------------
+# Found by the realistic-shape corpus in evaluation/data/structured.json
+# --------------------------------------------------------------------------
+
+#: One entry over three lines -- employer, title, then the dates alone -- which
+#: is how a right-aligned date column comes out of extraction.
+THREE_LINE_ENTRY_CV = """PENGALAMAN KERJA
+PT Fiktif Sejahtera Abadi
+Staf Akuntansi
+2021 - 2024
+Menyusun laporan keuangan bulanan dan melakukan rekonsiliasi bank.
+"""
+
+
+def test_a_role_is_quoted_verbatim() -> None:
+    """A quotation is a slice of the document, not a reconstruction of it.
+
+    The line above a date line was joined on with a space, so this entry was
+    cited as "PT Fiktif Sejahtera Abadi Staf Akuntansi" -- a line the document
+    never had. Whitespace-normalized verification happened to accept it, which
+    is the verifier being lenient, not the quote being right.
+    """
+    (role,) = facts(THREE_LINE_ENTRY_CV).roles
+    assert role.span.text in THREE_LINE_ENTRY_CV
+    assert role.span.text == THREE_LINE_ENTRY_CV[role.span.start : role.span.end]
+
+
+def test_a_role_is_quoted_with_the_dates_it_was_counted_from() -> None:
+    """The month pattern could reach across a line break.
+
+    "Akuntansi" at the end of the title line was taken as the month of "2021",
+    so the match began on the line above the dates and the quotation left the
+    dates out altogether.
+    """
+    (role,) = facts(THREE_LINE_ENTRY_CV).roles
+    assert "2021 - 2024" in role.span.text
+    assert "Staf Akuntansi" in role.span.text
+    assert total_months([role]) == 48
+
+
+def test_an_internship_whose_dates_sit_on_their_own_line_is_an_internship() -> None:
+    """ "Juli 2025 - September 2025" is a date line and was not read as one.
+
+    Two month names are more than the old pattern's two short words, so the
+    line was not joined to "Magang, PT Fiktif Cahaya Abadi" above it and the
+    internship term on that line was never seen.
+    """
+    cv = (
+        "PENGALAMAN\n"
+        "Magang, PT Fiktif Cahaya Abadi\n"
+        "Juli 2025 - September 2025\n"
+        "Membantu rekonsiliasi bank dan menyusun arus kas.\n"
+    )
+    (role,) = facts(cv).roles
+    assert role.is_internship is True
+    assert "Magang" in role.span.text
+    assert total_months([role]) == 3
+
+
+def test_a_line_with_words_of_its_own_is_its_own_entry() -> None:
+    """Two short words passed for a date line, and got joined to the job above.
+
+    Both entries then started at the same line, and the second was discarded as
+    a duplicate of the first: a real job, silently not counted.
+    """
+    cv = "PENGALAMAN\nStaf Akuntansi, PT Fiktif Abadi (2019-2021)\nKasir Swalayan (2021-2022)\n"
+    roles = facts(cv).roles
+    assert len(roles) == 2
+    assert all(role.span.text.count("(") == 1 for role in roles)
+
+
+@pytest.mark.parametrize(
+    "next_section",
+    ["SERTIFIKAT\nBrevet A & B, 2024", "BAHASA\nBahasa Indonesia"],
+)
+def test_a_skill_is_not_judged_by_the_section_after_it(next_section: str) -> None:
+    """The verdict depended on which heading happened to come next.
+
+    `sertifikat` is a shallow cue, and the window it was searched for in ran
+    fifty characters past the skill -- straight into the next section. A skills
+    list followed by SERTIFIKAT had every skill in reach marked as training; the
+    identical list followed by BAHASA did not.
+    """
+    cv = f"KEAHLIAN\nAkuntansi, Microsoft Excel\n\n{next_section}\n"
+    found = {item.name: item.substantive for item in facts(cv).skills}
+    assert found.get("Accounting") is True
+    assert found.get("Excel") is True
+
+
+@pytest.mark.parametrize(
+    "cv",
+    [
+        "PENDIDIKAN\nS1 Akuntansi, Universitas Fiktif Mandiri\n"
+        "Sedang menempuh semester 7, perkiraan lulus 2027\n",
+        "EDUCATION\nBSc Accounting, University of the Fictional Midlands\n"
+        "Expected graduation: 2027\n",
+    ],
+)
+def test_a_degree_still_being_read_is_not_held_when_the_note_is_on_the_next_line(
+    cv: str,
+) -> None:
+    """Over-crediting, on what is usually a must-have.
+
+    The in-progress cues were searched for in a window ending fifty characters
+    after the degree. "Sedang menempuh" on the next line fell four characters
+    outside it, so a degree expected in 2027 was credited as held.
+    """
+    assert facts(cv).education == []
+
+
+def test_a_note_below_one_degree_is_not_read_as_a_note_about_the_one_above() -> None:
+    cv = (
+        "PENDIDIKAN\n"
+        "D3 Akuntansi, Politeknik Fiktif Jakarta, 2019\n"
+        "S1 Akuntansi, Universitas Fiktif Mandiri\n"
+        "Sedang menempuh semester 5\n"
+    )
+    assert {item.level for item in facts(cv).education} == {2}
+
+
+def test_a_held_degree_is_not_undone_by_a_cue_in_a_later_section() -> None:
+    """A guard on the fix rather than a regression: the entry ends where it ends."""
+    cv = (
+        "PENDIDIKAN\n"
+        "S1 Akuntansi, Universitas Fiktif Mandiri, 2020\n"
+        "PENGALAMAN\n"
+        "Expected to lead the month-end close from 2027.\n"
+    )
+    assert {item.level for item in facts(cv).education} == {3}

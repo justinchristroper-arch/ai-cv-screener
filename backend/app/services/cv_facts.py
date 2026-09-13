@@ -412,6 +412,26 @@ def _section_at(offset: int, ranges: list[tuple[int, int, str]]) -> str:
     return "header"
 
 
+def _around_in_section(
+    text: str, offset: int, length: int, ranges: list[tuple[int, int, str]]
+) -> str:
+    """`_around`, clipped to the section `offset` sits in.
+
+    A cue in another section says nothing about this mention. An Indonesian
+    skills list is routinely followed by a SERTIFIKAT heading, and an unclipped
+    window reached it: `sertifikat` is a shallow cue, so every skill within
+    fifty characters of that heading was marked as training, while the same
+    list followed by BAHASA was not. The verdict depended on which section came
+    next, which is not a property of the candidate.
+    """
+    begin, end = 0, len(text)
+    for low, high, _name in ranges:
+        if low <= offset < high:
+            begin, end = low, high
+            break
+    return text[max(begin, offset - 70) : min(end, offset + length + 50)].lower()
+
+
 def line_at(text: str, offset: int) -> Span:
     """The whole line containing `offset`. Evidence is always a whole line."""
     start = text.rfind("\n", 0, offset) + 1
@@ -421,12 +441,35 @@ def line_at(text: str, offset: int) -> Span:
     return Span(text[start:end], start, end)
 
 
-#: A line carrying nothing but a date, once punctuation is stripped. A wrapped
-#: CV entry produces these: the title and employer land on one line and the
-#: dates on the next.
-_DATE_ONLY = re.compile(
-    r"^[\s(\[\-–—,.:]*[A-Za-z]{0,9}\.?\s*[-–—]?\s*[A-Za-z]{0,9}\.?[\s\d(),.\[\]/–—-]*$"
-)
+#: Words that can share a line with a date and leave it a date: the connectors a
+#: CV writes between two dates. Month names and "until now" words are checked
+#: separately, against `_MONTH_NAMES` and `_OPEN_ENDED`.
+_RANGE_WORDS = frozenset({"to", "until", "sampai", "hingga", "s", "d", "sd"})
+
+_YEAR = re.compile(r"(?:19|20)\d{2}")
+_WORD = re.compile(r"[A-Za-z]+")
+
+
+def _is_date_only(line: str) -> bool:
+    """Whether a line states a date and nothing else.
+
+    A wrapped CV entry produces these: the title and employer land on one line
+    and the dates on the next. The test is what the words *are* -- every one a
+    month, a connector or "until now", with a year present -- not how many
+    there are.
+
+    It used to be a pattern allowing two words of up to nine letters, which was
+    wrong in both directions at once. "Staf Akuntansi" passed for a date line,
+    so the employer above it was merged into the quotation; "Juli 2025 -
+    September 2025" did not, so the internship named on the line above it was
+    never seen. Found by the realistic-shape evaluation corpus.
+    """
+    if not _YEAR.search(line):
+        return False
+    return all(
+        _is_month(word) or word.lower() in _OPEN_ENDED or word.lower() in _RANGE_WORDS
+        for word in _WORD.findall(line)
+    )
 
 
 def entry_at(text: str, offset: int) -> Span:
@@ -440,18 +483,27 @@ def entry_at(text: str, offset: int) -> Span:
     the entry the dates belong to.
 
     Only ever joins upward, and only when the dated line has no words of its
-    own, so an ordinary one-line entry is returned unchanged.
+    own, so an ordinary one-line entry is returned unchanged. A line that
+    carries a word as well as its dates -- "Abadi (2021-2022)", the tail of a
+    wrapped sentence -- is quoted as it stands: a weaker quotation, but a true
+    one, where joining it would risk merging two separate entries.
+
+    The result is always a slice of `text`, line break included. The joined
+    lines used to be glued together with a space, producing a quotation the CV
+    does not contain character for character. The evidence verifier still
+    located it, because it compares whitespace-normalized text, but only as a
+    normalized match -- an exact slice verifies exactly and needs no leniency.
     """
     span = line_at(text, offset)
-    if not _DATE_ONLY.match(span.text):
+    if not _is_date_only(span.text):
         return span
     above_end = span.start - 1
     if above_end <= 0:
         return span
     above = line_at(text, text.rfind("\n", 0, above_end) + 1)
-    if not above.text.strip() or _DATE_ONLY.match(above.text):
+    if not above.text.strip() or _is_date_only(above.text):
         return span
-    return Span(f"{above.text.strip()} {span.text.strip()}", above.start, span.end)
+    return Span(text[above.start : span.end], above.start, span.end)
 
 
 def _before(text: str, offset: int, width: int = 60) -> str:
@@ -531,7 +583,9 @@ def extract_skills(text: str, ranges: list[tuple[int, int, str]]) -> list[SkillF
                 continue
             seen.add(key)
 
-            substantive = not _mentions(SHALLOW_CUES, _around(text, offset, len(alias)))
+            substantive = not _mentions(
+                SHALLOW_CUES, _around_in_section(text, offset, len(alias), ranges)
+            )
             facts.append(SkillFact(canonical, family_of(canonical), span, section, substantive))
     return facts
 
@@ -577,6 +631,39 @@ IN_PROGRESS_CUES = (
 )
 
 
+def _entry_below(text: str, offset: int) -> str:
+    """The line holding `offset`, and the lines under it that continue its entry.
+
+    A degree's status is written beneath it at least as often as beside it --
+    "S1 Akuntansi, Universitas Fiktif Mandiri", then "Sedang menempuh semester
+    7, perkiraan lulus 2027". A window measured in characters stopped four
+    characters short of that note and credited a degree expected in 2027 as
+    held: over-crediting, on what is usually a must-have.
+
+    The entry runs until a blank line, a section heading, or the next line
+    naming a degree of its own, so a note about one qualification is never read
+    as a note about the one above it. The price is paid in the safe direction:
+    a held degree whose entry uses a cue word for another reason -- a thesis on
+    expected credit loss -- is not credited, and a recruiter sees the gap.
+    """
+    lines: list[str] = []
+    cursor = text.rfind("\n", 0, offset) + 1
+    while cursor < len(text):
+        end = text.find("\n", cursor)
+        if end == -1:
+            end = len(text)
+        line = text[cursor:end]
+        if lines and (
+            not line.strip()
+            or line.strip().lower().rstrip(":") in SECTION_HEADERS
+            or any(re.search(pattern, line, re.I) for pattern, _level in EDUCATION_PATTERNS)
+        ):
+            break
+        lines.append(line)
+        cursor = end + 1
+    return "\n".join(lines).lower()
+
+
 def extract_education(text: str, ranges: list[tuple[int, int, str]]) -> list[EducationFact]:
     facts: list[EducationFact] = []
     for pattern, level_name in EDUCATION_PATTERNS:
@@ -586,7 +673,9 @@ def extract_education(text: str, ranges: list[tuple[int, int, str]]) -> list[Edu
                 continue
             if _mentions(DEMAND_CUES, around):
                 continue
-            if _mentions(IN_PROGRESS_CUES, around):
+            # The window still counts: it is what catches a note written on the
+            # line above the degree ("Sedang menempuh:" then "S1 Akuntansi").
+            if _mentions(IN_PROGRESS_CUES, around + "\n" + _entry_below(text, match.start())):
                 continue
             facts.append(EducationFact(EDUCATION_LEVELS[level_name], line_at(text, match.start())))
     return facts
@@ -659,10 +748,14 @@ _MONTH_NAMES.update({name[:3]: number for name, number in list(_MONTH_NAMES.item
 
 _OPEN_ENDED = ("present", "current", "now", "sekarang", "ongoing", "kini")
 
+#: A month and its year sit on one line, so only spaces may separate them. With
+#: `\s*` there, "Staf Akuntansi" followed by "2021 - 2024" on the next line read
+#: "Akuntansi" as the month of 2021: the match began on the title line and the
+#: role's quotation left its dates out.
 _RANGE = re.compile(
-    r"(?P<m1>[A-Za-z]{3,9})?\.?\s*(?P<y1>(?:19|20)\d{2})\s*"
+    r"(?P<m1>[A-Za-z]{3,9})?\.?[ \t]*(?P<y1>(?:19|20)\d{2})\s*"
     r"(?:-|–|—|to|until|s/d|sampai)\s*"
-    r"(?P<m2>[A-Za-z]{3,9})?\.?\s*(?P<y2>(?:19|20)\d{2}|" + "|".join(_OPEN_ENDED) + r")",
+    r"(?P<m2>[A-Za-z]{3,9})?\.?[ \t]*(?P<y2>(?:19|20)\d{2}|" + "|".join(_OPEN_ENDED) + r")",
     re.I,
 )
 

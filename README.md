@@ -544,14 +544,14 @@ commit.
 ## Evaluation
 
 `.\tasks.ps1 evaluate` scores the pipeline against eight synthetic CVs and 89
-hand-labelled free-text `(candidate, requirement)` pairs, plus 61 hand-labelled
-structured pairs for the engine that answers the default path. Full output, with
-every numerator and denominator, is in
+hand-labelled free-text `(candidate, requirement)` pairs, plus 101 hand-labelled
+structured pairs over twelve CVs for the engine that answers the default path.
+Full output, with every numerator and denominator, is in
 [evaluation/RESULTS.md](evaluation/RESULTS.md).
 
 Read the boundary before the numbers. Everything measured describes **this
-application's deterministic code** on eight invented documents. None of it
-describes how well a language model reads a CV, and none of it is real-world
+application's deterministic code** on a small set of invented documents. None of
+it describes how well a language model reads a CV, and none of it is real-world
 screening accuracy.
 
 **The default path** — `cv_facts` and `structured_match`, the engine that
@@ -559,18 +559,43 @@ answers a structured criterion with no model involved:
 
 | | |
 |---|---|
-| Verdict agreement with the hand-written label | 61/61 |
-| Over-crediting (the costlier direction) | 0/55 |
-| Under-crediting | 0/55 |
-| Cited quotes found verbatim in the CV | 29/29 |
-| Positive verdicts carrying a quote | 23/23 |
-| Cited quotes naming no protected characteristic | 29/29 |
-| Identical on a second run | 61/61 |
+| Verdict agreement with the hand-written label | 97/101 |
+| Over-crediting (the costlier direction) | 0/94 |
+| Under-crediting | 2/94 |
+| Cited quotes found verbatim in the CV | 52/52 |
+| Positive verdicts carrying a quote | 45/45 |
+| Cited quotes naming no protected characteristic | 52/52 |
+| Identical on a second run | 101/101 |
 
 Four of those need no labels at all — a quote either is or is not in the source
 text — which is why they are the ones worth trusting most. The labelled ones
-rest on 61 pairs written by the same author as the CVs, so a single
-disagreement moves a percentage by more than a point.
+rest on pairs written by the same author as the CVs, so a single disagreement
+moves a percentage by about a point.
+
+**The first eight CVs could not find what the next four did.** They are clean,
+English and single-column, and the engine agreed with all 61 of their labels.
+Four CVs were then added in the shapes real Indonesian uploads arrive in — a
+two-column flattening, organisational sections, dates on a line of their own, a
+degree still being read, misspellings — together with an accounting job. Their
+first run scored 93/101, with **one over-credited must-have** and **two quotes
+that did not appear verbatim in the CV**. Three defects in `cv_facts` were behind
+all of it: a degree marked "perkiraan lulus 2027" on the line below it was
+credited as held; a skill listed just before a SERTIFIKAT heading was downgraded
+to training; and a date-line test that accepted "Staf Akuntansi" but refused
+"Juli 2025 - September 2025" both hid an internship and glued an employer onto a
+job title in place of the dates the duration came from. That last quotation was
+still accepted by the evidence verifier, which compares whitespace-normalized
+text — so it was a wrong citation, not a wrong verdict. Each defect now has a
+regression test.
+
+The four disagreements that remain are reported rather than tuned away. Two are
+one misspelling — "Akutansi" is read by any human and by no surface-form
+matcher, and fuzzy matching would trade that for over-crediting. One is the
+two-column CV: flattening put the experience heading directly above the
+education heading, so its only job sits in the wrong section and is not seen —
+the case the `MULTI_COLUMN_LAYOUT` warning exists for. The last is the engine
+answering `NEEDS_REVIEW` where the label, reading a three-month total, says
+`NO_EVIDENCE`.
 
 **The free-text path**, kept as the exception:
 
@@ -608,6 +633,12 @@ as things the candidate had merely been taught. Every machine-learning CV was
 affected, and `training` had the same flaw — *"built training pipelines"* is a
 job, not a course. Both are phrases rather than words now, with regression
 tests.
+
+That fix removed two words; it did not close the leak. The realistic CVs brought
+it back with `sertifikat`, a cue that is correct in its own section and was
+reaching into the one before it. The window a shallow cue is searched in now
+stops at the section boundary, which closes the whole class instead of one word
+at a time.
 
 ---
 
@@ -697,10 +728,15 @@ Recorded up front rather than discovered later:
   order. A two-column page is now **detected and flagged** for the recruiter,
   but the reading order is not repaired: extraction still flattens the page,
   and material can be lost when a heading lands in the wrong place.
-- **The evaluation set is small and synthetic.** Eight invented CVs. The metrics
-  describe this application's deterministic code on that set, with sample sizes
-  stated. They are not production accuracy, not model quality, and not a bias
-  audit.
+- **The evaluation set is small and synthetic.** Twelve invented CVs for the
+  default path, eight for the free-text path. The metrics describe this
+  application's deterministic code on those sets, with sample sizes stated. They
+  are not production accuracy, not model quality, and not a bias audit.
+- **Misspelled skills are not matched.** "Akutansi" for "Akuntansi" is read by
+  a human and missed by the screener, which matches surface forms. The CV is
+  under-credited, not over-credited: it reaches a recruiter as missing evidence.
+  Tolerating misspellings was deliberately not added, because a fuzzy match is
+  how a screener starts crediting skills nobody claimed.
 - **Model quality is not measured at all.** Six of the specified metrics need a
   live provider; offline they would be scored against recordings written by the
   same author as the labels, which would measure that author's consistency.
@@ -726,8 +762,8 @@ The full list is in
 | Demo mode | ✅ A structured seed that calls no model at all, plus four free-text briefs, over three synthetic CVs. Each walkable end to end. No API key, no cost, no real applicant data. |
 | Local AI mode | ✅ Ollama, `qwen2.5:7b-instruct`, the default when demo mode is off. No account, no key, no per-call cost. |
 | Cloud AI mode | 🟡 Anthropic, opt-in via `LLM_PROVIDER=anthropic`. Implemented and wired; **never exercised against a real key in this repository**, so no claim about it is made. |
-| Tests | ✅ 1136 passing (1006 backend, 130 frontend), 97% backend coverage. The backend suite collects 1007; the single skip is the opt-in live-Ollama check, which needs a running model server. |
-| Evaluation | ✅ [`evaluation/`](evaluation/) — 8 synthetic candidates, 61 structured plus 89 free-text labelled pairs, 18 metrics measured and 6 reported as not measurable offline, with reasons. |
+| Tests | ✅ 1184 passing (1050 backend, 134 frontend), 97% backend coverage. The backend suite collects 1051; the single skip is the opt-in live-Ollama check, which needs a running model server. |
+| Evaluation | ✅ [`evaluation/`](evaluation/) — 12 synthetic candidates, 101 structured plus 89 free-text labelled pairs, 18 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
 | Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, deployment, 12 ADRs. |
 | CI | ✅ [Running on GitHub Actions](https://github.com/justinchristroper-arch/ai-cv-screener/actions/workflows/ci.yml) on every push to `main` — [three jobs](.github/workflows/ci.yml): backend against a real PostgreSQL service container, frontend suite and production build, documentation checks. Green on the current commit. |

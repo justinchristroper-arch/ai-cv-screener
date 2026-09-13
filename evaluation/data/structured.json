@@ -1,5 +1,5 @@
 {
-  "description": "Structured screening criteria (ADR-0012) and their hand-written labels, for measuring services/cv_facts and services/structured_match -- the engine that answers the product's default path. The existing jobs.json and labels.json measure the older profile-and-model path, which is now the exception. Every verdict here was read from the candidate's own CV text in candidates.json and from the criterion's stated meaning; none was copied from the engine's output, because a label taken from the thing under test measures nothing.",
+  "description": "Structured screening criteria (ADR-0012) and their hand-written labels, for measuring services/cv_facts and services/structured_match -- the engine that answers the product's default path. The existing jobs.json and labels.json measure the older profile-and-model path, which is now the exception. Every verdict here was read from the candidate's own CV text and from the criterion's stated meaning; none was copied from the engine's output, because a label taken from the thing under test measures nothing. The `candidates` block below holds documents this dataset owns: CVs added to exercise reading rather than scoring, whose shape -- a two-column flattening, Indonesian headings, organisational sections, misspellings -- is the shape real uploads arrive in. They are not in candidates.json because the legacy path would then need profile items and thirteen more labels each, all measuring code ADR-0012 demoted.",
   "verdict_values": [
     "MATCHED",
     "PARTIAL",
@@ -114,6 +114,79 @@
         "id": "t6",
         "spec_type": "EDUCATION_MIN",
         "subject": "S1",
+        "must_have": false,
+        "weight": "1.00"
+      }
+    ],
+    "job-accounting": [
+      {
+        "id": "a0",
+        "spec_type": "EDUCATION_MIN",
+        "subject": "D3",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "a1",
+        "spec_type": "EXPERIENCE_MIN",
+        "threshold_value": "12",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "a2",
+        "spec_type": "SKILL",
+        "subject": "Accounting",
+        "must_have": true,
+        "weight": "3.00"
+      },
+      {
+        "id": "a3",
+        "spec_type": "SKILL",
+        "subject": "Excel",
+        "must_have": false,
+        "weight": "2.00"
+      },
+      {
+        "id": "a4",
+        "spec_type": "SKILL",
+        "subject": "Tax Invoice",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "a5",
+        "spec_type": "CERTIFICATION_PRESENT",
+        "subject": "Brevet A",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "a6",
+        "spec_type": "EXPERIENCE_IN_FIELD",
+        "subject": "Accounting",
+        "threshold_value": "12",
+        "must_have": false,
+        "weight": "2.00"
+      },
+      {
+        "id": "a7",
+        "spec_type": "GPA_MIN",
+        "threshold_value": "3.00",
+        "threshold_scale": "4.00",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "a8",
+        "spec_type": "INTERNSHIP_MIN",
+        "must_have": false,
+        "weight": "1.00"
+      },
+      {
+        "id": "a9",
+        "spec_type": "LANGUAGE_PRESENT",
+        "subject": "English",
         "must_have": false,
         "weight": "1.00"
       }
@@ -379,6 +452,295 @@
         "verdict": "NO_EVIDENCE",
         "why": "The CV has no education section."
       }
+    },
+    "budi-santoso": {
+      "a0": {
+        "verdict": "NO_EVIDENCE",
+        "why": "SMK is secondary school. The CV states no diploma or degree, and 'Jurusan Akuntansi' names a school stream, not a qualification."
+      },
+      "a1": {
+        "verdict": "NO_EVIDENCE",
+        "why": "One job: Kasir, Juni - Juli 2024, which is 2 months against a 12-month bar and below the 8-month partial floor. The OSIS post and the bakti sosial committee are not employment."
+      },
+      "a2": {
+        "verdict": "MATCHED",
+        "why": "'Akuntansi' is listed under KEAHLIAN."
+      },
+      "a3": {
+        "verdict": "MATCHED",
+        "why": "'Microsoft Excel' is listed under KEAHLIAN."
+      },
+      "a4": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing about tax invoices."
+      },
+      "a5": {
+        "verdict": "MATCHED",
+        "why": "'Brevet A & B, 2024' is listed under SERTIFIKAT."
+      },
+      "a6": {
+        "verdict": "NEEDS_REVIEW",
+        "why": "Akuntansi is claimed under KEAHLIAN and one dated job is listed, but the Kasir entry does not mention accounting, so the CV does not say how long was spent on it."
+      },
+      "a7": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No grade is stated."
+      },
+      "a8": {
+        "verdict": "NO_EVIDENCE",
+        "why": "No internship. Kasir is a job and the bakti sosial committee is not work experience."
+      },
+      "a9": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing about languages."
+      }
+    },
+    "siti-rahayu": {
+      "a0": {
+        "verdict": "MATCHED",
+        "why": "'D3 Akuntansi, Politeknik Fiktif Jakarta, 2019' is a diploma, which is D3."
+      },
+      "a1": {
+        "verdict": "MATCHED",
+        "why": "2019 - 2021 and 2021 - 2024 span about six years, far past a 12-month bar."
+      },
+      "a2": {
+        "verdict": "MATCHED",
+        "why": "'Akuntansi' heads the KEAHLIAN list."
+      },
+      "a3": {
+        "verdict": "MATCHED",
+        "why": "'Microsoft Excel' is in the KEAHLIAN list."
+      },
+      "a4": {
+        "verdict": "MATCHED",
+        "why": "'Faktur Pajak' is in the KEAHLIAN list, and the first role says 'Mengelola faktur pajak keluaran dan masukan'."
+      },
+      "a5": {
+        "verdict": "MATCHED",
+        "why": "'Brevet A dan B, Fiktif Tax Center, 2022' is listed under SERTIFIKAT."
+      },
+      "a6": {
+        "verdict": "MATCHED",
+        "why": "The role is titled 'Staf Akuntansi' and dated 2021 - 2024, which is accounting work well past a 12-month bar."
+      },
+      "a7": {
+        "verdict": "MATCHED",
+        "why": "'IPK 3,45 / 4,00' is above 3.00 on the same scale."
+      },
+      "a8": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing about an internship."
+      },
+      "a9": {
+        "verdict": "MATCHED",
+        "why": "'Bahasa Inggris' is listed under BAHASA."
+      }
+    },
+    "dewi-lestari": {
+      "a0": {
+        "verdict": "MATCHED",
+        "why": "'S1 Akutansi' states an S1, which is above D3. The misspelling is in the field of study, not in the level."
+      },
+      "a1": {
+        "verdict": "MATCHED",
+        "why": "Januari 2022 - Desember 2023 is 24 months against a 12-month bar."
+      },
+      "a2": {
+        "verdict": "MATCHED",
+        "why": "'Akutansi' in the KEAHLIAN list is accounting misspelled, and a human reads it as such."
+      },
+      "a3": {
+        "verdict": "MATCHED",
+        "why": "'Micrsoft Excel' misspells Microsoft but states Excel exactly."
+      },
+      "a4": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing about tax invoices."
+      },
+      "a5": {
+        "verdict": "MATCHED",
+        "why": "'Brevet A & B, 2023' is listed under SERTIFIKAT."
+      },
+      "a6": {
+        "verdict": "MATCHED",
+        "why": "The one role is titled 'Staff Akutansi' and dated Januari 2022 - Desember 2023, which is 24 months of accounting work."
+      },
+      "a7": {
+        "verdict": "MATCHED",
+        "why": "'IPK 3,20 / 4,00' is above 3.00 on the same scale."
+      },
+      "a8": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing about an internship."
+      },
+      "a9": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing about languages."
+      }
+    },
+    "agus-pratama": {
+      "a0": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The S1 is being read towards, not held: 'Sedang menempuh semester 7, perkiraan lulus 2027'. A degree expected in 2027 is not a degree."
+      },
+      "a1": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The only dated work is a 3-month internship, against a 12-month bar and below the 8-month partial floor. The Himpunan Mahasiswa treasurer's post is not employment."
+      },
+      "a2": {
+        "verdict": "MATCHED",
+        "why": "'Akuntansi' heads the KEAHLIAN list."
+      },
+      "a3": {
+        "verdict": "MATCHED",
+        "why": "'Microsoft Excel' is in the KEAHLIAN list."
+      },
+      "a4": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The CV states nothing about tax invoices."
+      },
+      "a5": {
+        "verdict": "NO_EVIDENCE",
+        "why": "A TOEFL score is stated; Brevet A is not."
+      },
+      "a6": {
+        "verdict": "NO_EVIDENCE",
+        "why": "The only dated work is 3 months, so nothing in this CV supports 12 months of accounting whether or not the internship counts as accounting."
+      },
+      "a7": {
+        "verdict": "MATCHED",
+        "why": "'IPK 3,62 / 4,00' is above 3.00 on the same scale."
+      },
+      "a8": {
+        "verdict": "MATCHED",
+        "why": "'Magang, PT Fiktif Cahaya Abadi, Juli 2025 - September 2025' is an internship."
+      },
+      "a9": {
+        "verdict": "MATCHED",
+        "why": "'Bahasa Inggris (TOEFL 550)' is listed under BAHASA."
+      }
     }
-  }
+  },
+  "candidates": [
+    {
+      "id": "budi-santoso",
+      "job_id": "job-accounting",
+      "display_name": "Budi Santoso",
+      "purpose": "A school leaver's two-column CV, as extraction actually delivers it: the page is flattened into one stream of lines, so the sidebar and the main narrative interleave and every heading lands away from the entries under it. Also carries the two sections a screener must not read as employment -- a student council post and a one-off event committee -- and a work entry dated as a month range inside a single year.",
+      "cv_text": [
+        "BUDI SANTOSO",
+        "PENGALAMAN ORGANISASI",
+        "budi.santoso@example.invalid",
+        "OSIS SMK Fiktif Nusantara",
+        "Jakarta",
+        "Anggota Bidang Kerohanian, 2019 - 2020",
+        "KEAHLIAN",
+        "Panitia Bakti Sosial wihara fiktif",
+        "Akuntansi",
+        "Juni - Juli 2021",
+        "Microsoft Excel",
+        "PENGALAMAN KERJA",
+        "PENDIDIKAN",
+        "Toko Fiktif Jaya",
+        "SMK Fiktif Nusantara",
+        "Kasir, Juni - Juli 2024",
+        "Jurusan Akuntansi, 2021 - 2024",
+        "Melayani pembelian dan mencatat transaksi harian.",
+        "SERTIFIKAT",
+        "Brevet A & B, 2024"
+      ]
+    },
+    {
+      "id": "siti-rahayu",
+      "job_id": "job-accounting",
+      "display_name": "Siti Rahayu",
+      "purpose": "An ordinary Indonesian accounting CV and the strong match of this set. Entirely in Indonesian, with year-only date ranges, the dates on their own lines as a right-aligned column flattens them, and an Indonesian grade line. Nothing here is adversarial: it is the shape the product is actually for.",
+      "cv_text": [
+        "SITI RAHAYU",
+        "Staf Akuntansi",
+        "siti.rahayu@example.invalid",
+        "",
+        "PENGALAMAN KERJA",
+        "PT Fiktif Sejahtera Abadi",
+        "Staf Akuntansi",
+        "2021 - 2024",
+        "Menyusun laporan keuangan bulanan dan melakukan rekonsiliasi bank.",
+        "Mengelola faktur pajak keluaran dan masukan.",
+        "",
+        "Toko Fiktif Mandiri",
+        "Admin Pembukuan",
+        "2019 - 2021",
+        "Mencatat transaksi harian ke buku besar.",
+        "",
+        "PENDIDIKAN",
+        "D3 Akuntansi, Politeknik Fiktif Jakarta, 2019",
+        "IPK 3,45 / 4,00",
+        "",
+        "KEAHLIAN",
+        "Akuntansi, Pembukuan, Rekonsiliasi Bank, Faktur Pajak, Microsoft Excel, Accurate",
+        "",
+        "SERTIFIKAT",
+        "Brevet A dan B, Fiktif Tax Center, 2022",
+        "",
+        "BAHASA",
+        "Bahasa Indonesia, Bahasa Inggris"
+      ]
+    },
+    {
+      "id": "dewi-lestari",
+      "job_id": "job-accounting",
+      "display_name": "Dewi Lestari",
+      "purpose": "The same CV a candidate typed in a hurry. 'Akutansi' for 'Akuntansi' and 'Micrsoft' for 'Microsoft' are the two misspellings this author has seen most often on real Indonesian CVs. A human reads straight through both; the screener matches surface forms, so this is where that costs the candidate. Labelled as a human reads it, which is the point.",
+      "cv_text": [
+        "DEWI LESTARI",
+        "dewi.lestari@example.invalid",
+        "",
+        "PENGALAMAN KERJA",
+        "CV Fiktif Bersama",
+        "Staff Akutansi",
+        "Januari 2022 - Desember 2023",
+        "Membuat laporan keuangan bulanan dan menginput jurnal.",
+        "",
+        "PENDIDIKAN",
+        "S1 Akutansi, Universitas Fiktif Nusantara, 2021",
+        "IPK 3,20 / 4,00",
+        "",
+        "KEAHLIAN",
+        "Akutansi, Micrsoft Excel, Pembukuan",
+        "",
+        "SERTIFIKAT",
+        "Brevet A & B, 2023"
+      ]
+    },
+    {
+      "id": "agus-pratama",
+      "job_id": "job-accounting",
+      "display_name": "Agus Pratama",
+      "purpose": "A final-year student: a degree being read towards rather than held, one accounting internship, and a treasurer's post in a student society. Three distinctions in one document -- an expected degree is not a degree, an internship is an internship and not a job, and a society office is not employment -- each of which a screener that guesses gets wrong in the candidate's favour.",
+      "cv_text": [
+        "AGUS PRATAMA",
+        "agus.pratama@example.invalid",
+        "",
+        "PENDIDIKAN",
+        "S1 Akuntansi, Universitas Fiktif Mandiri",
+        "Sedang menempuh semester 7, perkiraan lulus 2027",
+        "IPK 3,62 / 4,00",
+        "",
+        "PENGALAMAN",
+        "Magang, PT Fiktif Cahaya Abadi",
+        "Juli 2025 - September 2025",
+        "Membantu rekonsiliasi bank dan menyusun arus kas.",
+        "",
+        "KEAHLIAN",
+        "Akuntansi, Microsoft Excel, Arus Kas, Rekonsiliasi Bank",
+        "",
+        "BAHASA",
+        "Bahasa Indonesia, Bahasa Inggris (TOEFL 550)",
+        "",
+        "ORGANISASI",
+        "Himpunan Mahasiswa Akuntansi, Bendahara, 2024 - 2025"
+      ]
+    }
+  ]
 }

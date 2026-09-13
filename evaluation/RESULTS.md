@@ -28,49 +28,57 @@ Every number below describes **this application's deterministic code** — the e
 
 ## Measured — deterministic application behaviour
 
-### `structured_verdict_agreement` — 100.0% (61/61)
+### `structured_verdict_agreement` — 96.0% (97/101)
 
 - **Definition.** Pairs where the structured engine's verdict equals the hand-written label, over all labelled pairs.
 - **What it actually measures.** services/structured_match over services/cv_facts. No model involved.
 - **Kind.** Deterministic; no model call in its path.
-- **Limitations.** Eight invented CVs and 61 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
+- **Limitations.** 12 invented CVs and 101 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
+- **Cases:**
+  - budi-santoso / a6 (EXPERIENCE_IN_FIELD): expected NEEDS_REVIEW, got NO_EVIDENCE - Akuntansi is claimed under KEAHLIAN and one dated job is listed, but the Kasir entry does not mention accounting, so the CV does not say how long was spent on it.
+  - dewi-lestari / a2 (SKILL): expected MATCHED, got NO_EVIDENCE - 'Akutansi' in the KEAHLIAN list is accounting misspelled, and a human reads it as such.
+  - dewi-lestari / a6 (EXPERIENCE_IN_FIELD): expected MATCHED, got NO_EVIDENCE - The one role is titled 'Staff Akutansi' and dated Januari 2022 - Desember 2023, which is 24 months of accounting work.
+  - agus-pratama / a6 (EXPERIENCE_IN_FIELD): expected NO_EVIDENCE, got NEEDS_REVIEW - The only dated work is 3 months, so nothing in this CV supports 12 months of accounting whether or not the internship counts as accounting.
 
-### `structured_over_crediting` — 0.0% (0/55)
+### `structured_over_crediting` — 0.0% (0/94)
 
 - **Definition.** Pairs where the engine returned a more favourable verdict than the document supports, over pairs comparable on the MATCHED/PARTIAL/NO_EVIDENCE scale. The costlier direction of error.
 - **What it actually measures.** Whether the engine credits a candidate for something the CV does not say.
 - **Kind.** Deterministic; no model call in its path.
-- **Limitations.** Eight invented CVs and 61 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy. NEEDS_REVIEW is outside the scale, so a disagreement involving it is counted in agreement but in neither credit direction.
+- **Limitations.** 12 invented CVs and 101 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy. NEEDS_REVIEW is outside the scale, so a disagreement involving it is counted in agreement but in neither credit direction.
 
-### `structured_under_crediting` — 0.0% (0/55)
+### `structured_under_crediting` — 2.1% (2/94)
 
 - **Definition.** The same comparison in the other direction.
 - **What it actually measures.** Whether the engine withholds credit the CV does support.
 - **Kind.** Deterministic; no model call in its path.
-- **Limitations.** Eight invented CVs and 61 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
+- **Limitations.** 12 invented CVs and 101 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
+- **Cases:**
+  - dewi-lestari / a2 (SKILL): expected MATCHED, got NO_EVIDENCE - 'Akutansi' in the KEAHLIAN list is accounting misspelled, and a human reads it as such.
+  - dewi-lestari / a6 (EXPERIENCE_IN_FIELD): expected MATCHED, got NO_EVIDENCE - The one role is titled 'Staff Akutansi' and dated Januari 2022 - Desember 2023, which is 24 months of accounting work.
 
-### `structured_evidence_located` — 100.0% (29/29)
+### `structured_evidence_located` — 100.0% (52/52)
 
 - **Definition.** Cited quotes found verbatim in the candidate's own CV text, over all quotes the engine cited.
 - **What it actually measures.** Whether a verdict's quotation is real. Needs no label: the quote is either in the document or it is not.
 - **Kind.** Deterministic; no model call in its path.
 - **Limitations.** Locating a quote says it exists, not that it supports the verdict.
 
-### `structured_positive_verdicts_cite_evidence` — 100.0% (23/23)
+### `structured_positive_verdicts_cite_evidence` — 100.0% (45/45)
 
 - **Definition.** MATCHED or PARTIAL verdicts carrying a quote, over all such verdicts.
 - **What it actually measures.** ADR-0002 as an engine property rather than a database constraint.
 - **Kind.** Deterministic; no model call in its path.
-- **Limitations.** Eight invented CVs and 61 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
+- **Limitations.** 12 invented CVs and 101 labelled pairs, all written by this repository's author. Measures this application's deterministic reading of those documents, not real-world screening accuracy.
 
-### `structured_spans_free_of_protected_attributes` — 100.0% (29/29)
+### `structured_spans_free_of_protected_attributes` — 100.0% (52/52)
 
 - **Definition.** Cited quotes naming no protected characteristic, over all quotes cited.
 - **What it actually measures.** ADR-0003 at the point it is most easily broken. A real CV put a place of worship into an evidence quote by having a volunteering line read as a job.
 - **Kind.** Deterministic; no model call in its path.
 - **Limitations.** The scanner reads Indonesian and English patterns and will miss a paraphrase or a venue name it does not know.
 
-### `structured_repeatability` — 100.0% (61/61)
+### `structured_repeatability` — 100.0% (101/101)
 
 - **Definition.** Pairs whose verdict and quote are identical on a second run.
 - **What it actually measures.** That the engine reads no clock and holds no state.

@@ -64,9 +64,26 @@ rather than becoming a silently unusable profile item.
 Write the label from the CV, before running the pipeline. A label written after
 looking at the output is not a label.
 
+### Adding a case to the structured corpus
+
+The default path is measured from `data/structured.json`, which runs every
+criterion of a candidate's job over the eight CVs above **and** the CVs declared
+in its own `candidates` block. Add a CV there when its point is how a document is
+*read* — a two-column flattening, an Indonesian heading, a date on a line of its
+own, a misspelling — so it does not have to carry the profile items and thirteen
+free-text labels the legacy dataset requires.
+
+Give it an `id`, a `job_id` from `criteria`, a `purpose` saying what shape it
+exercises, and its `cv_text` as a list of lines; then add a label for every
+criterion of that job under `labels`, each with a `why` quoting the document. The
+same rule applies: write the label from the CV before running anything.
+
+The four CVs in that block were added this way, and their first run found three
+defects the clean English CVs had never exercised. That is what the block is for.
+
 ## What this is not
 
 It is not evidence of real-world CV screening accuracy, not a measurement of any
-language model, and not a bias audit. Eight invented CVs cannot support any of
+language model, and not a bias audit. A dozen invented CVs cannot support any of
 those claims, and `RESULTS.md` repeats the point next to every number that could
 be mistaken for one.
