@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Static page: it loads its own stylesheet, its own images and nothing else. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <title>CvScreener — evidence-first CV screening support</title>
+    <meta
+      name="description"
+      content="CvScreener is a portfolio project: CV screening support where structured criteria are decided by deterministic code that quotes the CV line behind every verdict, and a person makes the decision."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CvScreener — evidence-first CV screening support" />
+    <meta
+      property="og:description"
+      content="Structured criteria decided by code, every verdict quoting its evidence, transparent scoring, and a clear account of where a language model is and is not used."
+    />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="#top">
+          <span class="brand-mark" aria-hidden="true">▤</span>
+          <span>CvScreener</span>
+        </a>
+        <nav class="site-nav" aria-label="Sections">
+          <ul>
+            <li><a href="#how-it-works">How it works</a></li>
+            <li><a href="#model-role">Where the model is</a></li>
+            <li><a href="#structured-matching">Structured matching</a></li>
+            <li><a href="#evidence">Evidence</a></li>
+            <li><a href="#scoring">Scoring</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#testing">Testing</a></li>
+            <li><a href="#demo">Demo</a></li>
+            <li><a href="#run-locally">Run locally</a></li>
+            <li><a href="#limitations">Limitations</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ============================================================ HERO -->
+      <section class="hero" id="top" aria-labelledby="page-title">
+        <div class="wrap">
+          <p class="eyebrow">Portfolio project · Full-stack · AI-assisted</p>
+          <h1 id="page-title">CvScreener</h1>
+          <p class="lede">
+            CV screening support that shows its working. A recruiter chooses criteria the system can
+            genuinely check; deterministic code decides each one and quotes the line of the CV it
+            rests on; a transparent score orders the shortlist; and a person makes the decision.
+          </p>
+          <p class="hero-note">
+            This page is a static showcase. The application itself runs locally — a React frontend,
+            a FastAPI backend, PostgreSQL and a local language model — and it is not offered as a
+            hosted service.
+          </p>
+          <div class="actions">
+            <a
+              class="button button--primary"
+              href="https://github.com/justinchristroper-arch/ai-cv-screener"
+              >View the repository on GitHub</a
+            >
+            <a class="button" href="#how-it-works">How it works</a>
+            <a class="button" href="#run-locally">Run it locally</a>
+          </div>
+          <ul class="facts" aria-label="At a glance">
+            <li class="fact">
+              <strong>8 criterion types</strong>
+              <span>each decided by comparison and arithmetic over the CV's own text</span>
+            </li>
+            <li class="fact">
+              <strong>0 of 94</strong>
+              <span
+                >verdicts over-credited on the structured evaluation set (12 synthetic CVs)</span
+              >
+            </li>
+            <li class="fact">
+              <strong>52 of 52</strong>
+              <span>cited quotes found verbatim in the CV on that set</span>
+            </li>
+            <li class="fact">
+              <strong>1,184 tests</strong>
+              <span>1,050 backend and 134 frontend, passing locally</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================================ SHOWCASE VS APPLICATION -->
+      <section class="section" id="this-page" aria-labelledby="this-page-title">
+        <div class="wrap">
+          <h2 id="this-page-title">This page and the application are different things</h2>
+          <p class="section-intro">
+            Anyone can open this page. Nobody can upload a CV to it, because there is nothing behind
+            it to receive one.
+          </p>
+          <div class="grid-2">
+            <div class="card">
+              <h3>This showcase</h3>
+              <ul>
+                <li>Plain HTML and CSS served from a static host.</li>
+                <li>No backend, no database, no language model, no upload form.</li>
+                <li>No cookies, no tracking, and nothing loaded from any other site.</li>
+                <li>The screenshots below were captured from the local application.</li>
+              </ul>
+            </div>
+            <div class="card card--accent">
+              <h3>The full application</h3>
+              <ul>
+                <li>
+                  React + TypeScript frontend, FastAPI backend, PostgreSQL in Docker, and
+                  <code>qwen2.5:7b-instruct</code> through Ollama — all on your own machine.
+                </li>
+                <li>
+                  On Windows it starts with one double-click on <code>Start CvScreener.cmd</code>.
+                </li>
+                <li>
+                  In its local AI mode no CV is sent to a third-party AI service, and no account or
+                  API key is needed.
+                </li>
+                <li><a href="#run-locally">How to run it</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= PROBLEM -->
+      <section class="section" id="problem" aria-labelledby="problem-title">
+        <div class="wrap">
+          <div class="prose">
+            <h2 id="problem-title">The problem</h2>
+            <p>
+              A recruiter with two hundred CVs and one role gives each a few seconds, looking for
+              four or five things. It is repetitive, it drifts between the first CV and the last,
+              and the reasoning disappears the moment the file is closed.
+            </p>
+            <p>
+              The obvious shortcut — paste a CV and a job description into a chatbot and ask for a
+              score — is worse. The number can change between runs, nobody can say why a candidate
+              ranked where they did, and a sentence hidden in the CV telling the model to mark the
+              candidate as fully qualified can work.
+            </p>
+            <p>
+              CvScreener takes the other approach: every judgement that has to be defensible is made
+              by ordinary code over the document's own text, and every positive finding must point
+              at the passage that supports it.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================== HOW IT WORKS -->
+      <section class="section" id="how-it-works" aria-labelledby="how-title">
+        <div class="wrap">
+          <h2 id="how-title">How CvScreener works</h2>
+          <p class="section-intro">
+            The main path for structured criteria, from a recruiter's choices to a ranked shortlist.
+          </p>
+          <ul class="legend" aria-label="Who performs each step">
+            <li><span class="pill pill--person">Person</span> a human action</li>
+            <li><span class="pill pill--code">Deterministic code</span> no model involved</li>
+          </ul>
+          <ol class="pipeline" role="list">
+            <li>
+              <div class="step-head">
+                <span class="step-title">Choose and confirm criteria</span>
+                <span class="pill pill--person">Person</span>
+              </div>
+              <p class="step-body">
+                Criteria come from eight supported types, each with weights and must-have flags.
+                Nothing is screened until a person confirms the set; the server refuses to match
+                against an unconfirmed one.
+              </p>
+            </li>
+            <li>
+              <div class="step-head">
+                <span class="step-title">Extract the text</span>
+                <span class="pill pill--code">Deterministic code</span>
+              </div>
+              <p class="step-body">
+                PDF text is read with page offsets. A scan with no text layer fails as
+                <code>NO_TEXT_LAYER</code> instead of being scored as an empty CV, and a two-column
+                page is flagged because its reading order cannot be trusted.
+              </p>
+            </li>
+            <li>
+              <div class="step-head">
+                <span class="step-title">Read the facts, with their spans</span>
+                <span class="pill pill--code">Deterministic code</span>
+              </div>
+              <p class="step-body">
+                Dated roles, qualifications, grades, skills, languages and certifications — each
+                with the exact passage it came from.
+              </p>
+            </li>
+            <li>
+              <div class="step-head">
+                <span class="step-title">Decide each criterion</span>
+                <span class="pill pill--code">Deterministic code</span>
+              </div>
+              <p class="step-body">
+                Comparison and arithmetic: a degree against a level, dated entries against a number
+                of months, a grade on the scale the recruiter stated, a claimed skill against a mere
+                mention.
+              </p>
+            </li>
+            <li>
+              <div class="step-head">
+                <span class="step-title">Verify every quote</span>
+                <span class="pill pill--code">Deterministic code</span>
+              </div>
+              <p class="step-body">
+                A positive verdict needs a quote found in the application's own copy of the
+                document. A quote that is not there — or that reads as an instruction — cannot
+                support one.
+              </p>
+            </li>
+            <li>
+              <div class="step-head">
+                <span class="step-title">Score and rank</span>
+                <span class="pill pill--code">Deterministic code</span>
+              </div>
+              <p class="step-body">
+                A weighted average over stored verdicts, then a deterministic total order. No
+                candidate is filtered out.
+              </p>
+            </li>
+            <li>
+              <div class="step-head">
+                <span class="step-title">Review the evidence and decide</span>
+                <span class="pill pill--person">Person</span>
+              </div>
+              <p class="step-body">
+                The recruiter sees every verdict beside its quote and can disagree with any of it.
+                The system never accepts, rejects or hides a candidate.
+              </p>
+            </li>
+          </ol>
+          <div class="callout callout--info">
+            <p class="callout-title">A language model is still part of the application</p>
+            <p>
+              The steps above describe the structured path. The next section shows exactly where a
+              model is used today, including one call that is not yet removed.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================== MODEL ROLE -->
+      <section class="section" id="model-role" aria-labelledby="model-title">
+        <div class="wrap">
+          <h2 id="model-title">Where the language model is — and isn't</h2>
+          <p class="section-intro">
+            CvScreener is AI-assisted, not AI-decided. The boundary is enforced in code, and it is
+            stated here as it stands today rather than as it is intended to become.
+          </p>
+
+          <div class="table-wrap table-wrap--stack">
+            <table role="table">
+              <caption id="model-table-caption">
+                Who performs each part of the current application flow.
+              </caption>
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">Part of the flow</th>
+                  <th scope="col" role="columnheader">Performed by</th>
+                  <th scope="col" role="columnheader">Notes</th>
+                </tr>
+              </thead>
+              <tbody role="rowgroup">
+                <tr role="row">
+                  <th scope="row" role="rowheader">Choosing and confirming criteria</th>
+                  <td role="cell" data-label="Performed by">
+                    <span class="pill pill--person">Person</span>
+                  </td>
+                  <td role="cell" data-label="Notes">
+                    The confirmation gate is enforced server-side.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Text extraction and fact reading</th>
+                  <td role="cell" data-label="Performed by">
+                    <span class="pill pill--code">Deterministic code</span>
+                  </td>
+                  <td role="cell" data-label="Notes">pypdf, then the fact reader, with spans.</td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Structured matching</th>
+                  <td role="cell" data-label="Performed by">
+                    <span class="pill pill--code">Deterministic code</span>
+                  </td>
+                  <td role="cell" data-label="Notes">
+                    Calls no model. Verdicts are recorded with the method
+                    <code>DETERMINISTIC_STRUCTURED</code>.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Evidence verification, scoring, ranking</th>
+                  <td role="cell" data-label="Performed by">
+                    <span class="pill pill--code">Deterministic code</span>
+                  </td>
+                  <td role="cell" data-label="Notes">
+                    Pure functions over stored rows; no model, clock or randomness in the path.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Profile extraction</th>
+                  <td role="cell" data-label="Performed by">
+                    <span class="pill pill--model">Language model</span>
+                  </td>
+                  <td role="cell" data-label="Notes">
+                    <span class="pill pill--status">Current behaviour</span> Pressing
+                    <em>Screen</em> requests a structured profile for each new CV before matching,
+                    even when every criterion is structured — although structured matching never
+                    reads that profile. Removing the call is recorded as open follow-up work.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Free-text criteria (optional)</th>
+                  <td role="cell" data-label="Performed by">
+                    <span class="pill pill--model">Language model</span>
+                  </td>
+                  <td role="cell" data-label="Notes">
+                    A criterion the eight types cannot express is still accepted. The model proposes
+                    requirements and judges those pairs; its quotes must still verify, and the
+                    interface says what the path costs.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">The hiring decision</th>
+                  <td role="cell" data-label="Performed by">
+                    <span class="pill pill--person">Person</span>
+                  </td>
+                  <td role="cell" data-label="Notes">Always.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <h3>What the model never does</h3>
+              <ul>
+                <li>
+                  It never produces a score, a rank, a recommendation or a hiring decision. No
+                  schema it fills in has a field for one.
+                </li>
+                <li>
+                  Its output is re-validated against a schema, and a quote it offers is checked
+                  against the document before it can count.
+                </li>
+                <li>
+                  The provider SDK is imported in exactly one package (<code>app/llm/</code>); a
+                  test parses every module's imports to keep it that way.
+                </li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Which model, and where it runs</h3>
+              <ul>
+                <li>
+                  <strong>Local AI mode</strong> (the default when demo mode is off):
+                  <code>qwen2.5:7b-instruct</code> through Ollama on the same machine.
+                </li>
+                <li>
+                  <strong>Demo mode</strong>: model answers are replayed from recordings, and the
+                  structured demo calls no model at all.
+                </li>
+                <li>
+                  <strong>Anthropic Claude</strong> is implemented as an opt-in provider, but has
+                  never been exercised against a real key in this repository, so no claim is made
+                  about it.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================= STRUCTURED MATCHING -->
+      <section class="section" id="structured-matching" aria-labelledby="structured-title">
+        <div class="wrap">
+          <h2 id="structured-title">Why matching became deterministic</h2>
+          <p class="section-intro">
+            An earlier version let a recruiter type criteria in their own words and had a language
+            model turn them into requirements. It was replaced on measured evidence, recorded in
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/decisions/0012-structured-screening-criteria.md"
+              >ADR-0012</a
+            >.
+          </p>
+
+          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="adr-table-caption">
+            <table>
+              <caption id="adr-table-caption">
+                Matching a CV against already-structured requirements, measured in this repository
+                against 89 hand-labelled (candidate, requirement) pairs over eight synthetic CVs.
+                This describes the project's own code on that set; it is not a claim about
+                real-world screening accuracy.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Measure</th>
+                  <th scope="col" class="num">Deterministic engine</th>
+                  <th scope="col" class="num">Qwen2.5-7B</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Verdict agreement with the labels</th>
+                  <td class="num win">88.8%</td>
+                  <td class="num">82.0%</td>
+                </tr>
+                <tr>
+                  <th scope="row">Over-credited verdicts</th>
+                  <td class="num win">0</td>
+                  <td class="num">2</td>
+                </tr>
+                <tr>
+                  <th scope="row">Evidence validity</th>
+                  <td class="num win">100%</td>
+                  <td class="num">88%</td>
+                </tr>
+                <tr>
+                  <th scope="row">Reproducibility</th>
+                  <td class="num win">100%</td>
+                  <td class="num">not bit-stable</td>
+                </tr>
+                <tr>
+                  <th scope="row">Time per CV</th>
+                  <td class="num win">5.5&nbsp;ms</td>
+                  <td class="num">~14,900&nbsp;ms</td>
+                </tr>
+                <tr>
+                  <th scope="row">Model download</th>
+                  <td class="num win">0&nbsp;bytes</td>
+                  <td class="num">4.7&nbsp;GB</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="prose">
+            <h3>And where deterministic code lost</h3>
+            <p>
+              Turning free text into requirements went the other way. Given one formal job
+              description, the deterministic intake produced 26 "requirements" against the model's
+              12 — including <q>About the role</q> — and it could not scope must-have and
+              nice-to-have markers across a compound sentence. The weakness was never the judging;
+              it was the intake. So the intake changed: criteria are now chosen from a published
+              list of types, and the judging stayed in code.
+            </p>
+          </div>
+
+          <h3>The eight criterion types</h3>
+          <div class="table-wrap table-wrap--stack">
+            <table role="table">
+              <caption id="criteria-caption">
+                Anything outside these types is refused as not supported rather than silently
+                answered — searching for an unlisted skill returns “Skill not currently supported”.
+              </caption>
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">Criterion</th>
+                  <th scope="col" role="columnheader">What the recruiter sets</th>
+                  <th scope="col" role="columnheader">How the CV is read</th>
+                </tr>
+              </thead>
+              <tbody role="rowgroup">
+                <tr role="row">
+                  <th scope="row" role="rowheader">Minimum degree</th>
+                  <td role="cell" data-label="What the recruiter sets">
+                    A level: D3/Diploma, S1/Bachelor, S2/Master, S3/Doctorate
+                  </td>
+                  <td role="cell" data-label="How the CV is read">
+                    The highest qualification the CV states, compared by rank
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Minimum GPA</th>
+                  <td role="cell" data-label="What the recruiter sets">
+                    A grade and the scale it is out of
+                  </td>
+                  <td role="cell" data-label="How the CV is read">
+                    A grade the document labels as one; a different scale is not converted
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Work experience</th>
+                  <td role="cell" data-label="What the recruiter sets">A duration in months</td>
+                  <td role="cell" data-label="How the CV is read">
+                    Dated entries, with overlapping roles counted once
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Skill</th>
+                  <td role="cell" data-label="What the recruiter sets">
+                    One name from a published list of 85
+                  </td>
+                  <td role="cell" data-label="How the CV is read">
+                    The line that claims it, distinguishing applied work from exposure
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Internship</th>
+                  <td role="cell" data-label="What the recruiter sets">
+                    Presence, optionally a duration
+                  </td>
+                  <td role="cell" data-label="How the CV is read">
+                    Dated entries whose title says internship
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Language</th>
+                  <td role="cell" data-label="What the recruiter sets">One of ten languages</td>
+                  <td role="cell" data-label="How the CV is read">
+                    Presence only — never a proficiency level
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Experience in a field</th>
+                  <td role="cell" data-label="What the recruiter sets">A skill and a duration</td>
+                  <td role="cell" data-label="How the CV is read">
+                    The same date arithmetic, counting only roles whose own entry evidences the
+                    skill
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Certification</th>
+                  <td role="cell" data-label="What the recruiter sets">
+                    One credential from a list of 24
+                  </td>
+                  <td role="cell" data-label="How the CV is read">
+                    The line that claims it; presence only, no equivalences
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted small prose">
+            Deliberately not offered: university tier, which is a socioeconomic proxy, and language
+            proficiency levels, which a CV states too unreliably to read without inventing them.
+          </p>
+        </div>
+      </section>
+
+      <!-- ======================================================== EVIDENCE -->
+      <section class="section" id="evidence" aria-labelledby="evidence-title">
+        <div class="wrap">
+          <h2 id="evidence-title">Evidence and explainability</h2>
+          <p class="section-intro">
+            If a CV does not mention a skill, CvScreener reports <q>No evidence found in CV</q> —
+            never <q>the candidate does not have this skill</q>. A CV is short and selective;
+            absence in the document is not absence in the person.
+          </p>
+
+          <div class="grid-2">
+            <div class="table-wrap" tabindex="0" role="region" aria-labelledby="verdicts-caption">
+              <table>
+                <caption id="verdicts-caption">
+                  The four verdicts a criterion can receive, with the wording the application uses.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Verdict</th>
+                    <th scope="col">Meaning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row"><code>MATCHED</code></th>
+                    <td>The CV states it, and a verified quote is attached.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>PARTIAL</code></th>
+                    <td>
+                      Nearly there — dated experience short of the minimum but within the partial
+                      band, or a skill mentioned as exposure rather than applied work.
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>NO_EVIDENCE</code></th>
+                    <td>“No evidence found in CV” — a statement about the document.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>NEEDS_REVIEW</code></th>
+                    <td>
+                      “Needs review” — the CV says something the engine cannot read safely, such as
+                      a GPA with no scale. Left out of the score entirely rather than counted as a
+                      zero.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card">
+              <h3>Anatomy of one verdict</h3>
+              <p class="muted small">From the demo candidate shown in the screenshots below.</p>
+              <dl class="anatomy">
+                <dt>Criterion</dt>
+                <dd>Skill: Python — must have, weight 3</dd>
+                <dt>Verdict</dt>
+                <dd><code>MATCHED</code></dd>
+                <dt>Decided by</dt>
+                <dd>The structured screening rules (<code>DETERMINISTIC_STRUCTURED</code>)</dd>
+                <dt>Reason</dt>
+                <dd>The CV evidences Python.</dd>
+                <dt>Evidence</dt>
+                <dd>
+                  <span class="quote">Python, FastAPI, Postgres, Docker, Bash, pytest</span>
+                  <span class="muted small">Verified in the CV, page 1</span>
+                </dd>
+              </dl>
+            </div>
+          </div>
+
+          <h3>Two rules about quotes</h3>
+          <div class="grid-2">
+            <div class="card">
+              <p>
+                <strong>A quote that cannot be found is not evidence.</strong> The verdict is
+                downgraded to <code>NO_EVIDENCE</code> and flagged, with the original claim kept for
+                the audit trail. An invented quote cannot help a candidate.
+              </p>
+            </div>
+            <div class="card">
+              <p>
+                <strong>A quote that can be found is not automatically evidence either.</strong>
+                Text in a CV addressed to the system is flagged and kept, never removed — and it
+                cannot support any verdict, because it evidences no qualification.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= SCORING -->
+      <section class="section" id="scoring" aria-labelledby="scoring-title">
+        <div class="wrap">
+          <h2 id="scoring-title">Scoring and ranking</h2>
+          <p class="section-intro">
+            A weighted average over stored verdicts, computed by a pure function. Every input is
+            stored, so the arithmetic can be checked line by line — and re-weighting a job never
+            invalidates a verdict.
+          </p>
+          <div class="grid-2">
+            <div>
+              <pre><code>MATCHED = 1.0   PARTIAL = 0.5   NO_EVIDENCE = 0.0
+NEEDS_REVIEW = excluded from both sides
+
+score_raw = Σ (weight × value) / Σ (weight)
+score     = round(score_raw × 100)   # half up, 0–100</code></pre>
+              <p class="small">
+                <strong>Worked example from the demo job.</strong> Six criteria weighted 3, 3, 3, 1,
+                1, 1 — a total of 12.
+              </p>
+              <ul class="small">
+                <li>
+                  Strong match: four criteria matched, worth 3 + 3 + 3 + 1 = 10 → 10 ÷ 12 = 83.3 →
+                  <strong>83, Good Match</strong>.
+                </li>
+                <li>
+                  CV with injected instructions: Python matched (3) and experience partial (3 × 0.5)
+                  → 4.5 ÷ 12 = 37.5 → <strong>38, Low Match</strong>.
+                </li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Rules that matter more than the formula</h3>
+              <ul>
+                <li>
+                  <strong>Bands are heuristics, not predictions.</strong> 90–100 Strong Match, 75–89
+                  Good Match, 60–74 Review, below 60 Low Match — conventions with no empirical
+                  backing.
+                </li>
+                <li>
+                  <strong>An undefined score is not zero.</strong> Nothing asked, or nothing
+                  decidable, produces no number rather than a misleading 0.
+                </li>
+                <li>
+                  <strong>The must-have guard caps a label, never a candidate.</strong> An
+                  unevidenced must-have caps the displayed band at Review; the score stays visible.
+                </li>
+                <li>
+                  <strong>Ranking is a total order:</strong> score, then must-have coverage, then
+                  matched count, then arrival. Nothing is filtered, and scores are comparable only
+                  within one job.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== FAIRNESS -->
+      <section class="section" id="fairness" aria-labelledby="fairness-title">
+        <div class="wrap">
+          <h2 id="fairness-title">Fairness and safety — and their limits</h2>
+          <div class="grid-2">
+            <div class="card">
+              <h3>What is enforced</h3>
+              <ul>
+                <li>
+                  Photo, gender, age, nationality, ethnicity, religion, marital status and home
+                  address are not fields in the candidate profile, so scoring never receives them.
+                </li>
+                <li>
+                  A criterion naming a protected characteristic is flagged and cannot be confirmed,
+                  and no structured type exists for any of them.
+                </li>
+                <li>
+                  CV text is treated as untrusted data, never as instructions. Instruction-like
+                  passages are flagged and cannot serve as evidence.
+                </li>
+                <li>
+                  Uploads are checked by magic bytes and capped in size, pages and batch count.
+                </li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>What is not claimed</h3>
+              <ul>
+                <li>
+                  It is not unbiased. Proxy signals survive — name, university, employer, career
+                  gaps.
+                </li>
+                <li>No bias audit or disparate-impact analysis has been performed.</li>
+                <li>No claim of prompt-injection immunity is made.</li>
+                <li>
+                  <strong
+                    >It is a portfolio demonstration and must not be used for real hiring
+                    decisions.</strong
+                  >
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================== ARCHITECTURE -->
+      <section class="section" id="architecture" aria-labelledby="architecture-title">
+        <div class="wrap">
+          <h2 id="architecture-title">Architecture</h2>
+          <p class="section-intro">
+            A modular monolith: one FastAPI application with hard internal boundaries. Nothing here
+            has the independent scaling or deployment pressure that would justify microservices.
+          </p>
+
+          <figure class="arch" aria-labelledby="arch-caption">
+            <p class="arch-label">Everything below runs on one local machine</p>
+            <div class="arch-flow">
+              <div class="arch-node">
+                <strong>Browser — React + TypeScript (Vite)</strong>
+                <span>Criteria builder, upload, ranked results, evidence per criterion</span>
+              </div>
+              <p class="arch-link" aria-hidden="true">↓ HTTP / JSON ↓</p>
+              <div class="arch-node">
+                <strong>FastAPI backend</strong>
+                <span
+                  >Confirmation gate · PDF parsing · fact reading · structured matching · evidence
+                  verification · scoring · ranking</span
+                >
+              </div>
+              <div class="arch-row" aria-hidden="true">
+                <p class="arch-link">↓ SQLAlchemy</p>
+                <p class="arch-link">↓ model calls</p>
+              </div>
+              <div class="arch-row">
+                <div class="arch-node">
+                  <strong>PostgreSQL 16</strong>
+                  <span>In Docker. Verdicts, evidence spans, scores and the audit trail.</span>
+                </div>
+                <div class="arch-node">
+                  <strong>Model boundary — <code>app/llm/</code></strong>
+                  <span
+                    >Ollama with qwen2.5:7b-instruct by default; recorded responses in demo mode;
+                    Anthropic opt-in.</span
+                  >
+                </div>
+              </div>
+            </div>
+            <figcaption id="arch-caption" class="muted small">
+              The browser talks to the FastAPI backend over HTTP. The backend stores everything in
+              PostgreSQL and reaches a language model only through the single
+              <code>app/llm/</code> boundary.
+            </figcaption>
+          </figure>
+
+          <h3>Technology stack</h3>
+          <div class="table-wrap table-wrap--stack">
+            <table role="table">
+              <caption id="stack-caption">
+                Taken from the repository's manifests and documentation.
+              </caption>
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">Layer</th>
+                  <th scope="col" role="columnheader">Choice</th>
+                  <th scope="col" role="columnheader">Why</th>
+                </tr>
+              </thead>
+              <tbody role="rowgroup">
+                <tr role="row">
+                  <th scope="row" role="rowheader">Frontend</th>
+                  <td role="cell" data-label="Choice">React 19, TypeScript, Vite</td>
+                  <td role="cell" data-label="Why">
+                    No runtime dependency beyond React: resource hooks and a small hash router are
+                    written in the project.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Backend</th>
+                  <td role="cell" data-label="Choice">
+                    Python 3.10+, FastAPI, Pydantic, SQLAlchemy 2.0, Alembic
+                  </td>
+                  <td role="cell" data-label="Why">
+                    Pydantic models map directly onto the structured-output discipline the pipeline
+                    depends on.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Database</th>
+                  <td role="cell" data-label="Choice">PostgreSQL 16 (Docker Compose)</td>
+                  <td role="cell" data-label="Why">
+                    Relational data with a real audit trail; pgvector evaluated and deferred.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Documents</th>
+                  <td role="cell" data-label="Choice">pypdf</td>
+                  <td role="cell" data-label="Why">
+                    Text-layer extraction with page offsets, so evidence cites a location.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Language model</th>
+                  <td role="cell" data-label="Choice">
+                    Ollama + qwen2.5:7b-instruct (default); Anthropic (opt-in)
+                  </td>
+                  <td role="cell" data-label="Why">
+                    A local default means no account, no key, and no CV leaving the machine.
+                  </td>
+                </tr>
+                <tr role="row">
+                  <th scope="row" role="rowheader">Quality</th>
+                  <td role="cell" data-label="Choice">
+                    pytest, Vitest, ruff, ESLint, Prettier, GitHub Actions
+                  </td>
+                  <td role="cell" data-label="Why">
+                    Lint, formatting, tests, migrations and documentation links checked in CI.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Decisions recorded in writing</h3>
+          <p class="prose">
+            Twelve architecture decision records explain the choices above, including the
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/decisions/0001-ai-deterministic-boundary.md"
+              >AI and deterministic responsibility boundary</a
+            >,
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/decisions/0002-evidence-first-evaluation.md"
+              >evidence-first evaluation</a
+            >,
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/decisions/0008-deterministic-scoring.md"
+              >deterministic scoring</a
+            >
+            and
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/decisions/0012-structured-screening-criteria.md"
+              >structured screening criteria</a
+            >. The full list is in the
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/decisions/README.md"
+              >decision log</a
+            >.
+          </p>
+        </div>
+      </section>
+
+      <!-- ========================================================= TESTING -->
+      <section class="section" id="testing" aria-labelledby="testing-title">
+        <div class="wrap">
+          <h2 id="testing-title">Testing and verification</h2>
+          <div class="grid-3">
+            <div class="card">
+              <h3>Automated tests</h3>
+              <ul>
+                <li>
+                  1,050 backend tests pass; one opt-in test that needs a live Ollama is skipped.
+                </li>
+                <li>134 frontend tests pass.</li>
+                <li>97% backend line coverage.</li>
+              </ul>
+              <p class="muted small">Measured locally on the current code.</p>
+            </div>
+            <div class="card">
+              <h3>Continuous integration</h3>
+              <ul>
+                <li>
+                  Backend against a real PostgreSQL service: lint, format, migration round-trip,
+                  model/migration drift check, tests.
+                </li>
+                <li>Frontend: lint, format, tests, production build.</li>
+                <li>Documentation links and UI colour contrast against WCAG AA.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Local launcher</h3>
+              <ul>
+                <li>Cold start with Docker, Ollama and both servers stopped.</li>
+                <li>A second launch starts nothing twice; a concurrent launch is refused.</li>
+                <li>Stop ends only what the launcher started, and the database is preserved.</li>
+              </ul>
+              <p class="muted small">Verified on Windows, including a real double-click start.</p>
+            </div>
+          </div>
+
+          <h3>Evaluation harness</h3>
+          <p class="prose">
+            Unit tests prove the code does what it was written to do. The evaluation harness asks a
+            different question — how often the engine's verdict matches an independent reading of
+            the CV — over hand-labelled synthetic documents.
+          </p>
+          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="eval-caption">
+            <table>
+              <caption id="eval-caption">
+                The structured engine on 12 invented CVs and 101 labelled pairs, all written by the
+                project's author. This measures this application's deterministic reading of those
+                documents — not real-world accuracy, not model quality, and not a bias audit.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Metric</th>
+                  <th scope="col" class="num">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Verdict agreement with the hand-written label</th>
+                  <td class="num">97&nbsp;/&nbsp;101</td>
+                </tr>
+                <tr>
+                  <th scope="row">Over-crediting (the costlier direction)</th>
+                  <td class="num">0&nbsp;/&nbsp;94</td>
+                </tr>
+                <tr>
+                  <th scope="row">Under-crediting</th>
+                  <td class="num">2&nbsp;/&nbsp;94</td>
+                </tr>
+                <tr>
+                  <th scope="row">Cited quotes found verbatim in the CV</th>
+                  <td class="num">52&nbsp;/&nbsp;52</td>
+                </tr>
+                <tr>
+                  <th scope="row">Positive verdicts carrying a quote</th>
+                  <td class="num">45&nbsp;/&nbsp;45</td>
+                </tr>
+                <tr>
+                  <th scope="row">Cited quotes naming no protected characteristic</th>
+                  <td class="num">52&nbsp;/&nbsp;52</td>
+                </tr>
+                <tr>
+                  <th scope="row">Identical on a second run</th>
+                  <td class="num">101&nbsp;/&nbsp;101</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="prose">
+            <p>
+              <strong>The harness earned its place.</strong> The first eight CVs were clean, English
+              and single-column, and the engine agreed with all 61 of their labels. Four CVs written
+              in the shapes real Indonesian uploads take — a two-column layout, organisational
+              sections, dates on their own line, a degree still being read, misspellings — found
+              three defects on their first run, including one over-credited must-have. Each is fixed
+              with a regression test. The four disagreements that remain are reported rather than
+              tuned away.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ DEMO -->
+      <section class="section" id="demo" aria-labelledby="demo-title">
+        <div class="wrap">
+          <h2 id="demo-title">Demo</h2>
+          <p class="section-intro">
+            Screenshots of the local application running its built-in demo in demo mode. Every name,
+            employer and university in them is fictional.
+          </p>
+          <div class="shots shots--wide">
+            <figure class="shot">
+              <img
+                src="assets/demo-criteria.png"
+                width="1032"
+                height="708"
+                alt="The screening criteria table for the demo job: minimum degree S1, at least four years of professional experience, Python, PostgreSQL, internship experience and English, each marked as decided by the screening rules, with must-have checkboxes and weights 3, 3, 3, 1, 1 and 1, and a note that the criteria are confirmed."
+              />
+              <figcaption>
+                Six structured criteria, each decided by the screening rules. After confirmation the
+                criteria are frozen; weights and must-have flags stay editable.
+                <a href="assets/demo-criteria.png">Open full size</a>
+              </figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="assets/demo-results.png"
+                width="1032"
+                height="585"
+                loading="lazy"
+                alt="The ranked results: alex-rivera-backend-engineer.pdf scores 83, Good Match, with four criteria matched and 100% must-have coverage; jordan-blake-injected-instructions.pdf scores 38, Low Match, with a warning that the CV contains text that reads as an instruction; scanned-no-text-layer.pdf is listed under could not be processed, because it has no extractable text and there is no OCR."
+              />
+              <figcaption>
+                The ranked shortlist. The scanned PDF is listed as not processed rather than
+                dropped, and the CV carrying injected instructions is flagged.
+                <a href="assets/demo-results.png">Open full size</a>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="shots">
+            <figure class="shot">
+              <img
+                src="assets/demo-evidence-strong-match.png"
+                width="1032"
+                height="1745"
+                loading="lazy"
+                alt="The candidate page for alex-rivera-backend-engineer.pdf, score 83, Good Match. Four criteria are matched, each with a quoted line verified on page 1 of the CV, for example BSc Computer Science, University of the Fictional Midlands, 2021. Internship and English show no evidence found in CV. The score panel shows 83 out of 100, must-have coverage 100% and 10 of 12 weighted points."
+              />
+              <figcaption>
+                Every verdict carries the CV line it rests on. Gaps are stated as “No evidence found
+                in CV”, and the score shows its weighted points.
+                <a href="assets/demo-evidence-strong-match.png">Open full size</a>
+              </figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="assets/demo-evidence-injected-cv.png"
+                width="1032"
+                height="1755"
+                loading="lazy"
+                alt="The candidate page for jordan-blake-injected-instructions.pdf, score 38, Low Match. A warning states that four passages read as instructions addressed to the system; they are flagged and kept and cannot be used as evidence. Python is matched with a verified quote, experience is partial at 45 months against a 48-month minimum, and four criteria show no evidence found in CV. The score panel shows 38 out of 100, must-have coverage 50% and 4.5 of 12 weighted points."
+              />
+              <figcaption>
+                A CV with text aimed at the system: the passages are flagged, kept, and refused as
+                evidence.
+                <a href="assets/demo-evidence-injected-cv.png">Open full size</a>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="callout callout--info">
+            <p class="callout-title">
+              <span class="pill pill--status">Planned</span> A short demo video
+            </p>
+            <p>
+              A screen recording of the same walkthrough is planned. Until then, the demo is one
+              click inside the local application: start it in demo mode and press
+              <em>Load demo job</em>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================== RUN LOCALLY -->
+      <section class="section" id="run-locally" aria-labelledby="run-title">
+        <div class="wrap">
+          <h2 id="run-title">Run the full application locally</h2>
+          <p class="section-intro">
+            The complete system runs on your own machine. Nothing about it is exposed to the
+            internet.
+          </p>
+          <div class="grid-2">
+            <div class="card">
+              <h3>You need</h3>
+              <ul>
+                <li>Git, Python 3.10 or newer, and Node.js 22 (22.13 or later), 24, or 26+</li>
+                <li>Docker Desktop, for PostgreSQL</li>
+                <li>
+                  For local AI mode only: Ollama and the <code>qwen2.5:7b-instruct</code> model
+                  (about 4.7 GB). Demo mode needs no model.
+                </li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>What the launcher never does</h3>
+              <ul>
+                <li>Reset the database or delete its Docker volume.</li>
+                <li>Download a model or install packages without an explicit yes.</li>
+                <li>Stop a process it did not start.</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3>On Windows: one double-click</h3>
+          <ol class="prose">
+            <li>
+              Clone the repository:
+              <pre><code>git clone https://github.com/justinchristroper-arch/ai-cv-screener.git</code></pre>
+            </li>
+            <li>
+              Double-click <strong>Start CvScreener.cmd</strong> in the repository folder. On a
+              fresh clone it offers to install the dependencies and to create <code>.env</code> from
+              <code>.env.example</code>, whose defaults start the application in demo mode.
+            </li>
+            <li>
+              It starts Docker Desktop and PostgreSQL, applies migrations, checks the AI provider,
+              starts the backend and the frontend, and opens <code>http://localhost:5173</code>.
+            </li>
+            <li>Press <em>Load demo job</em> to see the walkthrough from the screenshots above.</li>
+            <li>
+              When you are done, double-click <strong>Stop CvScreener.cmd</strong>. Your data is
+              kept.
+            </li>
+          </ol>
+
+          <h3>Local AI mode</h3>
+          <p class="prose">
+            Set <code>DEMO_MODE=false</code> in <code>.env</code>, install Ollama, and pull the
+            model with <code>ollama pull qwen2.5:7b-instruct</code>. The launcher checks both; if
+            the model is missing it shows that command and asks before downloading anything.
+          </p>
+
+          <h3>macOS, Linux, or step by step</h3>
+          <p class="prose">
+            The launcher is Windows-only. The underlying commands, their bash equivalents and a
+            troubleshooting section are in the
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/development.md"
+              >development guide</a
+            >.
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================================================== LIMITATIONS -->
+      <section class="section" id="limitations" aria-labelledby="limitations-title">
+        <div class="wrap">
+          <h2 id="limitations-title">Limitations and future work</h2>
+          <div class="grid-2">
+            <div class="card">
+              <h3>Known limitations</h3>
+              <ul>
+                <li>No authentication. It is built as a local tool.</li>
+                <li>Scanned PDFs cannot be read; there is no OCR.</li>
+                <li>It measures what a CV says, not what a candidate can do.</li>
+                <li>Two-column layouts are detected and flagged, but not repaired.</li>
+                <li>
+                  Misspelled skills are not matched, by design: fuzzy matching credits skills nobody
+                  claimed.
+                </li>
+                <li>
+                  The evaluation set is small and synthetic, and model quality is not measured.
+                </li>
+                <li>Scoring constants are conventions, not findings.</li>
+                <li>It is not deployed as a hosted service.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Future work</h3>
+              <ul>
+                <li>
+                  <span class="pill pill--status">Open follow-up</span> Remove the
+                  profile-extraction model call from screening when every criterion is structured,
+                  so that path is model-free end to end.
+                </li>
+                <li>
+                  <span class="pill pill--status">Planned</span> A short screen recording of the
+                  demo.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <ul>
+          <li>
+            <a href="https://github.com/justinchristroper-arch/ai-cv-screener">GitHub repository</a>
+          </li>
+          <li>
+            <a href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/README.md"
+              >README</a
+            >
+          </li>
+          <li>
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/architecture.md"
+              >Architecture</a
+            >
+          </li>
+          <li>
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/evaluation/RESULTS.md"
+              >Evaluation results</a
+            >
+          </li>
+          <li>
+            <a
+              href="https://github.com/justinchristroper-arch/ai-cv-screener/blob/main/docs/security.md"
+              >Security review</a
+            >
+          </li>
+          <li><a href="#top">Back to top</a></li>
+        </ul>
+        <p>
+          CvScreener is a portfolio project by Justin Christroper, released under the MIT License.
+        </p>
+        <p>
+          This page is static: it sets no cookies, tracks nothing and loads nothing from any other
+          site. Its content reflects the repository as of September 2026.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,852 @@
+/*
+ * CvScreener public showcase. Plain CSS: no framework, no build step, no web
+ * fonts, nothing loaded from another site.
+ *
+ * The palette and type are the application's own (frontend/src/index.css), so
+ * the showcase reads as the same product, and the colour pairs are the ones
+ * scripts/check_contrast.py already holds to WCAG AA. Light and dark follow the
+ * visitor's system setting.
+ */
+
+:root {
+  --bg: #fbfbfc;
+  --surface: #ffffff;
+  --surface-alt: #f4f4f6;
+  --fg: #17181c;
+  --muted: #5d6068;
+  --border: #e0e1e6;
+  --border-strong: #8a8c95;
+  --accent: #2f4fd8;
+  --accent-fg: #ffffff;
+  --accent-soft: #eaeeff;
+  --ok: #146b45;
+  --ok-bg: #e7f5ee;
+  --warn: #8a5a10;
+  --warn-bg: #fdf2df;
+  --info-bg: #eef2fb;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 2px rgb(20 20 30 / 6%), 0 4px 12px rgb(20 20 30 / 4%);
+  --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101115;
+    --surface: #17181d;
+    --surface-alt: #1e2027;
+    --fg: #e9eaee;
+    --muted: #9b9ea8;
+    --border: #2b2d35;
+    --border-strong: #6b6e7a;
+    --accent: #8ea3ff;
+    --accent-fg: #101115;
+    --accent-soft: #1c2138;
+    --ok: #6fd39f;
+    --ok-bg: #12291f;
+    --warn: #e3b567;
+    --warn-bg: #2c2314;
+    --info-bg: #1a1d28;
+    --shadow: none;
+  }
+}
+
+/* ------------------------------------------------------------------ base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+code,
+pre {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+code {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  margin: 0.75rem 0 1rem;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  overflow-wrap: normal;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  top: -4rem;
+  left: 1rem;
+  z-index: 10;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.skip-link:focus {
+  top: 0.75rem;
+}
+
+.wrap {
+  width: min(72rem, 100% - 2.5rem);
+  margin-inline: auto;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.site-header {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Sticky only where there is room: on a phone the wrapped navigation would
+   cover a third of the screen. */
+@media (min-width: 64rem) {
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+}
+
+.header-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  padding-block: 0.7rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--fg);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.site-nav {
+  flex: 1 1 32rem;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.site-nav ul {
+  display: flex;
+  gap: 0.2rem 1rem;
+  margin: 0;
+  padding: 0.3rem 0.1rem;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.site-nav a {
+  color: var(--muted);
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+section[id],
+[id].anchor-target {
+  scroll-margin-top: 5.5rem;
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.hero {
+  padding-block: 4rem 3rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(2.3rem, 5vw, 3.4rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.lede {
+  max-width: 46rem;
+  margin: 0 0 1rem;
+  font-size: clamp(1.1rem, 2.2vw, 1.3rem);
+}
+
+.hero-note {
+  max-width: 46rem;
+  margin: 0;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.6rem;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.button:hover {
+  border-color: var(--fg);
+}
+
+.button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.button--primary:hover {
+  border-color: var(--fg);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 1rem;
+  margin: 2.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fact {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.fact strong {
+  display: block;
+  font-size: 1.4rem;
+  line-height: 1.25;
+}
+
+.fact span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* -------------------------------------------------------------- sections */
+
+.section {
+  padding-block: 3.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.section h2 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.section h3 {
+  margin: 2.2rem 0 0.6rem;
+  font-size: 1.12rem;
+  line-height: 1.35;
+}
+
+.section-intro {
+  max-width: 46rem;
+  margin: 0 0 1.75rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.prose {
+  max-width: 46rem;
+}
+
+.prose p,
+.card p {
+  margin: 0 0 0.9rem;
+}
+
+.prose ul,
+.card ul,
+.prose ol {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+}
+
+.prose li,
+.card li {
+  margin-bottom: 0.4rem;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 1.25rem;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+
+.card {
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.card h3 {
+  margin-top: 0;
+}
+
+.card > :last-child {
+  margin-bottom: 0;
+}
+
+.card--accent {
+  border-color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.9rem;
+}
+
+/* ----------------------------------------------------------------- pills */
+
+.pill {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.pill--code {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.pill--model {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.pill--person {
+  border-color: var(--border-strong);
+  background: var(--surface-alt);
+  color: var(--fg);
+}
+
+.pill--status {
+  border-color: var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  list-style: none;
+}
+
+/* -------------------------------------------------------------- pipeline */
+
+.pipeline {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.pipeline > li {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr;
+  gap: 0 0.9rem;
+  align-items: start;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  counter-increment: step;
+}
+
+.pipeline > li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+
+.step-title {
+  font-weight: 650;
+}
+
+.step-body {
+  grid-column: 2;
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* --------------------------------------------------------------- callout */
+
+.callout {
+  max-width: 46rem;
+  margin: 1.5rem 0;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+}
+
+.callout-title {
+  margin: 0;
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.callout p {
+  margin: 0.4rem 0 0;
+}
+
+.callout--info {
+  border-color: var(--border-strong);
+  background: var(--info-bg);
+}
+
+.callout--info .callout-title {
+  color: var(--fg);
+}
+
+/* ---------------------------------------------------------------- tables */
+
+.table-wrap {
+  margin: 1rem 0 0.5rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+caption {
+  padding: 0.75rem 1rem;
+  caption-side: bottom;
+  color: var(--muted);
+  font-size: 0.88rem;
+  text-align: left;
+}
+
+th,
+td {
+  padding: 0.62rem 1rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+thead th {
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* Values keep their units through non-breaking spaces in the markup, not
+   nowrap, so the column headers above them can still wrap on a phone. */
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 40rem) {
+  th,
+  td {
+    padding: 0.55rem 0.6rem;
+  }
+}
+
+/* Three text-heavy tables become one card per row on a phone. Squeezed into
+   three columns, their notes column was mostly off-screen. The markup carries
+   explicit ARIA table roles because some browsers drop a table's semantics
+   once its display value changes. */
+@media (max-width: 40rem) {
+  .table-wrap--stack table {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .table-wrap--stack caption {
+    order: 1;
+  }
+
+  .table-wrap--stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .table-wrap--stack tbody,
+  .table-wrap--stack tr,
+  .table-wrap--stack th,
+  .table-wrap--stack td {
+    display: block;
+  }
+
+  .table-wrap--stack tbody tr {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-wrap--stack tbody th,
+  .table-wrap--stack tbody td {
+    padding: 0.15rem 0;
+    border-bottom: 0;
+  }
+
+  .table-wrap--stack tbody td::before {
+    content: attr(data-label);
+    content: attr(data-label) / "";
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+}
+
+/* A verdict name split mid-word ("NO_EVIDE" / "NCE") reads as two words. The
+   table already scrolls sideways on a narrow screen, so it can stay whole. */
+th[scope="row"] code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.win {
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------- verdict anatomy */
+
+.anatomy {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.45rem 1.25rem;
+  margin: 0;
+}
+
+.anatomy dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.anatomy dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.quote {
+  display: block;
+  padding: 0.45rem 0.75rem;
+  border-left: 3px solid var(--ok);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-alt);
+  font-style: italic;
+}
+
+@media (max-width: 30rem) {
+  .anatomy {
+    grid-template-columns: 1fr;
+  }
+
+  .anatomy dd {
+    margin-bottom: 0.6rem;
+  }
+}
+
+/* --------------------------------------------------------- architecture */
+
+.arch {
+  padding: 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.arch-label {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.arch-flow {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.arch-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem;
+}
+
+.arch-node {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.arch-node strong {
+  display: block;
+}
+
+.arch-node span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.arch-link {
+  margin: 0.15rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.arch figcaption {
+  margin-top: 0.9rem;
+}
+
+/* ------------------------------------------------------------ screenshots */
+
+figure {
+  margin: 0;
+}
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* The two wide, short screenshots get the full column, capped at their natural
+   width, so their text is legible rather than scaled to half size. */
+.shots--wide {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: calc(1036px + 1.2rem);
+}
+
+.shots + .shots {
+  margin-top: 1.25rem;
+}
+
+.shot {
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.shot img {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.shot figcaption {
+  padding: 0.65rem 0.25rem 0.1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* ---------------------------------------------------------------- footer */
+
+.site-footer {
+  padding-block: 2.5rem 3rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.site-footer ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.site-footer p {
+  max-width: 46rem;
+  margin: 0 0 0.6rem;
+}
