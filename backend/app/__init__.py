@@ -1,3 +1,3 @@
-"""AI CV Screener backend."""
+"""CvScreener backend."""
 
 __version__ = "0.1.0"

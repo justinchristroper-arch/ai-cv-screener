@@ -1,4 +1,4 @@
-# AI CV Screener — Data Model
+# CvScreener — Data Model
 
 **Status:** Phase 1 (design only — no migrations exist yet)
 **Last updated:** 2026-09-06

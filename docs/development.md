@@ -394,7 +394,7 @@ a scan whose output nobody reads is not a control.
 ## 16. Run the evaluation harness
 
 ```powershell
-cd C:\path	oi-cv-screener
+cd C:\path\to\ai-cv-screener
 backend\.venv\Scripts\python.exe -m evaluation.runner
 ```
 
@@ -475,6 +475,10 @@ docker compose down -v       # stop PostgreSQL and DELETE all data
 ```
 
 `.\tasks.ps1 db-down` and `.\tasks.ps1 db-reset` respectively.
+
+If CvScreener was started with `Start CvScreener.cmd`, double-click
+`Stop CvScreener.cmd` instead. It stops only what the launcher started and never
+removes the data volume ([section 25](#25-one-click-start-on-windows)).
 
 ---
 
@@ -848,3 +852,73 @@ to a document a human can simply open.
   indexed, so identical files are *detectable*, but uploading the same CV twice
   creates two candidates. The data model has no concept of a merged candidate,
   and inventing one here would be a product decision rather than an ingestion one.
+
+---
+
+## 25. One-click start on Windows
+
+`Start CvScreener.cmd` and `Stop CvScreener.cmd` in the repository root run
+CvScreener without opening terminals. Both call
+[`scripts/start-cvscreener.ps1`](../scripts/start-cvscreener.ps1), and every step
+that changes anything is an existing `tasks.ps1` task, so there is still exactly
+one way to do each thing. `-ExecutionPolicy Bypass` applies to that one
+PowerShell process; no system setting changes.
+
+**Start** runs these steps in order, in one window, and stops at the first
+problem with a message saying what to do:
+
+| Step | What happens |
+|---|---|
+| First-time setup | If `backend\.venv` or `frontend\node_modules` is missing, asks before running `.\tasks.ps1 install`. If `.env` is missing, asks before copying `.env.example`. Both default to **No**, and an existing `.env` is never overwritten. |
+| Docker | Starts Docker Desktop if the engine does not answer, and waits up to three minutes. Each `docker info` check gives up after 20 seconds, so an engine that is stuck, not just stopped, ends in a message instead of a window that waits forever. |
+| PostgreSQL | `.\tasks.ps1 db-up`, given up to five minutes (time for a first download of the PostgreSQL image). |
+| Migrations | Prints the current and latest revision, then `.\tasks.ps1 migrate`. |
+| AI provider | Read through the application's own settings loader, so environment variables and `.env` apply exactly as they do for the app; the launcher never opens `.env`. Demo mode: nothing to check. Anthropic: `.\tasks.ps1 check-llm --preflight`. Ollama: starts the Ollama app if it does not answer; if the configured model is missing, shows the exact `ollama pull` command and asks, defaulting to **No**; then the same preflight. |
+| Backend | `.\tasks.ps1 dev-backend` in a minimized window, then waits for `/health`. |
+| Frontend | `.\tasks.ps1 dev-frontend` in a minimized window, then waits for the page. Each window's first line says which part it runs; the frontend's title cannot be relied on, because `npm run dev` runs through `cmd.exe`, which retitles the window. |
+| Browser | Opens http://localhost:5173. |
+
+**In Local AI mode Ollama is required**, and the launcher will not start the app
+without it. Screening a CV currently extracts a profile with the model before
+matching, even when every criterion is structured; that is recorded as an open
+follow-up in [roadmap.md](roadmap.md#after-the-roadmap-structured-screening-adr-0012).
+
+Running Start again while CvScreener is up is safe. A backend or frontend that
+already answers is reused rather than started twice, and a second launcher
+window refuses to run while the first is still working instead of racing it. A
+port held by some other program is reported by name and process id, and left
+alone.
+
+**Stop** ends only what Start launched. Start records the process id *and* the
+start time of each window it opens, and of the process listening on each port,
+in `var/launcher/state.json` (gitignored). Stop ends a process tree only when
+both still match, so a process id Windows has since given to another program is
+never touched. The database container is stopped with `docker compose stop db`
+only if Start was the one that started it, and the container and its data
+volume are kept. If Docker does not answer in time, Stop says so, exits with an
+error, and keeps its record, so the next Stop tries again. Docker Desktop and
+Ollama are left running.
+
+Neither ever runs `db-reset`, `docker compose down`, `down -v` or `docker prune`,
+deletes a volume, or downloads a model without an explicit **y**.
+
+Four things to know before changing the script:
+
+- **`tasks.ps1` is called in-process, except `db-up`.** In Windows PowerShell 5.1
+  a failed native command does not stop a script, and a script run as a child
+  `powershell.exe` exits with code 0 anyway, so a failed `docker compose up`
+  would look like success. In-process, `$LASTEXITCODE` holds the real result.
+  `db-up` runs Docker, which can hang, and only a separate process can be given
+  a time limit, so it runs in a child `powershell.exe` that passes the exit code
+  on itself (`exit $LASTEXITCODE`).
+- **Every Docker command has a time limit.** PowerShell's `&` waits for a native
+  command however long it takes, and with Docker Desktop's engine stuck a single
+  `docker info` has waited more than ten minutes. Docker commands therefore run
+  through `Invoke-WithTimeout`, which on timeout ends that command and the
+  processes started under it (matched by parent process id *and* a later start
+  time) and nothing else.
+- **The script is ASCII.** Windows PowerShell 5.1 reads a file with no byte-order
+  mark in the ANSI code page, which is how `tasks.ps1` came to print its em dash
+  as `â€”`.
+- **The `.cmd` files are CRLF**, pinned in `.gitattributes`, because `cmd.exe`
+  can mis-parse a batch file with LF line endings.

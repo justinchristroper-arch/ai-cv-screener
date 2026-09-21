@@ -1,4 +1,4 @@
-# Continuous integration for the AI CV Screener.
+# Continuous integration for CvScreener.
 #
 # Three jobs, each independent:
 #   backend  - lint, then a full migration cycle against a real PostgreSQL

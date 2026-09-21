@@ -3,6 +3,10 @@
 # checked out with the platform's native ending.
 * text=auto eol=lf
 
+# Windows batch files keep CRLF: cmd.exe can mis-parse a batch file with LF
+# endings. These are the double-click launchers in the repository root.
+*.cmd text eol=crlf
+
 # Binary assets — never touch these.
 *.pdf binary
 *.png binary

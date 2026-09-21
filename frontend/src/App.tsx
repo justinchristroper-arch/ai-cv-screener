@@ -24,7 +24,7 @@ export function App() {
             ▤
           </span>
           <span>
-            <span className="app__name">AI CV Screener</span>
+            <span className="app__name">CvScreener</span>
             <span className="app__tagline">
               Evidence-first decision support. The recruiter decides.
             </span>

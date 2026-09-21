@@ -1,4 +1,4 @@
-"""Evaluation harness for the AI CV Screener.
+"""Evaluation harness for CvScreener.
 
 Measures this application's deterministic behaviour against a small, hand-
 labelled set of synthetic CVs. It deliberately does not, and cannot, measure

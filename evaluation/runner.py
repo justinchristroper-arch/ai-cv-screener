@@ -216,7 +216,7 @@ def render_markdown(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the AI CV Screener evaluation.")
+    parser = argparse.ArgumentParser(description="Run the CvScreener evaluation.")
     parser.add_argument(
         "--no-db",
         action="store_true",

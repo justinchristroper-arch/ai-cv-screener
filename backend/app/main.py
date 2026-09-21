@@ -27,7 +27,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     logging.basicConfig(level=settings.log_level.upper())
 
     app = FastAPI(
-        title="AI CV Screener API",
+        title="CvScreener API",
         version=__version__,
         description=(
             "Decision-support API for CV screening. Job description processing, the "
@@ -66,7 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(demo.router)
 
     logger.info(
-        "AI CV Screener backend %s starting (env=%s, demo_mode=%s)",
+        "CvScreener backend %s starting (env=%s, demo_mode=%s)",
         __version__,
         settings.app_env,
         settings.demo_mode,

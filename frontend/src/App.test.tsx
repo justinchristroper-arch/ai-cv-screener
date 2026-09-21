@@ -22,7 +22,7 @@ describe("App shell", () => {
   it("renders the product name and what it is for", () => {
     render(<App />);
 
-    expect(screen.getByText("AI CV Screener")).toBeInTheDocument();
+    expect(screen.getByText("CvScreener")).toBeInTheDocument();
     expect(screen.getByText(/the recruiter decides/i)).toBeInTheDocument();
   });
 
@@ -60,6 +60,6 @@ describe("App shell", () => {
     render(<App />);
 
     expect(await screen.findByText(/backend unreachable/i)).toBeInTheDocument();
-    expect(screen.getByText("AI CV Screener")).toBeInTheDocument();
+    expect(screen.getByText("CvScreener")).toBeInTheDocument();
   });
 });

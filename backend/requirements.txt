@@ -1,4 +1,4 @@
-# Runtime dependencies for the AI CV Screener backend.
+# Runtime dependencies for the CvScreener backend.
 #
 # Ranges are declared here; the resolved versions this project was verified
 # against are recorded in requirements.lock.txt. Install with:

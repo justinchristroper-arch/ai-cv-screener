@@ -1,4 +1,4 @@
-# AI CV Screener
+# CvScreener
 
 [![CI](https://github.com/justinchristroper-arch/ai-cv-screener/actions/workflows/ci.yml/badge.svg)](https://github.com/justinchristroper-arch/ai-cv-screener/actions/workflows/ci.yml)
 
@@ -456,6 +456,28 @@ Full detail: [docs/architecture.md](docs/architecture.md),
 
 ## Quickstart
 
+### Double-click to start (Windows)
+
+Double-click **`Start CvScreener.cmd`** in the repository folder. One window walks
+through everything and opens http://localhost:5173 when the app is ready:
+
+1. offers to run first-time setup if the dependencies or `.env` are missing;
+2. starts Docker Desktop if it is not running, then PostgreSQL;
+3. applies any pending migrations;
+4. in Local AI mode, starts Ollama if needed and checks the model is installed;
+5. starts the backend and the frontend in two minimized windows that hold their
+   logs.
+
+Anything missing is reported with what to do about it. Nothing is downloaded
+without an explicit **y**, and the database is never reset. Double-clicking it
+again while CvScreener is running starts nothing twice.
+
+To stop, double-click **`Stop CvScreener.cmd`**. It stops only what the launcher
+started and keeps all data; Docker Desktop and Ollama are left running. The full
+behaviour is in [docs/development.md](docs/development.md#25-one-click-start-on-windows).
+
+### Step by step
+
 Requires Python 3.10+, Node 20+, and a **running** Docker Desktop.
 
 ```powershell
@@ -737,6 +759,13 @@ Recorded up front rather than discovered later:
   under-credited, not over-credited: it reaches a recruiter as missing evidence.
   Tolerating misspellings was deliberately not added, because a fuzzy match is
   how a screener starts crediting skills nobody claimed.
+- **In Local AI mode, screening needs Ollama even when every criterion is
+  structured.** The *Screen* button extracts a profile with the model before
+  matching, although structured matching never reads that profile, so each CV
+  costs a model call it does not need and nothing can be screened while Ollama
+  is down. It is recorded as an open follow-up in
+  [docs/roadmap.md](docs/roadmap.md#after-the-roadmap-structured-screening-adr-0012); until it
+  is fixed, `Start CvScreener.cmd` treats Ollama as required in that mode.
 - **Model quality is not measured at all.** Six of the specified metrics need a
   live provider; offline they would be scored against recordings written by the
   same author as the labels, which would measure that author's consistency.

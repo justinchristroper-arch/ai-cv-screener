@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory records the significant architectural decisions made for the AI CV Screener, in a lightweight ADR format. It exists so that a decision can be reviewed, questioned, or revisited without re-deriving the reasoning from scratch or from memory.
+This directory records the significant architectural decisions made for CvScreener, in a lightweight ADR format. It exists so that a decision can be reviewed, questioned, or revisited without re-deriving the reasoning from scratch or from memory.
 
 ## What belongs here
 

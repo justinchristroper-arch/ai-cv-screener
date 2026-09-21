@@ -1,4 +1,4 @@
-# Contributing to AI CV Screener
+# Contributing to CvScreener
 
 This project is developed in strict, sequential phases (see [`docs/roadmap.md`](docs/roadmap.md)); each phase is planned, implemented, verified by actually running the checks, and committed before the next begins. This guide describes the actual workflow used to build it, not an aspirational process.
 

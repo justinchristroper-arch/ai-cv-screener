@@ -1,4 +1,4 @@
-# AI CV Screener — Product Specification
+# CvScreener — Product Specification
 
 **Status:** Phase 0 (specification only — no application code exists yet)
 **Last updated:** 2026-09-06
@@ -9,7 +9,7 @@
 
 ## 1. Product overview
 
-AI CV Screener is a **decision-support tool for recruiters and HR staff**. Given one set of screening criteria — a job description, or a few lines a recruiter typed in their own language ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)) — and a batch of candidate CVs, it produces, for every candidate, a structured and auditable answer to a single question:
+CvScreener is a **decision-support tool for recruiters and HR staff**. Given one set of screening criteria — a job description, or a few lines a recruiter typed in their own language ([ADR-0009](decisions/0009-natural-language-screening-criteria.md)) — and a batch of candidate CVs, it produces, for every candidate, a structured and auditable answer to a single question:
 
 > For each requirement of this job, what evidence does this CV contain, and what evidence is missing?
 

@@ -1,4 +1,4 @@
-# AI CV Screener — Architecture
+# CvScreener — Architecture
 
 **Status:** Phase 1 (design only — no application code exists yet)
 **Last updated:** 2026-09-06

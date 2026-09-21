@@ -1,4 +1,4 @@
-# AI CV Screener — Development Roadmap
+# CvScreener — Development Roadmap
 
 **Status:** every phase delivered. Phases 0–7, 9–12 and 14–16 are complete. Six carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/check_llm.py`); **17 and 18** need the README walked from a fresh clone and the repository's GitHub-side metadata set; **19 and 20** need a hosting decision that belongs to the repository owner. The repository is published and CI is green on GitHub Actions, which closed the items Phases 3 and 14 were carrying. Nothing is deployed.
 **Since then:** one product change landed on top of the finished roadmap — the screening criteria became structured rather than free text ([ADR-0012](decisions/0012-structured-screening-criteria.md)). It is recorded at the end of this file rather than as a twenty-first phase, because it revises Phases 4, 7 and 8 instead of extending them.
@@ -761,3 +761,16 @@ field the recruiter actually hires for.
 coverage, ruff and eslint clean, the Alembic migration round-trips with no
 drift, and the structured demo workflow was run end to end with `client=None` so
 that any reach for a model would raise rather than quietly succeed.
+
+**Open follow-up: screening calls the model when it does not need to.** Found
+while building the Windows launcher, and deliberately not fixed in that change.
+The *Screen candidates* button calls `POST /api/candidates/{id}/profile` for
+every CV before matching (`frontend/src/components/CandidatesPanel.tsx`, an
+order its test asserts), and `extract_profile` asks the model on every first
+extraction (`backend/app/services/profile_extraction.py`). Matching reads that
+profile only for free-text requirements (`backend/app/services/matching.py`). So
+a job whose criteria are all structured still costs one model call per CV, and
+in Local AI mode it cannot be screened at all while Ollama is down, which is
+contrary to ADR-0012's intent that the structured path calls no model. Until
+this is fixed, `Start CvScreener.cmd` treats Ollama as required in Local AI
+mode.

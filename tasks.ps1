@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Developer commands for the AI CV Screener.
+    Developer commands for CvScreener.
 
 .DESCRIPTION
     A thin wrapper over the real commands, not a build system. Everything here
@@ -172,7 +172,7 @@ switch ($Task) {
 
     default {
         Write-Host @"
-AI CV Screener — developer commands
+CvScreener - developer commands
 
   .\tasks.ps1 install        Create the venv and install backend + frontend dependencies
   .\tasks.ps1 db-up          Start PostgreSQL and wait until it is healthy
