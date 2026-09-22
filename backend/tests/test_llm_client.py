@@ -15,6 +15,7 @@ from app.core.enums import LlmPurpose, LlmSource
 from app.core.errors import LlmUnavailableError
 from app.core.hashing import sha256_text
 from app.llm.client import (
+    DeepSeekLlmClient,
     FixtureKey,
     LlmRequest,
     OllamaLlmClient,
@@ -212,6 +213,77 @@ def test_the_local_provider_never_serves_a_recording(settings_factory) -> None:
 
     assert isinstance(built, OllamaLlmClient)
     assert not isinstance(built, ReplayLlmClient)
+
+
+def test_the_hosted_provider_is_built_from_its_own_settings(settings_factory, monkeypatch) -> None:
+    """DeepSeek gets its own key, URL, model and deadline, and never a recording.
+
+    Constructed, not called. The key reaches the client as plain text only at
+    this one seam; everywhere else it stays a SecretStr.
+    """
+    from app.llm import client as client_module
+
+    constructed: dict[str, object] = {}
+
+    class _StubDeepSeek:
+        def __init__(self, **kwargs: object) -> None:
+            constructed.update(kwargs)
+
+        def complete(self, request):  # pragma: no cover - never invoked here
+            raise AssertionError("no provider call should be made in this test")
+
+    monkeypatch.setattr(client_module, "DeepSeekLlmClient", _StubDeepSeek)
+
+    built = build_llm_client(
+        settings_factory(
+            demo_mode=False,
+            llm_provider="deepseek",
+            deepseek_api_key="test-deepseek-key-not-real-0123456789",
+            deepseek_model="deepseek-flash",
+            deepseek_timeout_seconds=90.0,
+        )
+    )
+
+    assert isinstance(built, _StubDeepSeek)
+    assert not isinstance(built, ReplayLlmClient)
+    assert constructed == {
+        "api_key": "test-deepseek-key-not-real-0123456789",
+        "base_url": "https://api.deepseek.com",
+        "model": "deepseek-flash",
+        "timeout_seconds": 90.0,
+    }
+
+
+def test_the_hosted_provider_opens_no_connection_when_built(settings_factory) -> None:
+    """Building the real client is free: nothing is sent until `complete`."""
+    built = build_llm_client(
+        settings_factory(
+            demo_mode=False,
+            llm_provider="deepseek",
+            deepseek_api_key="test-deepseek-key-not-real-0123456789",
+        )
+    )
+
+    assert isinstance(built, DeepSeekLlmClient)
+
+
+def test_changing_the_hosted_model_rebuilds_the_client(settings_factory) -> None:
+    """The cached client is keyed on what decides which model answers."""
+    first = build_llm_client(
+        settings_factory(
+            demo_mode=False, llm_provider="deepseek", deepseek_api_key="test-key-not-real"
+        )
+    )
+    second = build_llm_client(
+        settings_factory(
+            demo_mode=False,
+            llm_provider="deepseek",
+            deepseek_api_key="test-key-not-real",
+            deepseek_model="deepseek-v4-pro",
+        )
+    )
+
+    assert first is not second
 
 
 def test_selecting_a_local_model_does_not_change_the_fixture_identity(settings_factory) -> None:

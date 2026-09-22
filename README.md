@@ -330,6 +330,45 @@ A smaller model makes both of those more likely, which is an argument for the
 architecture rather than against the model. Full detail:
 [ADR-0011](docs/decisions/0011-local-model-by-default.md).
 
+### Hosted AI mode with DeepSeek (`DEMO_MODE=false`, `LLM_PROVIDER=deepseek`)
+
+For a deployment where no machine can run a local model. Ollama stays the
+default and the way to develop locally; DeepSeek is selected by configuration
+alone, and nothing above `app/llm/` knows which one answered.
+
+```ini
+DEMO_MODE=false
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=            # your own key, in .env or the platform's secret store
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-flash
+```
+
+```powershell
+backend\.venv\Scripts\python.exe scripts\check_llm.py --preflight
+```
+
+The preflight spends no tokens: it asks DeepSeek for its model list, which
+proves the key is accepted and that `DEEPSEEK_MODEL` is a model the key can use.
+
+What is different from the local model, and why it matters:
+
+- **Every screened CV goes to DeepSeek**, a third party, and every call costs
+  money. The interface says so rather than claiming the data stays on the server.
+- **DeepSeek cannot be given a schema.** Its JSON output guarantees a JSON object
+  but not its shape, so the schema is written into the system prompt and the
+  reply is validated here exactly as for every provider, with the same single
+  retry. See [architecture §4.3](docs/architecture.md#43-model-call-settings).
+- **Thinking is turned off and the temperature pinned to 0**, so the same CV is
+  read the same way twice.
+- **The key never leaves the server.** It is a `SecretStr`, sent only in the
+  `Authorization` header, and never logged or returned in an error.
+
+Implemented and tested offline only — no test calls DeepSeek, and nothing in
+this repository has been run against a real key — so no claim is made about how
+well `deepseek-flash` reads a CV. `scripts/check_llm.py` without `--preflight`
+is how to find out, and it spends money.
+
 ### Cloud AI mode (`DEMO_MODE=false`, `LLM_PROVIDER=anthropic`)
 
 Still supported, still opt-in. Requires `ANTHROPIC_API_KEY`, sends your criteria
@@ -446,7 +485,7 @@ Three properties are worth calling out:
 | Backend | Python, FastAPI | Pydantic models map directly onto the structured-output discipline this project depends on. |
 | Frontend | React, Vite | **Zero runtime dependencies beyond React** — hand-rolled resource hooks and a 30-line hash router. The smallest supply-chain surface a web app can have. |
 | Database | PostgreSQL 16 | Relational data with a real audit trail. pgvector evaluated and deferred ([ADR-0005](docs/decisions/0005-pgvector-deferred.md)). |
-| LLM | Ollama + `qwen2.5:7b-instruct` (default); Anthropic Claude (optional) | Server-side only; structured outputs; model and prompt version recorded with every call. A local model is the default so a fresh clone needs no account and no CV leaves the machine ([ADR-0011](docs/decisions/0011-local-model-by-default.md)); Anthropic is opt-in via `LLM_PROVIDER=anthropic` and has never been exercised against a real key here. |
+| LLM | Ollama + `qwen2.5:7b-instruct` (default); DeepSeek `deepseek-flash` (hosted); Anthropic Claude (optional) | Server-side only; structured outputs; model and prompt version recorded with every call. A local model is the default so a fresh clone needs no account and no CV leaves the machine ([ADR-0011](docs/decisions/0011-local-model-by-default.md)). DeepSeek (`LLM_PROVIDER=deepseek`) is for a deployment and sends each CV to a third party; it and Anthropic (`LLM_PROVIDER=anthropic`) have never been exercised against a real key here. |
 | PDF | pypdf | Text-layer extraction with page and character offsets, so evidence cites a location. BSD-3, pure Python, no system libraries. |
 
 Full detail: [docs/architecture.md](docs/architecture.md),
@@ -514,12 +553,16 @@ message naming any variable that is missing or invalid.
 |---|---|---|
 | `DATABASE_URL` | — | **Required.** Needs the `+psycopg` suffix. |
 | `DEMO_MODE` | `true` | The outer switch. `false` runs a real model. |
-| `LLM_PROVIDER` | `ollama` | Which provider answers when demo mode is off. `ollama` or `anthropic`. |
+| `LLM_PROVIDER` | `ollama` | Which provider answers when demo mode is off. `ollama`, `deepseek` or `anthropic`. |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Where Ollama is listening. Validated at startup. |
 | `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Must be pulled once with `ollama pull`. Never downloaded by the app. |
 | `OLLAMA_TIMEOUT_SECONDS` | `300` | One generation. Generous — a 7B model on CPU is slow. |
+| `DEEPSEEK_API_KEY` | — | Required **only** when `LLM_PROVIDER=deepseek`. Server-side only; never logged, never reaches the browser. Refused at startup if blank or pasted with spaces or line breaks. |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Must be `https://` (the key rides on every request), except to localhost. |
+| `DEEPSEEK_MODEL` | `deepseek-flash` | The preflight checks it against the models the key can use. |
+| `DEEPSEEK_TIMEOUT_SECONDS` | `180` | The whole call, including time queued at DeepSeek under load. |
 | `ANTHROPIC_API_KEY` | — | Required **only** when `LLM_PROVIDER=anthropic`. Server-side only; never reaches the browser. |
-| `LLM_MODEL` | `claude-opus-5` | The model the bundled **recordings** were made against, and part of a recording's key. Not the model Ollama runs. |
+| `LLM_MODEL` | `claude-opus-5` | The model the bundled **recordings** were made against, and part of a recording's key. Not the model Ollama or DeepSeek runs. |
 | `APP_ENV` | `development` | `development` or `production`. |
 | `LOG_LEVEL` | `info` | |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated allowlist. Never `*`. |
@@ -790,8 +833,9 @@ The full list is in
 | Database | ✅ PostgreSQL 16 in Docker; all 16 tables migrated via Alembic. |
 | Demo mode | ✅ A structured seed that calls no model at all, plus four free-text briefs, over three synthetic CVs. Each walkable end to end. No API key, no cost, no real applicant data. |
 | Local AI mode | ✅ Ollama, `qwen2.5:7b-instruct`, the default when demo mode is off. No account, no key, no per-call cost. |
+| Hosted AI mode | 🟡 DeepSeek, `deepseek-flash`, via `LLM_PROVIDER=deepseek`. Implemented and covered by offline tests; **never exercised against a real key in this repository**, so no claim about its answers is made. |
 | Cloud AI mode | 🟡 Anthropic, opt-in via `LLM_PROVIDER=anthropic`. Implemented and wired; **never exercised against a real key in this repository**, so no claim about it is made. |
-| Tests | ✅ 1184 passing (1050 backend, 134 frontend), 97% backend coverage. The backend suite collects 1051; the single skip is the opt-in live-Ollama check, which needs a running model server. |
+| Tests | ✅ 1280 passing (1145 backend, 135 frontend), 97% backend coverage. The backend suite collects 1146; the single skip is the opt-in live-Ollama check, which needs a running model server. |
 | Evaluation | ✅ [`evaluation/`](evaluation/) — 12 synthetic candidates, 101 structured plus 89 free-text labelled pairs, 18 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
 | Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, deployment, 12 ADRs. |

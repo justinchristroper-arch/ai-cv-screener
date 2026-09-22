@@ -404,6 +404,17 @@ attributes to that module.
   the backend is on another machine so is the model. The improvement is real and
   narrow: candidate CVs are not sent to a third-party AI service. Everything
   else about the deployment still applies.
+- **With `LLM_PROVIDER=deepseek`, that improvement is gone.** The criteria and
+  the full text of every screened CV go to DeepSeek's API. Its privacy policy
+  (last updated February 2026) says the personal data it collects is stored and
+  processed in the People's Republic of China, and API use is governed by its
+  open-platform terms, which were not reviewed here. What this codebase controls
+  is the key: a `SecretStr`, required at startup, refused if it carries spaces or
+  line breaks (Python's HTTP client would otherwise quote it in an error), sent
+  only in the `Authorization` header over `https://`, and never logged or
+  chained onto an error — covered by `backend/tests/test_deepseek_client.py`.
+  Configuration errors are no longer chained onto pydantic's own, whose message
+  repeats the start and end of every raw setting.
 - **Ollama itself was not reviewed.** It is a third-party server this project
   posts to. It has no authentication of its own, and a machine that exposes port
   11434 to an untrusted network is exposing an unauthenticated model server —

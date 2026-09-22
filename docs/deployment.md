@@ -41,11 +41,35 @@ what it is for.
 `DEMO_MODE=false` runs a real model over whatever a visitor types and uploads,
 and on a public URL with **no authentication** that is a problem either way:
 
-- with `LLM_PROVIDER=anthropic`, it is an open invitation to spend your money;
+- with `LLM_PROVIDER=deepseek` or `anthropic`, it is an open invitation to spend
+  your money — and every visitor's upload is sent to that provider;
 - with `LLM_PROVIDER=ollama`, it is an open invitation to occupy your CPU or GPU
   for seconds at a time, per request, which is a denial-of-service surface.
 
 If you do it anyway, put authentication in front of it first.
+
+### A hosted model: DeepSeek
+
+A platform that runs containers rarely runs a 4.7 GB local model as well, so a
+deployment with `DEMO_MODE=false` will usually use `LLM_PROVIDER=deepseek`.
+What that changes:
+
+- **The key comes from the platform's secret store**, never from a file in the
+  image and never from the repository. The application reads
+  `DEEPSEEK_API_KEY` from the environment and refuses to start without it.
+- **Every screened CV leaves your infrastructure.** DeepSeek's privacy policy
+  (last updated February 2026) says the personal data it collects is stored and
+  processed in the People's Republic of China; API use is governed by its
+  open-platform terms. A CV is personal data, and sending it to a processor
+  abroad is regulated — in Indonesia by Law No. 27 of 2022 on personal data
+  protection. Read both before any real CV goes through it.
+- **Cost is per call and uncapped by this application.** The in-process rate
+  limit is a brake, not a budget. DeepSeek bills against a balance you top up,
+  and answers HTTP 402 when it runs out, so the balance is the only hard cap:
+  keep it no larger than you are prepared to lose.
+- **The preflight is free.** `python scripts/check_llm.py --preflight` lists the
+  models the key can use without spending a token, so it can run on every
+  deploy.
 
 ### Where uploaded files go
 
@@ -78,9 +102,12 @@ explicitly:
 | `DATABASE_URL` | The managed instance's URL, **with the `+psycopg` suffix**. A bare `postgresql://` makes SQLAlchemy look for psycopg2, which is not installed. |
 | `APP_ENV` | `production` |
 | `DEMO_MODE` | `true` for a public demo. See above. |
-| `LLM_PROVIDER` | `ollama` (default) or `anthropic`. Only read when demo mode is off. |
+| `LLM_PROVIDER` | `ollama` (default), `deepseek` or `anthropic`. Only read when demo mode is off. |
 | `OLLAMA_BASE_URL` | Where Ollama listens. **Not `localhost` from inside a container** — see below. |
 | `OLLAMA_MODEL` | Must already be pulled on whatever machine runs Ollama. |
+| `DEEPSEEK_API_KEY` | Only when `LLM_PROVIDER=deepseek`. **From the platform's secret store, never from a file in the image.** |
+| `DEEPSEEK_MODEL` | `deepseek-flash` unless you have a reason; the preflight checks the key can use it. |
+| `DEEPSEEK_BASE_URL` | Leave at `https://api.deepseek.com` unless a gateway sits in front of it. |
 | `ANTHROPIC_API_KEY` | Only when `LLM_PROVIDER=anthropic`. **From the platform's secret store, never from a file in the image.** |
 | `CORS_ALLOWED_ORIGINS` | Exactly the deployed frontend's origin. Never `*`. |
 | `UPLOAD_STORAGE_DIR` | The mount point of the volume, if there is one. |

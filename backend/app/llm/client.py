@@ -1,4 +1,4 @@
-"""The LLM boundary: one protocol, three implementations.
+"""The LLM boundary: one protocol, four implementations.
 
 This module and its siblings are the **only** place a provider is spoken to
 (docs/architecture.md section 2). Every service above it depends on the
@@ -9,6 +9,7 @@ and what made swapping a cloud API for a local model a one-file change.
 ```
 LlmClient (Protocol)
 ├── OllamaLlmClient     — a model running on this machine; the default
+├── DeepSeekLlmClient   — the hosted API for a deployment; LLM_PROVIDER=deepseek
 ├── AnthropicLlmClient  — the cloud API; opt-in via LLM_PROVIDER=anthropic
 └── ReplayLlmClient     — recorded fixtures; used when DEMO_MODE=true
 ```
@@ -31,6 +32,7 @@ relaxed to accommodate one.
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
 import time
@@ -306,6 +308,251 @@ def _as_optional_int(value: Any) -> int | None:
     return value if isinstance(value, int) else None
 
 
+class DeepSeekLlmClient:
+    """Calls the DeepSeek API. Used only when `LLM_PROVIDER=deepseek`.
+
+    The hosted provider, for a deployment where no machine can run a local
+    model. It speaks DeepSeek's Chat Completions endpoint with `urllib`, for the
+    reason the Ollama client does: one POST with a JSON body does not justify a
+    dependency, and a vendor SDK would be a second one inside this package.
+
+    ## Structured output: JSON mode, with the schema in the prompt
+
+    DeepSeek's JSON output (`response_format={"type": "json_object"}`)
+    guarantees a JSON object but, unlike Ollama's `format` or Anthropic's
+    `output_config`, accepts no schema to constrain generation with. So the same
+    `request.json_schema` is written into the system prompt instead, which is
+    what DeepSeek asks for: the word "json" and the shape of the answer in the
+    prompt. The calling service re-validates the reply against `schemas/llm`
+    either way, and that was always the real check (architecture section 4.3).
+    What changes is that an invalid reply becomes likelier, and the single
+    retry with validation feedback is what absorbs it.
+
+    The schema is trusted text from this codebase, so it may join the system
+    prompt. The untrusted document still travels only in the user turn.
+
+    ## Thinking off, temperature 0
+
+    `deepseek-flash` thinks by default, and thinking mode ignores `temperature`.
+    Extraction wants a reply that reads the same document the same way twice,
+    so thinking is turned off explicitly and the temperature pinned to 0 — the
+    reason the Ollama client pins it.
+
+    ## One deadline for the whole call
+
+    While a request waits to be scheduled, DeepSeek keeps the connection alive
+    by sending empty lines, and gives up only after ten minutes. A socket
+    timeout never fires while bytes keep arriving, so the reply is read in
+    pieces against a single deadline. The empty lines are whitespace in front of
+    the JSON body, and parse away.
+
+    ## The key
+
+    Sent in the `Authorization` header and nowhere else: not in the URL, not in
+    the body, and never in a log line or an error message. No exception from
+    the transport is chained onto the errors raised here, because Python's HTTP
+    client quotes an invalid header value in full — and that value is the key.
+    """
+
+    #: Far above any reply this application asks for (at most 16,000 tokens);
+    #: a body larger than this is not a model's answer.
+    MAX_REPLY_BYTES = 8 * 1024 * 1024
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str,
+        timeout_seconds: float = 180.0,
+    ) -> None:
+        self._api_key = api_key
+        self._base_url = base_url.rstrip("/")
+        self._endpoint = self._base_url + "/chat/completions"
+        self._model = model
+        self._timeout = timeout_seconds
+
+    def complete(self, request: LlmRequest) -> LlmResponse:
+        payload = {
+            "model": self._model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": _with_json_schema(request.system_prompt, request.json_schema),
+                },
+                # The data channel, exactly as every other provider receives it.
+                {"role": "user", "content": request.user_content},
+            ],
+            "response_format": {"type": "json_object"},
+            "thinking": {"type": "disabled"},
+            "temperature": 0,
+            "max_tokens": request.max_tokens,
+            "stream": False,
+        }
+
+        started = time.monotonic()
+        body = self._post(json.dumps(payload).encode("utf-8"))
+        latency_ms = int((time.monotonic() - started) * 1000)
+
+        choices = body.get("choices")
+        choice = choices[0] if isinstance(choices, list) and choices else None
+        message = choice.get("message") if isinstance(choice, dict) else None
+        if not isinstance(choice, dict) or not isinstance(message, dict):
+            # A 200 with the wrong shape is a provider problem, not a schema
+            # problem: there is no model output to validate or to record.
+            raise LlmProviderError("DeepSeek returned a reply with no message")
+
+        finish_reason = choice.get("finish_reason")
+        if finish_reason == "content_filter":
+            raise LlmProviderError(
+                "DeepSeek declined to answer: its content filter stopped the reply"
+            )
+        if finish_reason in ("insufficient_system_resource", "aborted"):
+            raise LlmProviderError(
+                f"DeepSeek stopped before finishing the reply ({finish_reason}). Try again shortly."
+            )
+
+        content = message.get("content")
+        if content is None:
+            # DeepSeek documents that JSON output "may occasionally return empty
+            # content". That is an answer the model failed to write, not a
+            # transport fault: as empty text it fails validation in the calling
+            # service and gets the one permitted retry.
+            content = ""
+        if not isinstance(content, str):
+            raise LlmProviderError("DeepSeek returned message content that is not text")
+
+        usage = body.get("usage")
+        usage = usage if isinstance(usage, dict) else {}
+        return LlmResponse(
+            text=content,
+            # What actually answered, which DeepSeek reports itself.
+            model=str(body.get("model") or self._model),
+            source=LlmSource.LIVE,
+            latency_ms=latency_ms,
+            input_tokens=_as_optional_int(usage.get("prompt_tokens")),
+            output_tokens=_as_optional_int(usage.get("completion_tokens")),
+        )
+
+    def _post(self, data: bytes) -> dict[str, Any]:
+        """One request, every failure turned into advice that holds no secret."""
+        http_request = urllib.request.Request(
+            self._endpoint,
+            data=data,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {self._api_key}",
+            },
+        )
+        deadline = time.monotonic() + self._timeout
+
+        # `from None` throughout: see "The key" in the class docstring.
+        try:
+            with urllib.request.urlopen(http_request, timeout=self._timeout) as response:
+                raw = self._read_until(deadline, response)
+        except urllib.error.HTTPError as exc:
+            # The status, never the body: it is not ours to relay, and it can
+            # echo request content — here, CV text — back to a caller.
+            raise _deepseek_http_error(exc.code) from None
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, TimeoutError):
+                raise self._timeout_error() from None
+            raise LlmProviderError(
+                f"could not reach DeepSeek at {self._base_url}{_reason_name(exc.reason)}. "
+                "Check the network connection and DEEPSEEK_BASE_URL."
+            ) from None
+        except TimeoutError:
+            raise self._timeout_error() from None
+        except (OSError, ValueError, http.client.HTTPException):
+            raise LlmProviderError(
+                "the connection to DeepSeek failed before a complete reply arrived"
+            ) from None
+
+        try:
+            body = json.loads(raw)
+        except ValueError:
+            raise LlmProviderError("DeepSeek returned a body that is not JSON") from None
+        if not isinstance(body, dict):
+            raise LlmProviderError("DeepSeek returned JSON that is not an object")
+        return body
+
+    def _read_until(self, deadline: float, response: Any) -> bytes:
+        """The whole body, or a timeout once `deadline` has passed.
+
+        `read1` returns as soon as anything has arrived, so the deadline is
+        checked between the keep-alive lines as well as at the end.
+        """
+        chunks: list[bytes] = []
+        size = 0
+        while True:
+            if time.monotonic() > deadline:
+                raise TimeoutError
+            chunk = response.read1(65536)
+            if not chunk:
+                return b"".join(chunks)
+            size += len(chunk)
+            if size > self.MAX_REPLY_BYTES:
+                raise LlmProviderError("DeepSeek returned a body far larger than any reply")
+            chunks.append(chunk)
+
+    def _timeout_error(self) -> LlmProviderError:
+        return LlmProviderError(
+            f"DeepSeek did not answer within {self._timeout:.0f}s. Under load it queues "
+            "requests; try again, or raise DEEPSEEK_TIMEOUT_SECONDS."
+        )
+
+
+#: What each status DeepSeek documents means to whoever has to act on it
+#: (api-docs.deepseek.com, "Error Codes"). The response body is never read.
+_DEEPSEEK_HTTP_ADVICE = {
+    400: (
+        "DeepSeek refused the request as invalid (HTTP 400). A wrong DEEPSEEK_MODEL is "
+        "the likeliest cause; `python scripts/check_llm.py --preflight` lists the "
+        "models this key can use."
+    ),
+    401: "DeepSeek rejected the API key (HTTP 401). Check DEEPSEEK_API_KEY.",
+    402: (
+        "The DeepSeek account has run out of balance (HTTP 402). Top it up on the "
+        "DeepSeek platform, then try again."
+    ),
+    422: (
+        "DeepSeek refused a request parameter (HTTP 422). A wrong DEEPSEEK_MODEL is the "
+        "likeliest cause; `python scripts/check_llm.py --preflight` lists the models "
+        "this key can use."
+    ),
+    429: (
+        "DeepSeek is limiting this account (HTTP 429: too many requests at once). "
+        "Try again shortly."
+    ),
+    500: "DeepSeek had a server error (HTTP 500). Try again shortly.",
+    503: "DeepSeek is overloaded (HTTP 503). Try again shortly.",
+}
+
+
+def _deepseek_http_error(code: int) -> LlmProviderError:
+    return LlmProviderError(_DEEPSEEK_HTTP_ADVICE.get(code, f"DeepSeek returned HTTP {code}"))
+
+
+def _reason_name(reason: object) -> str:
+    """` (ConnectionRefusedError)`, say: the kind of failure, never its text."""
+    return f" ({type(reason).__name__})" if isinstance(reason, BaseException) else ""
+
+
+def _with_json_schema(system_prompt: str, schema: dict[str, Any]) -> str:
+    """The system prompt, plus the reply's shape, for a provider that cannot take it apart.
+
+    Fixed wording and sorted keys, so one prompt version always sends the same
+    bytes and what was sent can be rebuilt from the prompt version alone.
+    """
+    rendered = json.dumps(schema, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return (
+        f"{system_prompt}\n\n"
+        "Reply with one JSON object and nothing else: no prose, no code fence. "
+        f"It must be valid against this JSON Schema:\n{rendered}"
+    )
+
+
 class AnthropicLlmClient:
     """Calls the Anthropic API. Used only when `LLM_PROVIDER=anthropic`.
 
@@ -468,6 +715,8 @@ def build_llm_client(settings: Any) -> LlmClient:
         settings.llm_provider,
         settings.ollama_base_url,
         settings.ollama_model,
+        settings.deepseek_base_url,
+        settings.deepseek_model,
     )
     if _cache.client is not None and _cache.key == cache_key:
         return _cache.client
@@ -488,6 +737,22 @@ def build_llm_client(settings: Any) -> LlmClient:
             "LLM client: local (ollama), model=%s, base_url=%s",
             settings.ollama_model,
             settings.ollama_base_url,
+        )
+    elif settings.llm_provider == "deepseek":
+        # The key is guaranteed present by Settings._selected_provider_is_configured,
+        # and leaves its SecretStr only here, on its way into the client.
+        client = DeepSeekLlmClient(
+            api_key=settings.deepseek_api_key.get_secret_value(),
+            base_url=settings.deepseek_base_url,
+            model=settings.deepseek_model,
+            timeout_seconds=settings.deepseek_timeout_seconds,
+        )
+        # The URL is logged for the reason the Ollama one is; settings refuse a
+        # URL that carries credentials. The key is not.
+        logger.info(
+            "LLM client: cloud (deepseek), model=%s, base_url=%s",
+            settings.deepseek_model,
+            settings.deepseek_base_url,
         )
     else:
         # Guaranteed non-None by Settings._selected_provider_is_configured.

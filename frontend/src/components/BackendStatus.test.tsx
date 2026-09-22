@@ -131,6 +131,21 @@ describe("cloud AI mode", () => {
     expect(text).not.toContain("running on the server this app is talking to");
     expect(text).not.toContain("not sent to a third-party");
   });
+
+  it("treats DeepSeek as the third party it is, and names its model", async () => {
+    /* Anything that is not Ollama gets the cloud copy. This pins it for the
+       hosted provider a deployment actually uses. */
+    stubHealth({ demo_mode: false, llm_provider: "deepseek", llm_model: "deepseek-flash" });
+
+    const { container } = render(<BackendStatus />);
+
+    expect(await screen.findByText("Cloud AI mode")).toBeInTheDocument();
+    expect(
+      screen.getByText(/sent to a third-party AI provider \(deepseek-flash\)/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/each run costs money/i)).toBeInTheDocument();
+    expect((container.textContent ?? "").toLowerCase()).not.toContain("not sent to a third-party");
+  });
 });
 
 describe("an unreachable backend", () => {

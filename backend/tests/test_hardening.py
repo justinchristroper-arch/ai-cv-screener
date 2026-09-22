@@ -23,6 +23,7 @@ from app.core.enums import CandidateFailureReason, CandidateStatus, JdSourceType
 from app.core.errors import ExtractionFailedError, LlmUnavailableError
 from app.llm.client import (
     AnthropicLlmClient,
+    DeepSeekLlmClient,
     LlmProviderError,
     LlmResponse,
     OllamaLlmClient,
@@ -334,11 +335,11 @@ def test_the_provider_sdk_is_imported_only_inside_the_llm_boundary() -> None:
     assert offenders == [], f"anthropic imported outside app/llm: {offenders}"
 
 
-@pytest.mark.parametrize("provider", ["ollama", "anthropic"])
+@pytest.mark.parametrize("provider", ["ollama", "anthropic", "deepseek"])
 def test_no_real_provider_is_constructed_in_demo_mode(settings_factory, provider: str) -> None:
     """Nothing reaches a model while demo mode is on, whichever one is selected.
 
-    Parameterised over both providers because demo mode is the *outer* switch:
+    Parameterised over every provider because demo mode is the *outer* switch:
     it must short-circuit before `LLM_PROVIDER` is consulted at all. Otherwise a
     misconfigured provider could break the offline demo, which is the one thing
     that has to work from a fresh clone.
@@ -346,7 +347,7 @@ def test_no_real_provider_is_constructed_in_demo_mode(settings_factory, provider
     client = build_llm_client(settings_factory(demo_mode=True, llm_provider=provider))
 
     assert isinstance(client, ReplayLlmClient)
-    assert not isinstance(client, (OllamaLlmClient, AnthropicLlmClient))
+    assert not isinstance(client, (OllamaLlmClient, AnthropicLlmClient, DeepSeekLlmClient))
 
 
 # --------------------------------------------------------------------------
@@ -587,6 +588,21 @@ def test_no_provider_key_is_logged_when_the_client_is_built(settings_factory, ca
         build_llm_client(settings_factory(demo_mode=True))
 
     assert "sk-ant" not in "\n".join(record.getMessage() for record in caplog.records)
+
+
+def test_the_deepseek_key_is_not_logged_when_its_client_is_built(settings_factory, caplog) -> None:
+    """The model and the URL are logged — "which service is answering" — the key is not."""
+    fake_key = "test-deepseek-key-not-real-0123456789"
+
+    with caplog.at_level(logging.DEBUG):
+        build_llm_client(
+            settings_factory(demo_mode=False, llm_provider="deepseek", deepseek_api_key=fake_key)
+        )
+
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "deepseek-flash" in logged
+    assert "https://api.deepseek.com" in logged
+    assert fake_key not in logged
 
 
 @pytest.mark.requires_db

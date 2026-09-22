@@ -72,3 +72,34 @@ def test_openapi_schema_is_generated(client: TestClient) -> None:
     paths = response.json()["paths"]
     assert "/health" in paths
     assert "/health/db" in paths
+
+
+def test_health_names_the_hosted_model_and_never_its_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The UI tells a user where their documents go from this, so it must be right.
+
+    Before DeepSeek, anything that was not Anthropic was reported as the Ollama
+    model — which would have named a model on this machine for documents that
+    were in fact going to a vendor.
+    """
+    from app.core.config import get_settings
+    from app.main import create_app
+
+    fake_key = "test-deepseek-key-not-real-0123456789"
+    monkeypatch.setenv("DEMO_MODE", "false")
+    monkeypatch.setenv("LLM_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", fake_key)
+    monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-flash")
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as test_client:
+            response = test_client.get("/health")
+    finally:
+        # The next test must not inherit these settings.
+        get_settings.cache_clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["demo_mode"] is False
+    assert body["llm_provider"] == "deepseek"
+    assert body["llm_model"] == "deepseek-flash"
+    assert fake_key not in response.text

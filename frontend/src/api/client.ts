@@ -137,7 +137,7 @@ export interface HealthResponse {
   version: string;
   app_env: string;
   demo_mode: boolean;
-  /** "ollama" — a model on the server's own machine — or "anthropic". */
+  /** "ollama" — a model on the server's own machine — or a hosted API: "deepseek" or "anthropic". */
   llm_provider: string;
   llm_model: string;
 }

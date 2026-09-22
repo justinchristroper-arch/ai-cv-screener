@@ -22,6 +22,10 @@ pulled. The preflight names whichever of those is missing and stops before
 generating anything, so the common first-run problems cost seconds rather than
 a long wait for a timeout.
 
+**DeepSeek** needs `DEEPSEEK_API_KEY` and spends money on every run. Its
+preflight costs nothing: one `GET /models`, which proves the key is accepted and
+that `DEEPSEEK_MODEL` is a model the key can use, before a token is spent.
+
 **Anthropic** needs `ANTHROPIC_API_KEY` and spends money on every run.
 
 What it reports, per brief: the requirements the model returned, their category
@@ -56,6 +60,7 @@ from app.core.config import ConfigurationError, load_settings  # noqa: E402
 from app.core.errors import LlmUnavailableError  # noqa: E402
 from app.llm.client import (  # noqa: E402
     AnthropicLlmClient,
+    DeepSeekLlmClient,
     LlmProviderError,
     OllamaLlmClient,
 )
@@ -108,6 +113,9 @@ def _preflight(settings) -> list[str]:
     if settings.llm_provider == "anthropic":
         return [] if settings.anthropic_api_key else ["ANTHROPIC_API_KEY is not set."]
 
+    if settings.llm_provider == "deepseek":
+        return _deepseek_preflight(settings)
+
     tags_url = settings.ollama_base_url.rstrip("/") + "/api/tags"
     try:
         with urllib.request.urlopen(tags_url, timeout=10) as response:
@@ -134,9 +142,65 @@ def _preflight(settings) -> list[str]:
     return []
 
 
+def _deepseek_preflight(settings) -> list[str]:
+    """The key and the model, checked with one request that costs nothing.
+
+    `GET /models` spends no tokens, so it can prove before anything is spent
+    that the key is accepted and that DEEPSEEK_MODEL names a model the key can
+    use — the counterpart of the Ollama check that the model is pulled. The key
+    goes in the header only, and no line returned here contains it: exception
+    texts are reduced to their class name, because Python's HTTP client quotes
+    an invalid header value in full.
+    """
+    base_url = settings.deepseek_base_url.rstrip("/")
+    request = urllib.request.Request(
+        f"{base_url}/models",
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {settings.deepseek_api_key.get_secret_value()}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            body = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            return [
+                "DeepSeek rejected the API key (HTTP 401).",
+                "  Check DEEPSEEK_API_KEY in .env, or in the deployment's secret store.",
+            ]
+        return [f"DeepSeek answered HTTP {exc.code} when asked for its model list."]
+    except urllib.error.URLError as exc:
+        kind = f" ({type(exc.reason).__name__})" if isinstance(exc.reason, BaseException) else ""
+        return [
+            f"Could not reach DeepSeek at {base_url}{kind}.",
+            "  Check the network connection and DEEPSEEK_BASE_URL.",
+        ]
+    except (OSError, ValueError) as exc:
+        return [f"Could not read the model list from {base_url}/models: {type(exc).__name__}"]
+
+    entries = body.get("data", []) if isinstance(body, dict) else []
+    available = [entry.get("id", "") for entry in entries if isinstance(entry, dict)]
+    wanted = settings.deepseek_model
+    if wanted not in available:
+        return [
+            f"DeepSeek does not list {wanted!r} among the models this key can use.",
+            f"  Available: {', '.join(available) if available else '(none)'}",
+            "  Set DEEPSEEK_MODEL to one of those.",
+        ]
+    return []
+
+
 def _build_client(settings):
     if settings.llm_provider == "anthropic":
         return AnthropicLlmClient(api_key=str(settings.anthropic_api_key), model=settings.llm_model)
+    if settings.llm_provider == "deepseek":
+        return DeepSeekLlmClient(
+            api_key=settings.deepseek_api_key.get_secret_value(),
+            base_url=settings.deepseek_base_url,
+            model=settings.deepseek_model,
+            timeout_seconds=settings.deepseek_timeout_seconds,
+        )
     return OllamaLlmClient(
         base_url=settings.ollama_base_url,
         model=settings.ollama_model,
@@ -256,11 +320,13 @@ def main(argv: list[str] | None = None) -> int:
 
     settings = _settings()
     local = settings.llm_provider == "ollama"
-    target = settings.ollama_model if local else settings.llm_model
+    target = settings.provider_model
 
     print(f"Provider: {settings.llm_provider}   Model: {target}")
     if local:
         print(f"Endpoint: {settings.ollama_base_url}")
+    elif settings.llm_provider == "deepseek":
+        print(f"Endpoint: {settings.deepseek_base_url}")
 
     problems = _preflight(settings)
     if problems:

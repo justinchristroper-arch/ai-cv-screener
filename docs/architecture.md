@@ -129,6 +129,7 @@ This ordering is deliberate and does three things at once: it cuts cost and late
 ```
 LlmClient (Protocol)
 ├── OllamaLlmClient     — a model on this machine; the default
+├── DeepSeekLlmClient   — the hosted API for a deployment; LLM_PROVIDER=deepseek
 ├── AnthropicLlmClient  — the cloud API; opt-in via LLM_PROVIDER=anthropic
 └── ReplayLlmClient     — recorded fixtures; used when DEMO_MODE=true
 ```
@@ -150,6 +151,8 @@ Every client returns the same `LlmResponse`, so every service above them is iden
 ### 4.3 Model call settings
 
 Structured output is requested from whichever provider is in use — Anthropic's `output_config`, Ollama's `format` — using the *same* JSON Schema, and the reply is **re-validated locally** against `schemas/llm/` regardless. A provider guarantee is never a substitute for our own check, and this matters more with a small local model than it did with a large hosted one, not less.
+
+DeepSeek is the one provider that cannot take the schema as a constraint. Its JSON output (`response_format: json_object`) guarantees an object but not its shape, so `DeepSeekLlmClient` writes the same schema into the system prompt — trusted text from this codebase, so the trust boundary of section 5 is unchanged, and the untrusted document still travels only in the user turn. Nothing else moves: the local validation that was always the real check stays the check, and the single retry with validation feedback absorbs the likelier invalid reply. Two settings are pinned for the reason Ollama's temperature is: thinking is turned **off**, because `deepseek-flash` thinks by default and thinking ignores `temperature`, and the temperature is 0. Because DeepSeek holds a queued request open with empty lines for up to ten minutes, a socket timeout would never fire, so the client reads the reply against one deadline for the whole call (`DEEPSEEK_TIMEOUT_SECONDS`).
 
 Determinism comes from the fixture layer rather than the provider, but the local client still pins `temperature: 0`: two runs of the same CV disagreeing gives a recruiter nothing to act on. It also sets `num_ctx` explicitly, because Ollama's default context window is small enough to silently truncate a real CV — a wrong answer that looks like a right one.
 

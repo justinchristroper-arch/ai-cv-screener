@@ -186,9 +186,11 @@ app.core.config.ConfigurationError: Invalid application configuration:
 Copy .env.example to .env and fill in the values. Expected at: ...\.env
 ```
 
-`DEMO_MODE=true` is the default and means no API key is needed. Setting
-`DEMO_MODE=false` without `ANTHROPIC_API_KEY` is also a startup failure, by
-design — live mode never silently falls back to fixtures.
+`DEMO_MODE=true` is the default and means no API key is needed. With
+`DEMO_MODE=false`, a hosted provider selected without its key —
+`LLM_PROVIDER=deepseek` without `DEEPSEEK_API_KEY`, or `anthropic` without
+`ANTHROPIC_API_KEY` — is also a startup failure, by design: live mode never
+silently falls back to fixtures. Ollama, the default, needs no key.
 
 ---
 
@@ -626,6 +628,10 @@ Deliberately absent, with the reason:
 - **The Anthropic provider, in practice.** It is implemented and selectable with
   `LLM_PROVIDER=anthropic`, and has never been exercised against a real key in
   this repository.
+- **The DeepSeek provider, in practice.** It is implemented, selectable with
+  `LLM_PROVIDER=deepseek`, and covered by offline tests of every request field,
+  reply shape and failure path — but no test calls DeepSeek, and it has never
+  been run against a real key in this repository.
 
 ---
 
@@ -636,8 +642,10 @@ Everything that talks to a language model sits behind one protocol in
 
 ```
 LlmClient (Protocol)
-├── LiveLlmClient    — calls the Anthropic API;  used when DEMO_MODE=false
-└── ReplayLlmClient  — serves recorded fixtures; used when DEMO_MODE=true
+├── OllamaLlmClient     — a model on this machine;   LLM_PROVIDER=ollama (default)
+├── DeepSeekLlmClient   — the DeepSeek API;           LLM_PROVIDER=deepseek
+├── AnthropicLlmClient  — the Anthropic API;          LLM_PROVIDER=anthropic
+└── ReplayLlmClient     — serves recorded fixtures;   DEMO_MODE=true
 ```
 
 `DEMO_MODE=true` is the default, so a fresh clone runs the whole job-description
@@ -691,12 +699,19 @@ lines, joined with newlines, so multi-line content stays readable in a diff.
 > prompt text changes. Replay will then fail loudly for the old fixtures rather
 > than quietly replaying output that answered different instructions.
 
-### Running against the real API
+### Running against a real model
 
-Set `DEMO_MODE=false` and `ANTHROPIC_API_KEY` in `.env`. Startup fails
-immediately if the key is missing — live mode has no fallback, so there is no
-point discovering that at the first request. The key is read server-side only
-and is never logged or returned in a response.
+Set `DEMO_MODE=false` in `.env` and choose the provider with `LLM_PROVIDER`:
+`ollama` needs Ollama running with the model pulled
+([section 17](#17-local-ai-mode-ollama)); `deepseek`
+needs `DEEPSEEK_API_KEY`; `anthropic` needs `ANTHROPIC_API_KEY`. Startup fails
+immediately if the selected provider's key is missing — live mode has no
+fallback, so there is no point discovering that at the first request. A key is
+read server-side only and is never logged or returned in a response.
+
+`python scripts/check_llm.py --preflight` checks the selected provider without
+generating anything. For DeepSeek it asks for the model list, which spends no
+tokens; without `--preflight` the script runs real extractions, which do.
 
 ---
 
@@ -873,7 +888,7 @@ problem with a message saying what to do:
 | Docker | Starts Docker Desktop if the engine does not answer, and waits up to three minutes. Each `docker info` check gives up after 20 seconds, so an engine that is stuck, not just stopped, ends in a message instead of a window that waits forever. |
 | PostgreSQL | `.\tasks.ps1 db-up`, given up to five minutes (time for a first download of the PostgreSQL image). |
 | Migrations | Prints the current and latest revision, then `.\tasks.ps1 migrate`. |
-| AI provider | Read through the application's own settings loader, so environment variables and `.env` apply exactly as they do for the app; the launcher never opens `.env`. Demo mode: nothing to check. Anthropic: `.\tasks.ps1 check-llm --preflight`. Ollama: starts the Ollama app if it does not answer; if the configured model is missing, shows the exact `ollama pull` command and asks, defaulting to **No**; then the same preflight. |
+| AI provider | Read through the application's own settings loader, so environment variables and `.env` apply exactly as they do for the app; the launcher never opens `.env`. Demo mode: nothing to check. DeepSeek or Anthropic: `.\tasks.ps1 check-llm --preflight`. Ollama: starts the Ollama app if it does not answer; if the configured model is missing, shows the exact `ollama pull` command and asks, defaulting to **No**; then the same preflight. |
 | Backend | `.\tasks.ps1 dev-backend` in a minimized window, then waits for `/health`. |
 | Frontend | `.\tasks.ps1 dev-frontend` in a minimized window, then waits for the page. Each window's first line says which part it runs; the frontend's title cannot be relied on, because `npm run dev` runs through `cmd.exe`, which retitles the window. |
 | Browser | Opens http://localhost:5173. |

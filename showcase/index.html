@@ -89,8 +89,8 @@
               <span>cited quotes found verbatim in the CV on that set</span>
             </li>
             <li class="fact">
-              <strong>1,184 tests</strong>
-              <span>1,050 backend and 134 frontend, passing locally</span>
+              <strong>1,280 tests</strong>
+              <span>1,145 backend and 135 frontend, passing locally</span>
             </li>
           </ul>
         </div>
@@ -372,6 +372,13 @@
                 <li>
                   <strong>Local AI mode</strong> (the default when demo mode is off):
                   <code>qwen2.5:7b-instruct</code> through Ollama on the same machine.
+                </li>
+                <li>
+                  <strong>Cloud AI mode</strong>: <code>deepseek-flash</code> through DeepSeek's
+                  API, selected with <code>LLM_PROVIDER=deepseek</code>. Each screened CV is then
+                  sent to DeepSeek, and every call costs money. It is implemented and verified
+                  locally, with offline tests of its requests, replies and failure paths, but it has
+                  not yet been run against the real API, so no claim is made about its answers.
                 </li>
                 <li>
                   <strong>Demo mode</strong>: model answers are replayed from recordings, and the
@@ -786,8 +793,9 @@ score     = round(score_raw × 100)   # half up, 0–100</code></pre>
                 <div class="arch-node">
                   <strong>Model boundary — <code>app/llm/</code></strong>
                   <span
-                    >Ollama with qwen2.5:7b-instruct by default; recorded responses in demo mode;
-                    Anthropic opt-in.</span
+                    >Ollama with qwen2.5:7b-instruct on this machine by default; DeepSeek
+                    (deepseek-flash) or Anthropic through their cloud APIs when selected; recorded
+                    responses in demo mode.</span
                   >
                 </div>
               </div>
@@ -848,10 +856,13 @@ score     = round(score_raw × 100)   # half up, 0–100</code></pre>
                 <tr role="row">
                   <th scope="row" role="rowheader">Language model</th>
                   <td role="cell" data-label="Choice">
-                    Ollama + qwen2.5:7b-instruct (default); Anthropic (opt-in)
+                    Ollama + qwen2.5:7b-instruct (local, default); DeepSeek + deepseek-flash (cloud
+                    API, opt-in); Anthropic (cloud API, opt-in)
                   </td>
                   <td role="cell" data-label="Why">
-                    A local default means no account, no key, and no CV leaving the machine.
+                    A local default means no account, no key, and no CV leaving the machine. The
+                    cloud APIs need no local model, but send each CV to their provider and cost
+                    money per call.
                   </td>
                 </tr>
                 <tr role="row">
@@ -904,9 +915,9 @@ score     = round(score_raw × 100)   # half up, 0–100</code></pre>
               <h3>Automated tests</h3>
               <ul>
                 <li>
-                  1,050 backend tests pass; one opt-in test that needs a live Ollama is skipped.
+                  1,145 backend tests pass; one opt-in test that needs a live Ollama is skipped.
                 </li>
-                <li>134 frontend tests pass.</li>
+                <li>135 frontend tests pass.</li>
                 <li>97% backend line coverage.</li>
               </ul>
               <p class="muted small">Measured locally on the current code.</p>
