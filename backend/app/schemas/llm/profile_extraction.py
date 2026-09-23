@@ -108,16 +108,40 @@ class _EvidencedItem(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # The bounds are enforced by `_quote_identifies_a_passage` rather than by
+    # `min_length`/`max_length`, whose generic message ("String should have at
+    # least 3 characters") named a bound without saying what to do: a model
+    # whose quote was correct repeated it and burned the one retry. They are
+    # still advertised to the provider, so the schema it receives is unchanged.
     evidence_quote: str = Field(
-        min_length=MIN_QUOTE_LENGTH,
-        max_length=MAX_QUOTE_LENGTH,
         description=(
             "A verbatim sentence or line copied from the CV that supports this item. "
             "Copy it exactly; do not paraphrase, join or shorten it."
         ),
+        json_schema_extra={"minLength": MIN_QUOTE_LENGTH, "maxLength": MAX_QUOTE_LENGTH},
     )
 
-    _validate_quote = field_validator("evidence_quote")(_non_blank)
+    @field_validator("evidence_quote")
+    @classmethod
+    def _quote_identifies_a_passage(cls, value: str) -> str:
+        """Bound the quote after trimming, in words a retry can act on.
+
+        Matches the semantic-matching contract (`schemas/llm/semantic_match.py`).
+        Trimming first means padding cannot carry a fragment past the minimum.
+        """
+        quote = _non_blank(value)
+        if len(quote) < MIN_QUOTE_LENGTH:
+            raise ValueError(
+                f"evidence_quote is too short to identify a passage "
+                f"({len(quote)} characters, minimum {MIN_QUOTE_LENGTH}). "
+                f"Quote the whole line the term appears on instead."
+            )
+        if len(quote) > MAX_QUOTE_LENGTH:
+            raise ValueError(
+                f"evidence_quote is longer than {MAX_QUOTE_LENGTH} characters. "
+                f"Quote only the sentence or line that supports this item."
+            )
+        return quote
 
 
 class ExtractedSkill(_EvidencedItem):

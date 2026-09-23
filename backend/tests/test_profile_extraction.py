@@ -11,6 +11,7 @@ Everything runs from recorded fixtures. No API key, no network.
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import pytest
@@ -39,7 +40,12 @@ from app.models.profile import (
     ProfileProject,
     ProfileSkill,
 )
-from app.schemas.llm.profile_extraction import ProfileExtractionOutput
+from app.schemas.llm.profile_extraction import (
+    MAX_QUOTE_LENGTH,
+    MIN_QUOTE_LENGTH,
+    ProfileExtractionOutput,
+    profile_extraction_json_schema,
+)
 from app.services import jobs, profile_extraction
 from app.services.document_parsing import extract_text
 from tests.factories import make_candidate_from_fixture, make_parsed_candidate
@@ -66,9 +72,11 @@ class _StubClient:
     def __init__(self, *replies: str) -> None:
         self._replies = list(replies)
         self.calls: list[int] = []
+        self.requests: list = []
 
     def complete(self, request):
         self.calls.append(request.attempt)
+        self.requests.append(request)
         return LlmResponse(
             text=self._replies.pop(0),
             model="claude-opus-5",
@@ -145,6 +153,79 @@ def test_an_item_without_a_quote_is_rejected() -> None:
 
     with pytest.raises(ValidationError):
         ProfileExtractionOutput.model_validate(reply)
+
+
+def _reply_quoting(quote: str) -> dict:
+    """A valid reply except, possibly, for its one skill's quote."""
+    return _valid_reply() | {"skills": [{"name": "Python", "evidence_quote": quote}]}
+
+
+def _quote_error(quote: str) -> str:
+    with pytest.raises(ValidationError) as excinfo:
+        ProfileExtractionOutput.model_validate(_reply_quoting(quote))
+
+    [error] = excinfo.value.errors()
+    assert error["loc"] == ("skills", 0, "evidence_quote")
+    return error["msg"]
+
+
+@pytest.mark.parametrize("quote", ["C", "Go", "AI", "  Go  "])
+def test_a_fragment_too_small_to_identify_a_passage_is_refused(quote: str) -> None:
+    """One or two characters cannot say which line was read.
+
+    The floor is the semantic-matching contract's and
+    `matching.MIN_SEARCHABLE_TOKEN_LENGTH`'s. The quote is trimmed before it is
+    measured, so padding cannot carry a fragment past it.
+    """
+    message = _quote_error(quote)
+
+    assert "too short to identify a passage" in message
+    assert f"minimum {MIN_QUOTE_LENGTH}" in message
+
+
+@pytest.mark.parametrize("quote", ["", "   "])
+def test_a_blank_quote_is_refused(quote: str) -> None:
+    assert "must not be blank" in _quote_error(quote)
+
+
+@pytest.mark.parametrize("quote", ["SQL", "AWS", "C++", "Python"])
+def test_a_short_but_meaningful_quote_passes_the_contract(quote: str) -> None:
+    """Whether a short quote is a citation or a coincidence is decided by
+    `services/evidence.py`, against the document -- not by its length here."""
+    output = ProfileExtractionOutput.model_validate(_reply_quoting(quote))
+
+    assert output.skills[0].evidence_quote == quote
+
+
+def test_the_maximum_is_unchanged_and_still_enforced() -> None:
+    assert MAX_QUOTE_LENGTH == 400
+    at_the_limit = ProfileExtractionOutput.model_validate(_reply_quoting("x" * MAX_QUOTE_LENGTH))
+    assert len(at_the_limit.skills[0].evidence_quote) == MAX_QUOTE_LENGTH
+
+    message = _quote_error("x" * (MAX_QUOTE_LENGTH + 1))
+
+    assert f"longer than {MAX_QUOTE_LENGTH} characters" in message
+    assert "Quote only the sentence or line that supports this item." in message
+
+
+def test_the_refusal_tells_a_retry_what_to_do_instead() -> None:
+    """A bound alone gave a model whose quote was correct no compliant answer.
+
+    A live reply was refused twice for one two-character skill quote under the
+    old generic message ("String should have at least 3 characters"). The
+    message is what reaches the retry, so it names the remedy.
+    """
+    assert "Quote the whole line the term appears on instead." in _quote_error("Go")
+
+
+@pytest.mark.parametrize("section", ["skills", "experience", "education", "projects"])
+def test_the_provider_schema_still_advertises_the_quote_bounds(section: str) -> None:
+    """The bounds moved into a validator; the schema a provider receives did not change."""
+    item = profile_extraction_json_schema()["properties"][section]["items"]
+    quote = item["properties"]["evidence_quote"]
+
+    assert quote["minLength"] == MIN_QUOTE_LENGTH == 3
+    assert quote["maxLength"] == MAX_QUOTE_LENGTH == 400
 
 
 def test_a_completely_empty_profile_is_rejected() -> None:
@@ -410,6 +491,33 @@ def test_the_rejected_attempt_is_recorded_as_schema_invalid(
     )
     assert [log.status for log in logs] == [LlmStatus.SCHEMA_INVALID, LlmStatus.SUCCESS]
     assert logs[0].raw_response_excerpt is not None
+
+
+@pytest.mark.requires_db
+def test_a_quote_too_short_is_retried_with_advice_the_model_can_act_on(
+    db_session: Session,
+) -> None:
+    """The refusal message is the retry's only guidance, so it must name the remedy."""
+    job = jobs.create_job(db_session, title="Senior Backend Engineer")
+    candidate, _ = make_candidate_from_fixture(db_session, job.id, "cv_alex_rivera")
+    client = _StubClient(json.dumps(_reply_quoting("Go")), json.dumps(_valid_reply()))
+
+    result = profile_extraction.extract_profile(db_session, candidate.id, client)
+
+    logs = list(
+        db_session.scalars(
+            select(LlmCallLog)
+            .where(LlmCallLog.candidate_id == candidate.id)
+            .order_by(LlmCallLog.attempt)
+        )
+    )
+    assert [log.status for log in logs] == [LlmStatus.SCHEMA_INVALID, LlmStatus.SUCCESS]
+    assert result.attempts == 2
+
+    remedy = "Quote the whole line the term appears on instead."
+    assert remedy in logs[0].error_detail
+    assert remedy not in client.requests[0].user_content
+    assert remedy in client.requests[1].user_content
 
 
 @pytest.mark.parametrize(
