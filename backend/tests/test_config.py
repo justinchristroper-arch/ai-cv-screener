@@ -34,6 +34,10 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "DEEPSEEK_BASE_URL",
         "DEEPSEEK_MODEL",
         "DEEPSEEK_TIMEOUT_SECONDS",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_BASE_URL",
+        "OPENROUTER_MODEL",
+        "OPENROUTER_TIMEOUT_SECONDS",
         "CORS_ALLOWED_ORIGINS",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -328,15 +332,214 @@ def test_ollama_needs_no_deepseek_key(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.provider_model == settings.ollama_model
 
 
+# --------------------------------------------------------------------------
+# OpenRouter (LLM_PROVIDER=openrouter)
+# --------------------------------------------------------------------------
+
+#: Obviously fake, and without the prefix real OpenRouter keys carry.
+FAKE_OPENROUTER_KEY = "test-openrouter-key-not-real-0123456789"
+
+
+def _select_openrouter(monkeypatch: pytest.MonkeyPatch, **extra: str) -> None:
+    monkeypatch.setenv("DATABASE_URL", VALID_DB_URL)
+    monkeypatch.setenv("DEMO_MODE", "false")
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
+    for name, value in extra.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_openrouter_without_an_api_key_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    _select_openrouter(monkeypatch)
+
+    with pytest.raises(ConfigurationError, match="OPENROUTER_API_KEY is required"):
+        load_settings(env_file=None)
+
+
+def test_openrouter_never_borrows_the_deepseek_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A key in DEEPSEEK_API_KEY is for api.deepseek.com, and is not read here."""
+    _select_openrouter(monkeypatch, DEEPSEEK_API_KEY="test-deepseek-key-not-real-0123456789")
+
+    with pytest.raises(ConfigurationError, match="OPENROUTER_API_KEY is required"):
+        load_settings(env_file=None)
+
+
+def test_the_empty_openrouter_placeholder_counts_as_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`.env.example` ships `OPENROUTER_API_KEY=` empty, so a copied file fails fast."""
+    _select_openrouter(monkeypatch, OPENROUTER_API_KEY="")
+
+    with pytest.raises(ConfigurationError, match="OPENROUTER_API_KEY is required"):
+        load_settings(env_file=None)
+
+
+def test_openrouter_with_an_api_key_is_accepted_and_the_key_is_masked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _select_openrouter(monkeypatch, OPENROUTER_API_KEY=FAKE_OPENROUTER_KEY)
+
+    settings = load_settings(env_file=None)
+
+    assert settings.llm_provider == "openrouter"
+    assert settings.openrouter_api_key.get_secret_value() == FAKE_OPENROUTER_KEY
+    assert FAKE_OPENROUTER_KEY not in repr(settings)
+    assert FAKE_OPENROUTER_KEY not in str(settings)
+
+
+def test_openrouter_defaults_are_the_documented_ones(monkeypatch: pytest.MonkeyPatch) -> None:
+    _select_openrouter(monkeypatch, OPENROUTER_API_KEY=FAKE_OPENROUTER_KEY)
+
+    settings = load_settings(env_file=None)
+
+    assert settings.openrouter_base_url == "https://openrouter.ai/api/v1"
+    assert settings.openrouter_model == "deepseek/deepseek-v4.1-flash"
+    assert settings.openrouter_timeout_seconds == 180.0
+    assert settings.provider_model == "deepseek/deepseek-v4.1-flash"
+
+
+def test_a_different_openrouter_key_needs_only_a_different_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Replacing a shared key with your own is configuration, not a code change."""
+    _select_openrouter(monkeypatch, OPENROUTER_API_KEY=FAKE_OPENROUTER_KEY)
+    first = load_settings(env_file=None).openrouter_api_key.get_secret_value()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-other-key-not-real-98765")
+    second = load_settings(env_file=None).openrouter_api_key.get_secret_value()
+
+    assert first == FAKE_OPENROUTER_KEY
+    assert second == "test-openrouter-other-key-not-real-98765"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "   ",
+        f"{FAKE_OPENROUTER_KEY}\n",
+        f"{FAKE_OPENROUTER_KEY} trailing",
+        f"“{FAKE_OPENROUTER_KEY}”",
+    ],
+    ids=["blank", "line-break", "space", "typographic-quotes"],
+)
+def test_an_openrouter_key_pasted_with_extra_characters_is_refused_without_repeating_it(
+    monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    _select_openrouter(monkeypatch, OPENROUTER_API_KEY=key)
+
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings(env_file=None)
+
+    assert "OPENROUTER_API_KEY" in str(excinfo.value)
+    assert FAKE_OPENROUTER_KEY not in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("url", "reason"),
+    [
+        ("http://openrouter.ai/api/v1", "https://"),
+        ("ftp://openrouter.ai/api/v1", "https://"),
+        ("not-a-url", "https://"),
+        ("https://", "no host"),
+        ("https://user:secret@openrouter.ai/api/v1", "credentials"),
+    ],
+)
+def test_an_openrouter_url_that_would_expose_the_key_is_refused(
+    monkeypatch: pytest.MonkeyPatch, url: str, reason: str
+) -> None:
+    _select_openrouter(monkeypatch, OPENROUTER_API_KEY=FAKE_OPENROUTER_KEY, OPENROUTER_BASE_URL=url)
+
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings(env_file=None)
+
+    assert reason in str(excinfo.value)
+    assert "secret" not in str(excinfo.value)
+
+
+def test_plain_http_to_openrouter_is_allowed_to_this_machine_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _select_openrouter(
+        monkeypatch,
+        OPENROUTER_API_KEY=FAKE_OPENROUTER_KEY,
+        OPENROUTER_BASE_URL="http://127.0.0.1:8123/api/v1",
+    )
+
+    assert load_settings(env_file=None).openrouter_base_url == "http://127.0.0.1:8123/api/v1"
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("OPENROUTER_MODEL", "  "), ("OPENROUTER_TIMEOUT_SECONDS", "0")],
+)
+def test_a_blank_openrouter_model_or_a_non_positive_timeout_is_refused(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    _select_openrouter(monkeypatch, OPENROUTER_API_KEY=FAKE_OPENROUTER_KEY, **{name: value})
+
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings(env_file=None)
+
+    assert name in str(excinfo.value)
+
+
+def test_no_openrouter_configuration_error_carries_the_key_even_in_its_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import traceback
+
+    _select_openrouter(
+        monkeypatch,
+        OPENROUTER_API_KEY=FAKE_OPENROUTER_KEY,
+        OPENROUTER_BASE_URL="http://example.invalid",
+    )
+
+    with pytest.raises(ConfigurationError) as excinfo:
+        load_settings(env_file=None)
+
+    printed = "".join(traceback.format_exception(excinfo.value))
+    assert FAKE_OPENROUTER_KEY[:12] not in printed
+    assert FAKE_OPENROUTER_KEY[-8:] not in printed
+    assert excinfo.value.__cause__ is None
+
+
+def test_demo_mode_needs_no_openrouter_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", VALID_DB_URL)
+    monkeypatch.setenv("DEMO_MODE", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
+
+    settings = load_settings(env_file=None)
+
+    assert settings.llm_provider == "openrouter"
+    assert settings.openrouter_api_key is None
+
+
+@pytest.mark.parametrize("provider", ["ollama", "deepseek", "anthropic"])
+def test_no_other_provider_needs_an_openrouter_key(
+    monkeypatch: pytest.MonkeyPatch, provider: str
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", VALID_DB_URL)
+    monkeypatch.setenv("DEMO_MODE", "false")
+    monkeypatch.setenv("LLM_PROVIDER", provider)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-deepseek-key-not-real-0123456789")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
+
+    settings = load_settings(env_file=None)
+
+    assert settings.llm_provider == provider
+    assert settings.openrouter_api_key is None
+
+
 def test_each_provider_names_its_own_model(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", VALID_DB_URL)
     monkeypatch.setenv("LLM_MODEL", "claude-opus-5")
     monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
     monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-flash")
+    monkeypatch.setenv("OPENROUTER_MODEL", "deepseek/deepseek-v4.1-flash")
 
     for provider, expected in [
         ("ollama", "qwen2.5:7b-instruct"),
         ("deepseek", "deepseek-flash"),
+        ("openrouter", "deepseek/deepseek-v4.1-flash"),
         ("anthropic", "claude-opus-5"),
     ]:
         monkeypatch.setenv("LLM_PROVIDER", provider)

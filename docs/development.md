@@ -188,9 +188,10 @@ Copy .env.example to .env and fill in the values. Expected at: ...\.env
 
 `DEMO_MODE=true` is the default and means no API key is needed. With
 `DEMO_MODE=false`, a hosted provider selected without its key —
-`LLM_PROVIDER=deepseek` without `DEEPSEEK_API_KEY`, or `anthropic` without
-`ANTHROPIC_API_KEY` — is also a startup failure, by design: live mode never
-silently falls back to fixtures. Ollama, the default, needs no key.
+`LLM_PROVIDER=deepseek` without `DEEPSEEK_API_KEY`, `openrouter` without
+`OPENROUTER_API_KEY`, or `anthropic` without `ANTHROPIC_API_KEY` — is also a
+startup failure, by design: live mode never silently falls back to fixtures.
+Ollama, the default, needs no key.
 
 ---
 
@@ -632,6 +633,11 @@ Deliberately absent, with the reason:
   `LLM_PROVIDER=deepseek`, and covered by offline tests of every request field,
   reply shape and failure path — but no test calls DeepSeek, and it has never
   been run against a real key in this repository.
+- **The OpenRouter provider, in practice.** It is a separate provider,
+  selectable with `LLM_PROVIDER=openrouter`, covered the same way by offline
+  tests, including OpenRouter's HTTP 200 carrying an error — but no test calls
+  OpenRouter, it has never been run against a real key in this repository, and
+  which upstream provider serves a call is decided by OpenRouter.
 
 ---
 
@@ -644,6 +650,7 @@ Everything that talks to a language model sits behind one protocol in
 LlmClient (Protocol)
 ├── OllamaLlmClient     — a model on this machine;   LLM_PROVIDER=ollama (default)
 ├── DeepSeekLlmClient   — the DeepSeek API;           LLM_PROVIDER=deepseek
+├── OpenRouterLlmClient — the OpenRouter gateway;     LLM_PROVIDER=openrouter
 ├── AnthropicLlmClient  — the Anthropic API;          LLM_PROVIDER=anthropic
 └── ReplayLlmClient     — serves recorded fixtures;   DEMO_MODE=true
 ```
@@ -704,14 +711,21 @@ lines, joined with newlines, so multi-line content stays readable in a diff.
 Set `DEMO_MODE=false` in `.env` and choose the provider with `LLM_PROVIDER`:
 `ollama` needs Ollama running with the model pulled
 ([section 17](#17-local-ai-mode-ollama)); `deepseek`
-needs `DEEPSEEK_API_KEY`; `anthropic` needs `ANTHROPIC_API_KEY`. Startup fails
-immediately if the selected provider's key is missing — live mode has no
-fallback, so there is no point discovering that at the first request. A key is
-read server-side only and is never logged or returned in a response.
+needs `DEEPSEEK_API_KEY`; `openrouter` needs its own `OPENROUTER_API_KEY` (an
+OpenRouter key is not a DeepSeek key, and is never read from
+`DEEPSEEK_API_KEY`), with the model in `OPENROUTER_MODEL`; `anthropic` needs
+`ANTHROPIC_API_KEY`. Startup fails immediately if the selected provider's key
+is missing — live mode has no fallback, so there is no point discovering that
+at the first request. A key is read server-side only and is never logged or
+returned in a response, and replacing it is a change to `.env` (or the
+deployment's secret store) and a restart, never to code.
 
 `python scripts/check_llm.py --preflight` checks the selected provider without
-generating anything. For DeepSeek it asks for the model list, which spends no
-tokens; without `--preflight` the script runs real extractions, which do.
+generating anything. For DeepSeek it asks for the model list; for OpenRouter it
+asks `GET /key` whether the key is accepted, then `GET /models` whether the
+model exists and, where OpenRouter says, supports what the client sends. Both
+spend no tokens; without `--preflight` the script runs real extractions, which
+do. Use synthetic briefs only with a key that is not your own.
 
 ---
 
@@ -888,7 +902,7 @@ problem with a message saying what to do:
 | Docker | Starts Docker Desktop if the engine does not answer, and waits up to three minutes. Each `docker info` check gives up after 20 seconds, so an engine that is stuck, not just stopped, ends in a message instead of a window that waits forever. |
 | PostgreSQL | `.\tasks.ps1 db-up`, given up to five minutes (time for a first download of the PostgreSQL image). |
 | Migrations | Prints the current and latest revision, then `.\tasks.ps1 migrate`. |
-| AI provider | Read through the application's own settings loader, so environment variables and `.env` apply exactly as they do for the app; the launcher never opens `.env`. Demo mode: nothing to check. DeepSeek or Anthropic: `.\tasks.ps1 check-llm --preflight`. Ollama: starts the Ollama app if it does not answer; if the configured model is missing, shows the exact `ollama pull` command and asks, defaulting to **No**; then the same preflight. |
+| AI provider | Read through the application's own settings loader, so environment variables and `.env` apply exactly as they do for the app; the launcher never opens `.env`. Demo mode: nothing to check. DeepSeek, OpenRouter or Anthropic: `.\tasks.ps1 check-llm --preflight`. Ollama: starts the Ollama app if it does not answer; if the configured model is missing, shows the exact `ollama pull` command and asks, defaulting to **No**; then the same preflight. |
 | Backend | `.\tasks.ps1 dev-backend` in a minimized window, then waits for `/health`. |
 | Frontend | `.\tasks.ps1 dev-frontend` in a minimized window, then waits for the page. Each window's first line says which part it runs; the frontend's title cannot be relied on, because `npm run dev` runs through `cmd.exe`, which retitles the window. |
 | Browser | Opens http://localhost:5173. |

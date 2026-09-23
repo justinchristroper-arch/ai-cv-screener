@@ -27,6 +27,7 @@ from app.llm.client import (
     LlmProviderError,
     LlmResponse,
     OllamaLlmClient,
+    OpenRouterLlmClient,
     ReplayLlmClient,
     build_llm_client,
 )
@@ -335,7 +336,7 @@ def test_the_provider_sdk_is_imported_only_inside_the_llm_boundary() -> None:
     assert offenders == [], f"anthropic imported outside app/llm: {offenders}"
 
 
-@pytest.mark.parametrize("provider", ["ollama", "anthropic", "deepseek"])
+@pytest.mark.parametrize("provider", ["ollama", "anthropic", "deepseek", "openrouter"])
 def test_no_real_provider_is_constructed_in_demo_mode(settings_factory, provider: str) -> None:
     """Nothing reaches a model while demo mode is on, whichever one is selected.
 
@@ -347,7 +348,9 @@ def test_no_real_provider_is_constructed_in_demo_mode(settings_factory, provider
     client = build_llm_client(settings_factory(demo_mode=True, llm_provider=provider))
 
     assert isinstance(client, ReplayLlmClient)
-    assert not isinstance(client, (OllamaLlmClient, AnthropicLlmClient, DeepSeekLlmClient))
+    assert not isinstance(
+        client, (OllamaLlmClient, AnthropicLlmClient, DeepSeekLlmClient, OpenRouterLlmClient)
+    )
 
 
 # --------------------------------------------------------------------------
@@ -602,6 +605,26 @@ def test_the_deepseek_key_is_not_logged_when_its_client_is_built(settings_factor
     logged = "\n".join(record.getMessage() for record in caplog.records)
     assert "deepseek-flash" in logged
     assert "https://api.deepseek.com" in logged
+    assert fake_key not in logged
+
+
+def test_the_openrouter_key_is_not_logged_when_its_client_is_built(
+    settings_factory, caplog
+) -> None:
+    """The log says OpenRouter answers, and which model -- never the key."""
+    fake_key = "test-openrouter-key-not-real-0123456789"
+
+    with caplog.at_level(logging.DEBUG):
+        build_llm_client(
+            settings_factory(
+                demo_mode=False, llm_provider="openrouter", openrouter_api_key=fake_key
+            )
+        )
+
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "cloud (openrouter)" in logged
+    assert "deepseek/deepseek-v4.1-flash" in logged
+    assert "https://openrouter.ai/api/v1" in logged
     assert fake_key not in logged
 
 

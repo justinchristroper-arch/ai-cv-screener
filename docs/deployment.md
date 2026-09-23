@@ -41,8 +41,9 @@ what it is for.
 `DEMO_MODE=false` runs a real model over whatever a visitor types and uploads,
 and on a public URL with **no authentication** that is a problem either way:
 
-- with `LLM_PROVIDER=deepseek` or `anthropic`, it is an open invitation to spend
-  your money — and every visitor's upload is sent to that provider;
+- with `LLM_PROVIDER=deepseek`, `openrouter` or `anthropic`, it is an open
+  invitation to spend your money — and every visitor's upload is sent to that
+  provider (through OpenRouter, on to an upstream provider);
 - with `LLM_PROVIDER=ollama`, it is an open invitation to occupy your CPU or GPU
   for seconds at a time, per request, which is a denial-of-service surface.
 
@@ -70,6 +71,39 @@ What that changes:
 - **The preflight is free.** `python scripts/check_llm.py --preflight` lists the
   models the key can use without spending a token, so it can run on every
   deploy.
+
+### A hosted model through OpenRouter
+
+`LLM_PROVIDER=openrouter` is a **separate provider**, with its own key
+(`OPENROUTER_API_KEY`) and its own model setting (`OPENROUTER_MODEL`,
+`deepseek/deepseek-v4.1-flash` by default). It is not a way of configuring the
+DeepSeek provider, and an OpenRouter key does not work as `DEEPSEEK_API_KEY`.
+What it changes:
+
+- **A CV passes through two parties, not one.** OpenRouter is a gateway: it
+  forwards each call to one of the upstream providers hosting the model, and
+  which one can differ from call to call. Every request asks for
+  `data_collection: "deny"`, which OpenRouter documents as excluding providers
+  that may store the data, and `require_parameters: true`, which restricts it
+  to providers supporting every parameter sent. That narrows where a CV can go;
+  it does not name the provider. OpenRouter's own documentation (read September
+  2026) says it does not store prompts or responses unless the account owning
+  the key opts in, and that it samples a small number of prompts for anonymous
+  categorization. Read OpenRouter's terms and the upstream providers' before any
+  real CV goes through it.
+- **The account that owns the key decides the rest.** Logging and data settings
+  are per account. Use your own key for real CVs; a borrowed or shared key is
+  for synthetic test data only.
+- **The key comes from the platform's secret store**, never from a file in the
+  image. Replacing one key with another is a change to that secret and a
+  restart — never a code change.
+- **Cost is per call and uncapped by this application.** OpenRouter answers
+  HTTP 402 when the account or the key runs out of credit, and supports a
+  credit limit per key: set one on the key a deployment uses.
+- **The preflight is free.** `python scripts/check_llm.py --preflight` asks
+  `GET /key` whether the key is accepted and `GET /models` whether the model
+  exists, without spending a token and without printing anything about the
+  account.
 
 ### Where uploaded files go
 
@@ -102,12 +136,15 @@ explicitly:
 | `DATABASE_URL` | The managed instance's URL, **with the `+psycopg` suffix**. A bare `postgresql://` makes SQLAlchemy look for psycopg2, which is not installed. |
 | `APP_ENV` | `production` |
 | `DEMO_MODE` | `true` for a public demo. See above. |
-| `LLM_PROVIDER` | `ollama` (default), `deepseek` or `anthropic`. Only read when demo mode is off. |
+| `LLM_PROVIDER` | `ollama` (default), `deepseek`, `openrouter` or `anthropic`. Only read when demo mode is off. |
 | `OLLAMA_BASE_URL` | Where Ollama listens. **Not `localhost` from inside a container** — see below. |
 | `OLLAMA_MODEL` | Must already be pulled on whatever machine runs Ollama. |
 | `DEEPSEEK_API_KEY` | Only when `LLM_PROVIDER=deepseek`. **From the platform's secret store, never from a file in the image.** |
 | `DEEPSEEK_MODEL` | `deepseek-flash` unless you have a reason; the preflight checks the key can use it. |
 | `DEEPSEEK_BASE_URL` | Leave at `https://api.deepseek.com` unless a gateway sits in front of it. |
+| `OPENROUTER_API_KEY` | Only when `LLM_PROVIDER=openrouter`. **Your own key, from the platform's secret store, never from a file in the image.** |
+| `OPENROUTER_MODEL` | An exact OpenRouter slug; `deepseek/deepseek-v4.1-flash` unless you have a reason. The preflight checks OpenRouter lists it. |
+| `OPENROUTER_BASE_URL` | Leave at `https://openrouter.ai/api/v1`. |
 | `ANTHROPIC_API_KEY` | Only when `LLM_PROVIDER=anthropic`. **From the platform's secret store, never from a file in the image.** |
 | `CORS_ALLOWED_ORIGINS` | Exactly the deployed frontend's origin. Never `*`. |
 | `UPLOAD_STORAGE_DIR` | The mount point of the volume, if there is one. |

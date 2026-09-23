@@ -1,4 +1,4 @@
-"""The LLM boundary: one protocol, four implementations.
+"""The LLM boundary: one protocol, five implementations.
 
 This module and its siblings are the **only** place a provider is spoken to
 (docs/architecture.md section 2). Every service above it depends on the
@@ -10,6 +10,7 @@ and what made swapping a cloud API for a local model a one-file change.
 LlmClient (Protocol)
 ├── OllamaLlmClient     — a model running on this machine; the default
 ├── DeepSeekLlmClient   — the hosted API for a deployment; LLM_PROVIDER=deepseek
+├── OpenRouterLlmClient — a gateway to hosted models; LLM_PROVIDER=openrouter
 ├── AnthropicLlmClient  — the cloud API; opt-in via LLM_PROVIDER=anthropic
 └── ReplayLlmClient     — recorded fixtures; used when DEMO_MODE=true
 ```
@@ -553,6 +554,272 @@ def _with_json_schema(system_prompt: str, schema: dict[str, Any]) -> str:
     )
 
 
+class OpenRouterLlmClient:
+    """Calls a model through OpenRouter. Used only when `LLM_PROVIDER=openrouter`.
+
+    OpenRouter is a gateway: one OpenAI-compatible Chat Completions endpoint in
+    front of many upstream providers, each hosting the models they host. The
+    model is named by an OpenRouter slug in `OPENROUTER_MODEL`
+    (`deepseek/deepseek-v4.1-flash` by default), and OpenRouter picks which
+    upstream provider serves each call.
+
+    It is a separate client from `DeepSeekLlmClient` even when the model is a
+    DeepSeek one, because the two differ exactly where it matters: the key is a
+    different key for a different host, thinking is switched off through a
+    different parameter, errors arrive in a different shape, and routing to a
+    third party needs settings DeepSeek's own API has no notion of.
+
+    ## Structured output: JSON mode, with the schema in the prompt
+
+    The same approach as `DeepSeekLlmClient`, for the same reason. OpenRouter
+    documents `response_format: {"type": "json_object"}` as JSON mode; support
+    for a `json_schema` constraint is decided per upstream endpoint, so it is
+    not relied on. The schema goes into the system prompt with
+    `_with_json_schema`, and the calling service re-validates the reply against
+    `schemas/llm` exactly as for every provider (architecture section 4.3).
+
+    ## Thinking off, temperature 0
+
+    DeepSeek's API documents thinking as the default for this model family, and
+    `DeepSeekLlmClient` switches it off with DeepSeek's own `thinking` field. That
+    field is not an OpenRouter parameter, so it is not sent here. OpenRouter's
+    equivalent is `reasoning`, and its documentation describes
+    `{"effort": "none"}` as disabling reasoning entirely -- unless a model marks
+    reasoning as mandatory, which `scripts/check_llm.py --preflight` reports.
+    With reasoning off, `temperature: 0` applies, as it does for DeepSeek.
+
+    ## Routing
+
+    `provider.require_parameters` restricts routing to upstream endpoints that
+    support every parameter in the request, so JSON mode and the reasoning
+    switch are not silently dropped by one that does not. `data_collection:
+    "deny"` excludes providers that may store the data. Neither decides which
+    provider serves a call; both narrow the set it is chosen from. No
+    attribution headers are sent: they exist to list an app publicly.
+
+    ## Errors arrive two ways
+
+    Either as an HTTP status, or -- when an upstream provider fails after
+    OpenRouter has already answered 200 -- as a 200 whose body is an `error`
+    object with no `choices`. Both are mapped by their numeric code alone. The
+    error's message and metadata are never read into anything this client
+    raises: a moderation refusal carries a fragment of the flagged input, which
+    here is CV text.
+
+    ## The key
+
+    Sent in the `Authorization` header and nowhere else, with the same
+    `from None` discipline as `DeepSeekLlmClient`, and for the same reason.
+    """
+
+    #: Far above any reply this application asks for; a body larger than this
+    #: is not a model's answer.
+    MAX_REPLY_BYTES = 8 * 1024 * 1024
+
+    #: See "Thinking off" above.
+    REASONING: dict[str, Any] = {"effort": "none"}
+
+    #: See "Routing" above.
+    PROVIDER_ROUTING: dict[str, Any] = {"require_parameters": True, "data_collection": "deny"}
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str,
+        timeout_seconds: float = 180.0,
+    ) -> None:
+        self._api_key = api_key
+        self._base_url = base_url.rstrip("/")
+        self._endpoint = self._base_url + "/chat/completions"
+        self._model = model
+        self._timeout = timeout_seconds
+
+    def complete(self, request: LlmRequest) -> LlmResponse:
+        payload = {
+            "model": self._model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": _with_json_schema(request.system_prompt, request.json_schema),
+                },
+                # The data channel, exactly as every other provider receives it.
+                {"role": "user", "content": request.user_content},
+            ],
+            "response_format": {"type": "json_object"},
+            "reasoning": dict(self.REASONING),
+            "temperature": 0,
+            "max_tokens": request.max_tokens,
+            "stream": False,
+            "provider": dict(self.PROVIDER_ROUTING),
+        }
+
+        started = time.monotonic()
+        body = self._post(json.dumps(payload).encode("utf-8"))
+        latency_ms = int((time.monotonic() - started) * 1000)
+
+        error = body.get("error")
+        if error:
+            # A 200 carrying an error instead of a reply: see "Errors arrive two
+            # ways" in the class docstring. Only a non-empty value counts, so a
+            # reply that merely carries `"error": null` is read as a reply.
+            raise _openrouter_body_error(error)
+
+        choices = body.get("choices")
+        choice = choices[0] if isinstance(choices, list) and choices else None
+        message = choice.get("message") if isinstance(choice, dict) else None
+        if not isinstance(choice, dict) or not isinstance(message, dict):
+            # A 200 with the wrong shape is a provider problem, not a schema
+            # problem: there is no model output to validate or to record.
+            raise LlmProviderError("OpenRouter returned a reply with no message")
+
+        finish_reason = choice.get("finish_reason")
+        if finish_reason == "content_filter":
+            raise LlmProviderError(
+                "OpenRouter's upstream provider declined to answer: a content filter "
+                "stopped the reply"
+            )
+        if finish_reason == "error":
+            raise LlmProviderError(
+                "OpenRouter's upstream provider failed while writing the reply. Try again shortly."
+            )
+
+        content = message.get("content")
+        if content is None:
+            # No text is an answer the model failed to write, not a transport
+            # fault: as empty text it fails validation in the calling service
+            # and gets the one permitted retry.
+            content = ""
+        if not isinstance(content, str):
+            raise LlmProviderError("OpenRouter returned message content that is not text")
+
+        usage = body.get("usage")
+        usage = usage if isinstance(usage, dict) else {}
+        return LlmResponse(
+            text=content,
+            # The slug OpenRouter reports as having answered.
+            model=str(body.get("model") or self._model),
+            source=LlmSource.LIVE,
+            latency_ms=latency_ms,
+            input_tokens=_as_optional_int(usage.get("prompt_tokens")),
+            output_tokens=_as_optional_int(usage.get("completion_tokens")),
+        )
+
+    def _post(self, data: bytes) -> dict[str, Any]:
+        """One request, every failure turned into advice that holds no secret."""
+        http_request = urllib.request.Request(
+            self._endpoint,
+            data=data,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {self._api_key}",
+            },
+        )
+        deadline = time.monotonic() + self._timeout
+
+        # `from None` throughout: see "The key" in the class docstring.
+        try:
+            with urllib.request.urlopen(http_request, timeout=self._timeout) as response:
+                raw = self._read_within_deadline(deadline, response)
+        except urllib.error.HTTPError as exc:
+            # The status, never the body: it can quote the request back.
+            raise _openrouter_http_error(exc.code) from None
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, TimeoutError):
+                raise self._timeout_error() from None
+            raise LlmProviderError(
+                f"could not reach OpenRouter at {self._base_url}{_reason_name(exc.reason)}. "
+                "Check the network connection and OPENROUTER_BASE_URL."
+            ) from None
+        except TimeoutError:
+            raise self._timeout_error() from None
+        except (OSError, ValueError, http.client.HTTPException):
+            raise LlmProviderError(
+                "the connection to OpenRouter failed before a complete reply arrived"
+            ) from None
+
+        try:
+            body = json.loads(raw)
+        except ValueError:
+            raise LlmProviderError("OpenRouter returned a body that is not JSON") from None
+        if not isinstance(body, dict):
+            raise LlmProviderError("OpenRouter returned JSON that is not an object")
+        return body
+
+    def _read_within_deadline(self, deadline: float, response: Any) -> bytes:
+        """The whole body, or a timeout once `deadline` has passed.
+
+        One deadline over the whole call, read in bounded chunks: a socket
+        timeout only bounds the gap between two reads, and an unbounded read
+        has no ceiling on size.
+        """
+        chunks: list[bytes] = []
+        size = 0
+        while True:
+            if time.monotonic() > deadline:
+                raise TimeoutError
+            chunk = response.read1(65536)
+            if not chunk:
+                return b"".join(chunks)
+            size += len(chunk)
+            if size > self.MAX_REPLY_BYTES:
+                raise LlmProviderError("OpenRouter returned a body far larger than any reply")
+            chunks.append(chunk)
+
+    def _timeout_error(self) -> LlmProviderError:
+        return LlmProviderError(
+            f"OpenRouter did not answer within {self._timeout:.0f}s. Try again, or raise "
+            "OPENROUTER_TIMEOUT_SECONDS."
+        )
+
+
+#: What each code OpenRouter documents means to whoever has to act on it
+#: (openrouter.ai/docs, "Errors and Debugging"). Used for an HTTP status and for
+#: the code inside a 200's `error` body alike; the error's own message is never
+#: read.
+_OPENROUTER_ERROR_ADVICE = {
+    400: (
+        "the request was refused as invalid. A wrong OPENROUTER_MODEL is the likeliest "
+        "cause; `python scripts/check_llm.py --preflight` checks it."
+    ),
+    401: "the API key was rejected. Check OPENROUTER_API_KEY.",
+    402: (
+        "the account or this key has run out of credit. Add credit, or raise the key's "
+        "credit limit, on OpenRouter."
+    ),
+    403: (
+        "the request was refused by a moderation flag, a guardrail on the account, or a "
+        "permission. The refusal itself is not shown, because it can quote the request."
+    ),
+    408: "the request timed out at OpenRouter. Try again shortly.",
+    429: "the account is being rate limited. Try again shortly.",
+    502: "the model is down or returned an invalid response. Try again shortly.",
+    503: (
+        "no upstream provider meets this request's routing requirements (every "
+        "parameter supported, data_collection=deny). Try again later, or choose "
+        "another OPENROUTER_MODEL."
+    ),
+}
+
+
+def _openrouter_http_error(code: int) -> LlmProviderError:
+    advice = _OPENROUTER_ERROR_ADVICE.get(code)
+    message = f"OpenRouter returned HTTP {code}"
+    return LlmProviderError(f"{message}: {advice}" if advice else message)
+
+
+def _openrouter_body_error(error: object) -> LlmProviderError:
+    """A 200 whose body is an error. The code is read; nothing else is."""
+    code = error.get("code") if isinstance(error, dict) else None
+    if isinstance(code, bool) or not isinstance(code, int):
+        return LlmProviderError("OpenRouter reported an error in place of a reply")
+    advice = _OPENROUTER_ERROR_ADVICE.get(code)
+    message = f"OpenRouter reported error {code} in place of a reply"
+    return LlmProviderError(f"{message}: {advice}" if advice else message)
+
+
 class AnthropicLlmClient:
     """Calls the Anthropic API. Used only when `LLM_PROVIDER=anthropic`.
 
@@ -717,6 +984,8 @@ def build_llm_client(settings: Any) -> LlmClient:
         settings.ollama_model,
         settings.deepseek_base_url,
         settings.deepseek_model,
+        settings.openrouter_base_url,
+        settings.openrouter_model,
     )
     if _cache.client is not None and _cache.key == cache_key:
         return _cache.client
@@ -753,6 +1022,21 @@ def build_llm_client(settings: Any) -> LlmClient:
             "LLM client: cloud (deepseek), model=%s, base_url=%s",
             settings.deepseek_model,
             settings.deepseek_base_url,
+        )
+    elif settings.llm_provider == "openrouter":
+        # The key is guaranteed present by Settings._selected_provider_is_configured,
+        # and leaves its SecretStr only here, on its way into the client.
+        client = OpenRouterLlmClient(
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=settings.openrouter_base_url,
+            model=settings.openrouter_model,
+            timeout_seconds=settings.openrouter_timeout_seconds,
+        )
+        # The model and URL are logged, as for DeepSeek. The key is not.
+        logger.info(
+            "LLM client: cloud (openrouter), model=%s, base_url=%s",
+            settings.openrouter_model,
+            settings.openrouter_base_url,
         )
     else:
         # Guaranteed non-None by Settings._selected_provider_is_configured.

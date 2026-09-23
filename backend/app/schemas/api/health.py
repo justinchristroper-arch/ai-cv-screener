@@ -17,9 +17,10 @@ class HealthResponse(BaseModel):
     llm_provider: str = Field(
         description=(
             "Which provider answers when demo mode is off: 'ollama' for a model running "
-            "on the server's own machine, 'deepseek' or 'anthropic' for a hosted API. "
-            "Surfaced so the UI can tell a user where their documents actually go rather "
-            "than guessing."
+            "on the server's own machine, 'deepseek' or 'anthropic' for a hosted API, "
+            "'openrouter' for the OpenRouter gateway, which forwards each call to an "
+            "upstream provider. Surfaced so the UI can tell a user where their documents "
+            "actually go rather than guessing."
         )
     )
     llm_model: str = Field(

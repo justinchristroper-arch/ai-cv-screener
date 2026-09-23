@@ -741,9 +741,9 @@ function Confirm-AiProvider {
     }
 
     # A hosted provider needs no local server. What can be checked -- the key,
-    # and for DeepSeek the model -- is checked by the preflight, which costs
-    # nothing.
-    if ($settings.Provider -in @("anthropic", "deepseek")) {
+    # and for DeepSeek and OpenRouter the model -- is checked by the preflight,
+    # which costs nothing.
+    if ($settings.Provider -in @("anthropic", "deepseek", "openrouter")) {
         Write-Info "Cloud AI mode (LLM_PROVIDER=$($settings.Provider)). Checking its configuration"
         $global:LASTEXITCODE = 0
         & $Tasks check-llm --preflight

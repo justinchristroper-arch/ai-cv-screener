@@ -26,6 +26,12 @@ a long wait for a timeout.
 preflight costs nothing: one `GET /models`, which proves the key is accepted and
 that `DEEPSEEK_MODEL` is a model the key can use, before a token is spent.
 
+**OpenRouter** needs `OPENROUTER_API_KEY` and spends money on every run. Its
+preflight also costs nothing, but has a different shape: `GET /key`, which is
+what OpenRouter documents for checking a key, then `GET /models` for the slug
+in `OPENROUTER_MODEL`, reading what OpenRouter says about that model's
+supported parameters and reasoning where it says anything.
+
 **Anthropic** needs `ANTHROPIC_API_KEY` and spends money on every run.
 
 What it reports, per brief: the requirements the model returned, their category
@@ -47,6 +53,7 @@ import json
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -63,6 +70,7 @@ from app.llm.client import (  # noqa: E402
     DeepSeekLlmClient,
     LlmProviderError,
     OllamaLlmClient,
+    OpenRouterLlmClient,
 )
 from app.llm.prompts import jd_extraction as jd_prompt  # noqa: E402
 from app.schemas.llm.jd_extraction import RequirementExtractionOutput  # noqa: E402
@@ -115,6 +123,9 @@ def _preflight(settings) -> list[str]:
 
     if settings.llm_provider == "deepseek":
         return _deepseek_preflight(settings)
+
+    if settings.llm_provider == "openrouter":
+        return _openrouter_preflight(settings)
 
     tags_url = settings.ollama_base_url.rstrip("/") + "/api/tags"
     try:
@@ -191,6 +202,102 @@ def _deepseek_preflight(settings) -> list[str]:
     return []
 
 
+#: What `OpenRouterLlmClient` sends and, with `require_parameters`, asks
+#: OpenRouter to find an upstream endpoint supporting all of.
+_OPENROUTER_REQUIRED_PARAMETERS = ("response_format", "reasoning", "temperature", "max_tokens")
+
+
+def _openrouter_get(url: str, key: str, base_url: str, what: str) -> tuple[object, list[str]]:
+    """One GET that spends nothing. Returns the parsed body, or the problems.
+
+    Exception texts are reduced to their class name, for the reason
+    `_deepseek_preflight` gives: an invalid header value is quoted in full.
+    """
+    request = urllib.request.Request(
+        url, headers={"Accept": "application/json", "Authorization": f"Bearer {key}"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return json.loads(response.read()), []
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            return None, [
+                "OpenRouter rejected the API key (HTTP 401).",
+                "  Check OPENROUTER_API_KEY in .env, or in the deployment's secret store.",
+            ]
+        return None, [f"OpenRouter answered HTTP {exc.code} when asked about {what}."]
+    except urllib.error.URLError as exc:
+        kind = f" ({type(exc.reason).__name__})" if isinstance(exc.reason, BaseException) else ""
+        return None, [
+            f"Could not reach OpenRouter at {base_url}{kind}.",
+            "  Check the network connection and OPENROUTER_BASE_URL.",
+        ]
+    except (OSError, ValueError) as exc:
+        return None, [f"Could not read {what} from OpenRouter: {type(exc).__name__}"]
+
+
+def _openrouter_preflight(settings) -> list[str]:
+    """The key, then the model, each checked with a request that costs nothing.
+
+    Not the DeepSeek preflight's shape. OpenRouter documents `GET /key` as the
+    way to check a key, so that comes first; only then is `GET /models` asked
+    for the configured slug, and what it says about the model's parameters and
+    reasoning is read where it is present.
+
+    Nothing from either response is printed except findings. `/key` describes
+    the account -- its label, usage and credit -- and none of that belongs in a
+    console or a launcher log.
+    """
+    base_url = settings.openrouter_base_url.rstrip("/")
+    key = settings.openrouter_api_key.get_secret_value()
+
+    key_body, problems = _openrouter_get(f"{base_url}/key", key, base_url, "the key")
+    if problems:
+        return problems
+    key_data = key_body.get("data") if isinstance(key_body, dict) else None
+    remaining = key_data.get("limit_remaining") if isinstance(key_data, dict) else None
+    if isinstance(remaining, (int, float)) and not isinstance(remaining, bool) and remaining <= 0:
+        return [
+            "OpenRouter accepted the key, but its credit limit is used up.",
+            "  Raise the key's credit limit, or wait for it to reset, on OpenRouter.",
+        ]
+
+    wanted = settings.openrouter_model
+    query = urllib.parse.urlencode({"q": wanted})
+    models_body, problems = _openrouter_get(
+        f"{base_url}/models?{query}", key, base_url, "its model list"
+    )
+    if problems:
+        return problems
+    entries = models_body.get("data", []) if isinstance(models_body, dict) else []
+    entries = [entry for entry in entries if isinstance(entry, dict)]
+    entry = next((entry for entry in entries if entry.get("id") == wanted), None)
+    if entry is None:
+        listed = [str(entry.get("id", "")) for entry in entries][:10]
+        return [
+            f"OpenRouter does not list {wanted!r}.",
+            f"  Closest matches: {', '.join(listed) if listed else '(none)'}",
+            "  Set OPENROUTER_MODEL to an exact slug from openrouter.ai/models.",
+        ]
+
+    found: list[str] = []
+    supported = entry.get("supported_parameters")
+    if isinstance(supported, list):
+        missing = [name for name in _OPENROUTER_REQUIRED_PARAMETERS if name not in supported]
+        if missing:
+            found += [
+                f"OpenRouter does not list {', '.join(missing)} among what {wanted!r} supports.",
+                "  The client sends and requires them, so no provider would serve its requests.",
+            ]
+    reasoning = entry.get("reasoning")
+    if isinstance(reasoning, dict) and reasoning.get("mandatory") is True:
+        found += [
+            f"OpenRouter marks reasoning as mandatory for {wanted!r}, so the client's",
+            "  request to switch it off would be rejected. Choose another OPENROUTER_MODEL.",
+        ]
+    return found
+
+
 def _build_client(settings):
     if settings.llm_provider == "anthropic":
         return AnthropicLlmClient(api_key=str(settings.anthropic_api_key), model=settings.llm_model)
@@ -200,6 +307,13 @@ def _build_client(settings):
             base_url=settings.deepseek_base_url,
             model=settings.deepseek_model,
             timeout_seconds=settings.deepseek_timeout_seconds,
+        )
+    if settings.llm_provider == "openrouter":
+        return OpenRouterLlmClient(
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=settings.openrouter_base_url,
+            model=settings.openrouter_model,
+            timeout_seconds=settings.openrouter_timeout_seconds,
         )
     return OllamaLlmClient(
         base_url=settings.ollama_base_url,
@@ -327,6 +441,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Endpoint: {settings.ollama_base_url}")
     elif settings.llm_provider == "deepseek":
         print(f"Endpoint: {settings.deepseek_base_url}")
+    elif settings.llm_provider == "openrouter":
+        print(f"Endpoint: {settings.openrouter_base_url}")
 
     problems = _preflight(settings)
     if problems:

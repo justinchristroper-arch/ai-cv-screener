@@ -24,8 +24,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ENV_FILE = REPO_ROOT / ".env"
 
-#: Hosts a DeepSeek base URL may reach over plain http. Traffic to them never
-#: leaves this machine, so the API key does not cross a network in the clear.
+#: Hosts a hosted-provider base URL (DeepSeek, OpenRouter) may reach over plain
+#: http. Traffic to them never leaves this machine, so the API key does not
+#: cross a network in the clear.
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
@@ -57,9 +58,10 @@ class Settings(BaseSettings):
     demo_mode: bool = True
 
     # Which provider answers when demo mode is off. Local by default: a fresh
-    # clone should work with no account and no paid API (ADR-0011). DeepSeek is
-    # the hosted option, for a deployment where no machine can run a model.
-    llm_provider: Literal["ollama", "anthropic", "deepseek"] = "ollama"
+    # clone should work with no account and no paid API (ADR-0011). DeepSeek and
+    # OpenRouter are the hosted options, for a deployment where no machine can
+    # run a model.
+    llm_provider: Literal["ollama", "anthropic", "deepseek", "openrouter"] = "ollama"
 
     #: The model a *fixture* was recorded against. It is part of the fixture key,
     #: so changing it invalidates every recording in `app/llm/fixtures/` — which
@@ -99,6 +101,27 @@ class Settings(BaseSettings):
     #: gives up only after ten minutes, so without this one call could hold a
     #: screening that long.
     deepseek_timeout_seconds: float = 180.0
+
+    # --- OpenRouter (LLM_PROVIDER=openrouter) -----------------------------
+    #
+    # A gateway, not a model vendor: OpenRouter forwards each call to one of
+    # the upstream providers that host OPENROUTER_MODEL. Every call sends the
+    # criteria and the CV text to OpenRouter and on to that provider, and costs
+    # money. Deliberately separate from DEEPSEEK_* even when the model is a
+    # DeepSeek one: an OpenRouter key does not work against api.deepseek.com,
+    # and the name of the variable is what says where the key is sent.
+    #
+    # A SecretStr for the same reason DEEPSEEK_API_KEY is. Swapping one key for
+    # another is a change to the environment only, never to this file.
+    openrouter_api_key: SecretStr | None = None
+    #: Validated like DEEPSEEK_BASE_URL: the key travels with every request.
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    #: An OpenRouter model slug. Pinned rather than a `~...-latest` alias, so the
+    #: model recorded against every call does not change underneath it.
+    openrouter_model: str = "deepseek/deepseek-v4.1-flash"
+    #: The whole call, including any time OpenRouter spends failing over between
+    #: upstream providers.
+    openrouter_timeout_seconds: float = 180.0
 
     # Comma-separated. Kept as a string rather than list[str] on purpose:
     # pydantic-settings parses complex types from the environment as JSON, so a
@@ -152,6 +175,8 @@ class Settings(BaseSettings):
             return self.ollama_model
         if self.llm_provider == "deepseek":
             return self.deepseek_model
+        if self.llm_provider == "openrouter":
+            return self.openrouter_model
         return self.llm_model
 
     @model_validator(mode="after")
@@ -187,6 +212,16 @@ class Settings(BaseSettings):
                 raise ValueError("DEEPSEEK_MODEL must name a model, e.g. deepseek-flash")
             if self.deepseek_timeout_seconds <= 0:
                 raise ValueError("DEEPSEEK_TIMEOUT_SECONDS must be a positive number of seconds")
+
+        if self.llm_provider == "openrouter":
+            _validate_openrouter_api_key(self.openrouter_api_key)
+            _validate_openrouter_base_url(self.openrouter_base_url)
+            if not self.openrouter_model.strip():
+                raise ValueError(
+                    "OPENROUTER_MODEL must name a model, e.g. deepseek/deepseek-v4.1-flash"
+                )
+            if self.openrouter_timeout_seconds <= 0:
+                raise ValueError("OPENROUTER_TIMEOUT_SECONDS must be a positive number of seconds")
 
         return self
 
@@ -271,6 +306,52 @@ def _validate_deepseek_base_url(url: str) -> None:
     if parsed.scheme == "http" and parsed.hostname not in LOOPBACK_HOSTS:
         raise ValueError(
             "DEEPSEEK_BASE_URL must use https://. The API key is sent with every "
+            "request and must not cross the network unencrypted."
+        )
+
+
+def _validate_openrouter_api_key(key: SecretStr | None) -> None:
+    """Present, and nothing but the key. No message here ever contains it.
+
+    The same reasoning as `_validate_deepseek_api_key`: a key pasted with a
+    trailing line break or a typographic quote would otherwise fail at the first
+    request, in an error that quotes the header value.
+    """
+    value = key.get_secret_value() if key is not None else ""
+    if not value.strip():
+        raise ValueError(
+            "OPENROUTER_API_KEY is required when DEMO_MODE is false and LLM_PROVIDER is openrouter"
+        )
+    if not value.isascii() or any(char.isspace() or not char.isprintable() for char in value):
+        raise ValueError(
+            "OPENROUTER_API_KEY contains a space, a line break or a character that is not "
+            "plain ASCII. Paste the key alone, with nothing before or after it."
+        )
+
+
+def _validate_openrouter_base_url(url: str) -> None:
+    """Where the key and every CV are sent. HTTPS, except to this machine.
+
+    The same checks as `_validate_deepseek_base_url`, for the same reasons. The
+    host is not pinned to openrouter.ai; messages name the scheme at most,
+    never the URL.
+    """
+    parsed = urlparse(url)
+
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"OPENROUTER_BASE_URL must start with https://, got {parsed.scheme or '(no scheme)'!r}"
+        )
+    if parsed.username or parsed.password:
+        raise ValueError(
+            "OPENROUTER_BASE_URL must not contain credentials. The key belongs in "
+            "OPENROUTER_API_KEY, and a URL carrying one ends up in logs."
+        )
+    if not parsed.hostname:
+        raise ValueError("OPENROUTER_BASE_URL has no host, e.g. https://openrouter.ai/api/v1")
+    if parsed.scheme == "http" and parsed.hostname not in LOOPBACK_HOSTS:
+        raise ValueError(
+            "OPENROUTER_BASE_URL must use https://. The API key is sent with every "
             "request and must not cross the network unencrypted."
         )
 

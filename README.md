@@ -369,6 +369,57 @@ this repository has been run against a real key — so no claim is made about ho
 well `deepseek-flash` reads a CV. `scripts/check_llm.py` without `--preflight`
 is how to find out, and it spends money.
 
+### Hosted AI mode through OpenRouter (`DEMO_MODE=false`, `LLM_PROVIDER=openrouter`)
+
+A **separate provider**, not a setting of the DeepSeek one. OpenRouter is a
+gateway: one API in front of many upstream providers, and it chooses which of
+them serves each call. The model is whatever `OPENROUTER_MODEL` names — by
+default a DeepSeek model, `deepseek/deepseek-v4.1-flash` — and the key is
+OpenRouter's own. An OpenRouter key does not work as `DEEPSEEK_API_KEY`, and
+`DEEPSEEK_API_KEY` is never read for OpenRouter.
+
+```ini
+DEMO_MODE=false
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=          # in .env or the platform's secret store, never in the repository
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=deepseek/deepseek-v4.1-flash
+```
+
+```powershell
+backend\.venv\Scripts\python.exe scripts\check_llm.py --preflight
+```
+
+The preflight spends no tokens. It asks OpenRouter's `GET /key` whether the key
+is accepted, then `GET /models` whether `OPENROUTER_MODEL` exists — and, where
+OpenRouter publishes it, whether the model supports the parameters the client
+sends and lets reasoning be switched off. It prints findings only: never the
+key, and nothing `/key` says about the account.
+
+What every request asks for, and why:
+
+- **JSON mode, with the schema in the system prompt**, as for DeepSeek, and the
+  same local validation and single retry afterwards.
+- **Reasoning off** through OpenRouter's own `reasoning: {"effort": "none"}` —
+  DeepSeek's `thinking` field is not an OpenRouter parameter and is never
+  sent — and `temperature: 0`.
+- **Narrowed routing**: `require_parameters: true`, so only upstream providers
+  that support every parameter sent are used, and `data_collection: "deny"`, so
+  providers that may store the data are excluded. This narrows where a CV can
+  go; it does not name the provider that serves it.
+- **No attribution headers**, which exist to list an app on OpenRouter's public
+  rankings.
+
+**Use your own key for real CVs.** The account that owns a key decides its
+logging and data settings, and every CV sent with it is subject to them. A
+borrowed or shared key is for synthetic test data only. Replacing one key with
+another is a change to `OPENROUTER_API_KEY` alone, followed by a restart of the
+backend — never a change to source code.
+
+Implemented and tested offline only — no test calls OpenRouter, and nothing in
+this repository has been run against a real key — so no claim is made about
+which upstream provider will serve a call, or how well the model reads a CV.
+
 ### Cloud AI mode (`DEMO_MODE=false`, `LLM_PROVIDER=anthropic`)
 
 Still supported, still opt-in. Requires `ANTHROPIC_API_KEY`, sends your criteria
@@ -485,7 +536,7 @@ Three properties are worth calling out:
 | Backend | Python, FastAPI | Pydantic models map directly onto the structured-output discipline this project depends on. |
 | Frontend | React, Vite | **Zero runtime dependencies beyond React** — hand-rolled resource hooks and a 30-line hash router. The smallest supply-chain surface a web app can have. |
 | Database | PostgreSQL 16 | Relational data with a real audit trail. pgvector evaluated and deferred ([ADR-0005](docs/decisions/0005-pgvector-deferred.md)). |
-| LLM | Ollama + `qwen2.5:7b-instruct` (default); DeepSeek `deepseek-flash` (hosted); Anthropic Claude (optional) | Server-side only; structured outputs; model and prompt version recorded with every call. A local model is the default so a fresh clone needs no account and no CV leaves the machine ([ADR-0011](docs/decisions/0011-local-model-by-default.md)). DeepSeek (`LLM_PROVIDER=deepseek`) is for a deployment and sends each CV to a third party; it and Anthropic (`LLM_PROVIDER=anthropic`) have never been exercised against a real key here. |
+| LLM | Ollama + `qwen2.5:7b-instruct` (default); DeepSeek `deepseek-flash` (hosted); OpenRouter, `deepseek/deepseek-v4.1-flash` by default (hosted gateway); Anthropic Claude (optional) | Server-side only; structured outputs; model and prompt version recorded with every call. A local model is the default so a fresh clone needs no account and no CV leaves the machine ([ADR-0011](docs/decisions/0011-local-model-by-default.md)). DeepSeek (`LLM_PROVIDER=deepseek`) and OpenRouter (`LLM_PROVIDER=openrouter`) are for a deployment and send each CV to a third party — through OpenRouter, on to an upstream provider it chooses. None of them, nor Anthropic (`LLM_PROVIDER=anthropic`), has been exercised against a real key here. |
 | PDF | pypdf | Text-layer extraction with page and character offsets, so evidence cites a location. BSD-3, pure Python, no system libraries. |
 
 Full detail: [docs/architecture.md](docs/architecture.md),
@@ -553,7 +604,7 @@ message naming any variable that is missing or invalid.
 |---|---|---|
 | `DATABASE_URL` | — | **Required.** Needs the `+psycopg` suffix. |
 | `DEMO_MODE` | `true` | The outer switch. `false` runs a real model. |
-| `LLM_PROVIDER` | `ollama` | Which provider answers when demo mode is off. `ollama`, `deepseek` or `anthropic`. |
+| `LLM_PROVIDER` | `ollama` | Which provider answers when demo mode is off. `ollama`, `deepseek`, `openrouter` or `anthropic`. |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Where Ollama is listening. Validated at startup. |
 | `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Must be pulled once with `ollama pull`. Never downloaded by the app. |
 | `OLLAMA_TIMEOUT_SECONDS` | `300` | One generation. Generous — a 7B model on CPU is slow. |
@@ -561,8 +612,12 @@ message naming any variable that is missing or invalid.
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Must be `https://` (the key rides on every request), except to localhost. |
 | `DEEPSEEK_MODEL` | `deepseek-flash` | The preflight checks it against the models the key can use. |
 | `DEEPSEEK_TIMEOUT_SECONDS` | `180` | The whole call, including time queued at DeepSeek under load. |
+| `OPENROUTER_API_KEY` | — | Required **only** when `LLM_PROVIDER=openrouter`. OpenRouter's own key, never `DEEPSEEK_API_KEY`. Server-side only; never logged, never reaches the browser. Refused at startup if blank or pasted with spaces or line breaks. Use your own key for real CVs; a shared key is for synthetic data only. |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Must be `https://` (the key rides on every request), except to localhost. |
+| `OPENROUTER_MODEL` | `deepseek/deepseek-v4.1-flash` | An exact OpenRouter slug; the preflight checks OpenRouter lists it. |
+| `OPENROUTER_TIMEOUT_SECONDS` | `180` | The whole call. |
 | `ANTHROPIC_API_KEY` | — | Required **only** when `LLM_PROVIDER=anthropic`. Server-side only; never reaches the browser. |
-| `LLM_MODEL` | `claude-opus-5` | The model the bundled **recordings** were made against, and part of a recording's key. Not the model Ollama or DeepSeek runs. |
+| `LLM_MODEL` | `claude-opus-5` | The model the bundled **recordings** were made against, and part of a recording's key. Not the model Ollama, DeepSeek or OpenRouter runs. |
 | `APP_ENV` | `development` | `development` or `production`. |
 | `LOG_LEVEL` | `info` | |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated allowlist. Never `*`. |
@@ -834,8 +889,9 @@ The full list is in
 | Demo mode | ✅ A structured seed that calls no model at all, plus four free-text briefs, over three synthetic CVs. Each walkable end to end. No API key, no cost, no real applicant data. |
 | Local AI mode | ✅ Ollama, `qwen2.5:7b-instruct`, the default when demo mode is off. No account, no key, no per-call cost. |
 | Hosted AI mode | 🟡 DeepSeek, `deepseek-flash`, via `LLM_PROVIDER=deepseek`. Implemented and covered by offline tests; **never exercised against a real key in this repository**, so no claim about its answers is made. |
+| Hosted AI mode (OpenRouter) | 🟡 A separate provider, `LLM_PROVIDER=openrouter`, with the model in `OPENROUTER_MODEL` (`deepseek/deepseek-v4.1-flash` by default). Implemented and covered by offline tests; **never exercised against a real key in this repository**, so no claim about its answers or its upstream routing is made. |
 | Cloud AI mode | 🟡 Anthropic, opt-in via `LLM_PROVIDER=anthropic`. Implemented and wired; **never exercised against a real key in this repository**, so no claim about it is made. |
-| Tests | ✅ 1280 passing (1145 backend, 135 frontend), 97% backend coverage. The backend suite collects 1146; the single skip is the opt-in live-Ollama check, which needs a running model server. |
+| Tests | ✅ 1406 passing (1271 backend, 135 frontend), 97% backend coverage. The backend suite collects 1272; the single skip is the opt-in live-Ollama check, which needs a running model server. |
 | Evaluation | ✅ [`evaluation/`](evaluation/) — 12 synthetic candidates, 101 structured plus 89 free-text labelled pairs, 18 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
 | Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, deployment, 12 ADRs. |

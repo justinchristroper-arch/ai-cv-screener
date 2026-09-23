@@ -19,6 +19,7 @@ from app.llm.client import (
     FixtureKey,
     LlmRequest,
     OllamaLlmClient,
+    OpenRouterLlmClient,
     ReplayLlmClient,
     build_llm_client,
 )
@@ -284,6 +285,99 @@ def test_changing_the_hosted_model_rebuilds_the_client(settings_factory) -> None
     )
 
     assert first is not second
+
+
+OPENROUTER_KEY = "test-openrouter-key-not-real-0123456789"
+
+
+def test_openrouter_is_built_from_its_own_settings_and_never_falls_through_to_anthropic(
+    settings_factory, monkeypatch
+) -> None:
+    """The factory's last branch builds Anthropic, so OpenRouter needs its own.
+
+    Anthropic is stubbed to fail loudly if reached. Constructed, not called.
+    """
+    from app.llm import client as client_module
+
+    constructed: dict[str, object] = {}
+
+    class _StubOpenRouter:
+        def __init__(self, **kwargs: object) -> None:
+            constructed.update(kwargs)
+
+        def complete(self, request):  # pragma: no cover - never invoked here
+            raise AssertionError("no provider call should be made in this test")
+
+    class _NoAnthropic:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            raise AssertionError("LLM_PROVIDER=openrouter must not reach the Anthropic branch")
+
+    monkeypatch.setattr(client_module, "OpenRouterLlmClient", _StubOpenRouter)
+    monkeypatch.setattr(client_module, "AnthropicLlmClient", _NoAnthropic)
+
+    built = build_llm_client(
+        settings_factory(
+            demo_mode=False,
+            llm_provider="openrouter",
+            openrouter_api_key=OPENROUTER_KEY,
+            openrouter_timeout_seconds=90.0,
+        )
+    )
+
+    assert isinstance(built, _StubOpenRouter)
+    assert constructed == {
+        "api_key": OPENROUTER_KEY,
+        "base_url": "https://openrouter.ai/api/v1",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "timeout_seconds": 90.0,
+    }
+
+
+def test_openrouter_is_not_the_deepseek_client(settings_factory) -> None:
+    """Selecting OpenRouter builds its own client, even for a DeepSeek model."""
+    built = build_llm_client(
+        settings_factory(
+            demo_mode=False, llm_provider="openrouter", openrouter_api_key=OPENROUTER_KEY
+        )
+    )
+
+    assert isinstance(built, OpenRouterLlmClient)
+    assert not isinstance(built, DeepSeekLlmClient)
+
+
+def test_changing_the_openrouter_model_rebuilds_the_client(settings_factory) -> None:
+    first = build_llm_client(
+        settings_factory(
+            demo_mode=False, llm_provider="openrouter", openrouter_api_key=OPENROUTER_KEY
+        )
+    )
+    second = build_llm_client(
+        settings_factory(
+            demo_mode=False,
+            llm_provider="openrouter",
+            openrouter_api_key=OPENROUTER_KEY,
+            openrouter_model="deepseek/deepseek-v4-pro-0813",
+        )
+    )
+
+    assert first is not second
+    assert isinstance(second, OpenRouterLlmClient)
+
+
+def test_deepseek_and_openrouter_never_share_a_cached_client(settings_factory) -> None:
+    deepseek = build_llm_client(
+        settings_factory(
+            demo_mode=False, llm_provider="deepseek", deepseek_api_key="test-key-not-real"
+        )
+    )
+    openrouter = build_llm_client(
+        settings_factory(
+            demo_mode=False, llm_provider="openrouter", openrouter_api_key=OPENROUTER_KEY
+        )
+    )
+
+    assert isinstance(deepseek, DeepSeekLlmClient)
+    assert isinstance(openrouter, OpenRouterLlmClient)
 
 
 def test_selecting_a_local_model_does_not_change_the_fixture_identity(settings_factory) -> None:

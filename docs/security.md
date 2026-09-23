@@ -415,6 +415,24 @@ attributes to that module.
   chained onto an error — covered by `backend/tests/test_deepseek_client.py`.
   Configuration errors are no longer chained onto pydantic's own, whose message
   repeats the start and end of every raw setting.
+- **With `LLM_PROVIDER=openrouter`, it is gone twice over.** The criteria and
+  the full text of every screened CV go to OpenRouter, and from there to an
+  upstream provider OpenRouter chooses, which can differ between calls. Every
+  request asks for `data_collection: "deny"` and `require_parameters: true`;
+  that narrows the providers a CV can reach but does not name one, and the
+  upstream providers' own terms were not reviewed here. Logging and data
+  settings belong to the OpenRouter account that owns the key, so a borrowed
+  or shared key puts every CV sent with it under someone else's settings: such a
+  key is for synthetic test data only. What this codebase controls is the same
+  as for DeepSeek — a separate `SecretStr` key (`OPENROUTER_API_KEY`, never
+  `DEEPSEEK_API_KEY`), refused if it carries spaces or line breaks, sent only in
+  the `Authorization` header over `https://`, never logged or chained onto an
+  error — plus two things specific to OpenRouter. An error reported inside an
+  HTTP 200 body is mapped by its code alone, because a moderation refusal's
+  metadata quotes the flagged input, which here is CV text. And the preflight
+  prints nothing `GET /key` returns about the account — its label, usage or
+  credit. Covered by `backend/tests/test_openrouter_client.py` and
+  `backend/tests/test_check_llm.py`.
 - **Ollama itself was not reviewed.** It is a third-party server this project
   posts to. It has no authentication of its own, and a machine that exposes port
   11434 to an untrusted network is exposing an unauthenticated model server —
