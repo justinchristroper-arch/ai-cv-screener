@@ -2,8 +2,10 @@
 
 A static project page for CvScreener: plain HTML and CSS, no build step, no
 JavaScript, no dependencies. It **describes** the application; it does not run
-it. The full application — React frontend, FastAPI backend, PostgreSQL and a
-local language model — runs on your own machine (see
+it. The full application — React frontend, FastAPI backend and PostgreSQL, plus
+an optional language model — has a public demo at
+[ai-cv-screener-h8ru.vercel.app](https://ai-cv-screener-h8ru.vercel.app), and
+the same application can also be run on your own machine (see
 [the development guide](../docs/development.md), or double-click
 `Start CvScreener.cmd` on Windows).
 

@@ -1,9 +1,20 @@
 # Deployment
 
-**This project is not deployed.** There is no public URL, no hosting account,
-and no cold-start or uptime figures to report. What follows is the configuration
-a deployment needs and the decisions to make before one exists — written after
-building and running the image, not from memory.
+**CvScreener has a public demo:**
+[ai-cv-screener-h8ru.vercel.app](https://ai-cv-screener-h8ru.vercel.app), with
+the frontend on Vercel and the backend on Railway. It is a portfolio
+demonstration, not a production hiring service:
+
+- there is **no authentication**, so anything uploaded to it can be seen by
+  anyone who uses it;
+- **real applicant CVs must not be uploaded** — use the built-in sample job and
+  CVs, or made-up ones;
+- it is **not suitable for real hiring decisions**. It exists to show how the
+  system works.
+
+There are no cold-start or uptime figures to report. What follows is the
+configuration a deployment needs and the decisions to make before one — written
+after building and running the image, not from memory.
 
 Everything here is deliberately platform-neutral. The application is a container
 that speaks HTTP and a static bundle; anything that can run those will do, and
@@ -133,7 +144,7 @@ explicitly:
 
 | Variable | Value in a deployment |
 |---|---|
-| `DATABASE_URL` | The managed instance's URL, **with the `+psycopg` suffix**. A bare `postgresql://` makes SQLAlchemy look for psycopg2, which is not installed. |
+| `DATABASE_URL` | The managed instance's URL. A driverless `postgresql://user:pass@host:5432/db` (or `postgres://…`), as managed hosts usually provide it, can be used as it is: the application switches it to the psycopg 3 driver internally. A URL that already names its driver, such as `postgresql+psycopg://…`, is used unchanged. |
 | `APP_ENV` | `production` |
 | `DEMO_MODE` | `true` for a public demo. See above. |
 | `LLM_PROVIDER` | `ollama` (default), `deepseek`, `openrouter` or `anthropic`. Only read when demo mode is off. |
