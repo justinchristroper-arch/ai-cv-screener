@@ -167,15 +167,16 @@ cp .env.example .env             # bash
 
 `.env` is git-ignored. The defaults match `docker-compose.yml` and work as-is.
 
-**The one value that must be right is `DATABASE_URL`**, and it needs the
-`+psycopg` driver suffix:
+**The one value that must be right is `DATABASE_URL`**:
 
 ```
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/ai_cv_screener
 ```
 
-A bare `postgresql://` URL makes SQLAlchemy look for psycopg **2**, which is not
-installed, and fails with `ModuleNotFoundError: No module named 'psycopg2'`.
+The `+psycopg` suffix names psycopg 3, the driver `requirements.txt` installs.
+It is optional: a driverless `postgresql://` or `postgres://` URL — the form
+managed PostgreSQL hosts usually hand out — is switched to psycopg 3 by the
+application itself. A URL that already names its driver is used unchanged.
 
 The backend fails fast when configuration is missing. With no `.env` present:
 
@@ -554,7 +555,11 @@ or just use the underlying commands — nothing depends on the script.
 ## 21. Troubleshooting
 
 **`ModuleNotFoundError: No module named 'psycopg2'`**
-`DATABASE_URL` is missing the driver suffix. Use `postgresql+psycopg://`.
+Driverless URLs are switched to psycopg 3 automatically, so this means either
+`DATABASE_URL` explicitly names psycopg 2 (`postgresql+psycopg2://`), which is
+not installed, or the backend running is a version from before driverless URLs
+were handled. Use `postgresql+psycopg://` or a driverless `postgresql://`, and
+redeploy a current build.
 
 **`ConfigurationError: DATABASE_URL: required environment variable is not set`**
 No `.env` at the repository root. `Copy-Item .env.example .env`.

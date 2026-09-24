@@ -1,8 +1,8 @@
 # CvScreener — Development Roadmap
 
-**Status:** every phase delivered. Phases 0–7, 9–12 and 14–16 are complete. Six carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/check_llm.py`); **17 and 18** need the README walked from a fresh clone and the repository's GitHub-side metadata set; **19 and 20** need a hosting decision that belongs to the repository owner. The repository is published and CI is green on GitHub Actions, which closed the items Phases 3 and 14 were carrying. Nothing is deployed.
+**Status:** every phase delivered. Phases 0–7, 9–12 and 14–16 are complete. Six carry an outstanding item, and in every case the item needs something this repository cannot do for itself rather than more code: **8 and 13** need one run against a live model (`scripts/check_llm.py`); **17 and 18** need the README walked from a fresh clone and the repository's GitHub-side metadata set; **19 and 20** needed a hosting decision that belongs to the repository owner; it has since been made, and what remains is listed under each phase. The repository is published and CI is green on GitHub Actions, which closed the items Phases 3 and 14 were carrying. A public demo is deployed at [ai-cv-screener-h8ru.vercel.app](https://ai-cv-screener-h8ru.vercel.app), with the frontend on Vercel and the backend on Railway.
 **Since then:** one product change landed on top of the finished roadmap — the screening criteria became structured rather than free text ([ADR-0012](decisions/0012-structured-screening-criteria.md)). It is recorded at the end of this file rather than as a twenty-first phase, because it revises Phases 4, 7 and 8 instead of extending them.
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-24
 **Product definition:** [product-spec.md](product-spec.md)
 
 ---
@@ -641,28 +641,31 @@ percentage. It now has a written-out label.
 
 **Objective.** Put a working demo online.
 
-**Nothing is deployed.** There is no public URL and no hosting account. What
-this milestone delivered is everything a deployment needs *before* one exists,
-written after building and running the image rather than from memory:
+**Deployed since, as a public demo:**
+[ai-cv-screener-h8ru.vercel.app](https://ai-cv-screener-h8ru.vercel.app), with
+the frontend on Vercel and the backend on Railway. It is a portfolio
+demonstration with no authentication, not a hiring service. What this milestone
+itself delivered is everything a deployment needs *before* one exists, written
+after building and running the image rather than from memory:
 [`docs/deployment.md`](deployment.md) and `backend/Dockerfile`.
 
 **Deliverables.**
-- Backend deployed with a managed PostgreSQL instance. ⬜ The image exists, builds from the lock file, runs as a non-root user, carries a health check, and was verified locally answering `/health`, `/health/db` and `/api/demo/samples`.
-- Frontend deployed and pointed at the backend. ⬜ `npm run build` produces a static bundle; `VITE_API_BASE_URL` is baked in at build time, which is documented because it surprises people.
+- Backend deployed with a managed PostgreSQL instance. ✅ Deployed on Railway, against a PostgreSQL database configured through `DATABASE_URL`. The image exists, builds from the lock file, runs as a non-root user, carries a health check, and was verified locally answering `/health`, `/health/db` and `/api/demo/samples`.
+- Frontend deployed and pointed at the backend. ✅ Deployed on Vercel, calling the Railway backend. `npm run build` produces a static bundle; `VITE_API_BASE_URL` is baked in at build time, which is documented because it surprises people.
 - Environment and secret configuration handled by the platform, never committed. ✅ Documented; `.dockerignore` keeps `.env` out of the build context.
 - Demo mode enabled in production so the public demo costs nothing and stays deterministic. ✅ Documented as the default and the recommendation, with the reason: on a public URL with no authentication, live mode is an invitation to spend the operator's money.
 - Production migrations and seeding. ✅ Documented as a separate step — the image deliberately does *not* run `alembic upgrade` at start-up, because applying schema changes from every replica is a race.
 - Basic uptime and error monitoring. ⬜ Not wired to any vendor. The two health endpoints exist and are documented for liveness and readiness respectively.
 
 **Verification criteria.**
-- The public URL loads and the full workflow completes. ⬜ No URL exists.
+- The public URL loads and the full workflow completes. 🚧 The URL exists — [ai-cv-screener-h8ru.vercel.app](https://ai-cv-screener-h8ru.vercel.app). A full workflow run on it is not yet recorded here.
 - The deployed app runs on demo fixtures; no live key is exposed to the browser. ✅ True of the design: the key is server-side only and the frontend has exactly one variable, which is an API base URL.
 - CORS restricts the API to the deployed frontend origin. ✅ An explicit allowlist, never `*`, with the deployment note saying so.
 - A cold start is measured and reported honestly. ⬜ Not measured. Reporting one would mean inventing it.
 - Rolling back to the previous deployment is possible and documented. 🚧 Documented, including the two caveats that belong to this codebase rather than to a platform: migrations are forward-only in practice, and a stored score names the config version it was computed under so a rollback cannot silently reinterpret old rows.
 
-**What remains for this phase:** an actual deployment, which is a decision for
-the repository owner and not something this milestone should make for them.
+**What remains for this phase:** a full workflow run recorded against the public
+URL, a measured cold start, and uptime and error monitoring.
 
 ---
 
@@ -679,15 +682,14 @@ the repository owner and not something this milestone should make for them.
 - A closing summary: what was built, what was measured, what is limited, what would come next. ✅ [`README.md`](../README.md), whose "Current status" and "Known limitations" sections are that summary.
 
 **Verification criteria.**
-- The complete workflow succeeds on the deployed URL. ⬜ No deployment exists. It succeeds locally.
+- The complete workflow succeeds on the deployed URL. ⬜ A deployment now exists, but a complete run on it is not yet recorded here. It succeeds locally.
 - Every claim in the README is checked against observed behaviour, and any that no longer holds is corrected. ✅ Two corrections came out of it: the security review's claim that uploads check content type (they check magic bytes; the filename and declared type are untrusted labels), and the "Live AI mode works" framing, which is now stated as implemented-and-structurally-verified rather than measured.
 - The full test suite passes on the final commit. ✅
 - Published evaluation numbers match a fresh run. ✅
 - Every unimplemented item is listed as unimplemented, in the README rather than only here. ✅
 
-**What remains for this phase:** the deployed half, which is Phase 19's
-remaining half too. Both need a hosting decision that belongs to the repository
-owner.
+**What remains for this phase:** the deployed half — a complete run recorded
+against the public demo, which Phase 19 still needs too.
 
 ---
 

@@ -60,9 +60,11 @@
             rests on; a transparent score orders the shortlist; and a person makes the decision.
           </p>
           <p class="hero-note">
-            This page is a static showcase. The application itself runs locally — a React frontend,
-            a FastAPI backend, PostgreSQL and a local language model — and it is not offered as a
-            hosted service.
+            This page is a static showcase. The application itself — a React frontend, a FastAPI
+            backend, PostgreSQL and an optional language model — has a
+            <a href="https://ai-cv-screener-h8ru.vercel.app">public demo</a>, and it can also be run
+            locally. The demo is a portfolio demonstration with no login, not a hiring service: use
+            only the sample or made-up CVs.
           </p>
           <div class="actions">
             <a
@@ -1094,8 +1096,9 @@ score     = round(score_raw × 100)   # half up, 0–100</code></pre>
         <div class="wrap">
           <h2 id="run-title">Run the full application locally</h2>
           <p class="section-intro">
-            The complete system runs on your own machine. Nothing about it is exposed to the
-            internet.
+            Run this way, the complete system runs on your own machine and nothing about it is
+            exposed to the internet. The <a href="https://ai-cv-screener-h8ru.vercel.app">public
+            demo</a> is a separate, hosted copy of the same application.
           </p>
           <div class="grid-2">
             <div class="card">
@@ -1180,7 +1183,10 @@ score     = round(score_raw × 100)   # half up, 0–100</code></pre>
                   The evaluation set is small and synthetic, and model quality is not measured.
                 </li>
                 <li>Scoring constants are conventions, not findings.</li>
-                <li>It is not deployed as a hosted service.</li>
+                <li>
+                  The public demo is a portfolio demonstration, not a hiring service. It has no
+                  login, so never upload a real CV to it.
+                </li>
               </ul>
             </div>
             <div class="card">
