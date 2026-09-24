@@ -55,7 +55,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.core.enums import EvidenceVerification
-from app.core.text import find_token
+from app.core.text import find_token, find_whole_line
 from app.models.candidate import ParsedDocument
 from app.models.evaluation import EvidenceSpan
 from app.services.document_parsing import scan_for_injection
@@ -90,6 +90,13 @@ _FOLD_SUBSTITUTIONS = {
 #: than as a reason to refuse the quote. Anything this long or longer is taken
 #: as a quotation wherever it is found, exactly as before.
 SHORT_QUOTE_CHARS = 8
+
+#: Below this length a quote is cited at an occurrence that is an entire line,
+#: when the document has one. The schemas refuse quotes this short except in
+#: profile extraction, where a skill's quote may be its own line; if the search
+#: below stopped at the first token instead, "C" could be cited inside "C++" on
+#: an earlier line. Equal to the schemas' `MIN_QUOTE_LENGTH`, held there by a test.
+WHOLE_LINE_QUOTE_CHARS = 3
 
 
 @dataclass(frozen=True)
@@ -208,6 +215,22 @@ def verify_quote(
 
     if not quote or not quote.strip():
         return unverified()
+
+    # Which occurrence to cite, never whether one exists: a whole-line
+    # occurrence is also a token, so the search below would verify this quote
+    # too -- possibly at a coincidence on an earlier line. See
+    # WHOLE_LINE_QUOTE_CHARS.
+    if len(quote) < WHOLE_LINE_QUOTE_CHARS:
+        line_start = find_whole_line(quote, full_text)
+        if line_start != -1:
+            return QuoteVerification(
+                quoted_text=quote,
+                status=EvidenceVerification.VERIFIED_EXACT,
+                start_char=line_start,
+                end_char=line_start + len(quote),
+                page_number=page_for_offset(line_start, page_offsets),
+                instruction_like=instruction_like,
+            )
 
     # A short quote has to be a token, not a substring. See SHORT_QUOTE_CHARS.
     needs_boundaries = len(quote.strip()) < SHORT_QUOTE_CHARS

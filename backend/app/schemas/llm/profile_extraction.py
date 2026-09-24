@@ -24,10 +24,18 @@ that is what a CV actually supports. Turning them into a DATE plus a
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
+from app.core.text import find_whole_line
 from app.schemas.llm.json_schema import provider_json_schema
 
 #: Bounds against a degenerate reply -- one giant blob, or hundreds of
@@ -51,6 +59,12 @@ MAX_TECHNOLOGIES = 25
 #: length.
 MIN_QUOTE_LENGTH = 3
 MAX_QUOTE_LENGTH = 400
+
+#: The validation-context key under which the extraction service supplies the
+#: parsed document text. Only with it can a skill's quote shorter than
+#: `MIN_QUOTE_LENGTH` be accepted -- see `_EvidencedItem`. Validation without it
+#: (tests, schema generation, any other caller) keeps the plain minimum.
+DOCUMENT_TEXT_CONTEXT = "document_text"
 
 MAX_NAME_LENGTH = 200
 MAX_DESCRIPTION_LENGTH = 1000
@@ -103,10 +117,44 @@ def partial_date_sort_key(value: str) -> tuple[int, int, int]:
     return (int(year), int(month or 0), int(day or 0))
 
 
+def _short_quote_error(quote: str) -> ValueError:
+    # Two remedies, because a CV can print a one-letter skill alone on its
+    # line, where quoting the whole line cannot reach the minimum. Omitting the
+    # item is the prompt's own rule for anything that cannot be quoted --
+    # unlike semantic matching, which must answer every requirement and so has
+    # no such option.
+    return ValueError(
+        f"evidence_quote is too short to identify a passage "
+        f"({len(quote)} characters, minimum {MIN_QUOTE_LENGTH}). "
+        f"Quote the whole line the term appears on instead, or leave the item "
+        f"out if that line is shorter than {MIN_QUOTE_LENGTH} characters."
+    )
+
+
 class _EvidencedItem(BaseModel):
-    """Anything the model claims must come with the words it read."""
+    """Anything the model claims must come with the words it read.
+
+    **One narrow exception to the minimum.** A CV can print a one-letter skill
+    ("C", "R") alone on its line, and then the correct quote is that one
+    character -- there is no longer line to quote. Such a quote is accepted
+    only when *all* of these hold, and is refused with the ordinary message
+    otherwise:
+
+    * the item is a skill (`allows_standalone_short_quote`), and the quote is
+      the skill's own name (`ExtractedSkill`);
+    * it contains a letter, so a page number or a bullet can never qualify;
+    * the parsed document was supplied as validation context, and the quote is
+      an **entire line** of it (`find_whole_line`). A token boundary is not
+      enough: "R" is a token of "R&D", and "C" of "C++" and "C#".
+
+    Matching is unaffected: it never searches for a name this short
+    (`matching.MIN_SEARCHABLE_TOKEN_LENGTH`).
+    """
 
     model_config = ConfigDict(extra="forbid")
+
+    #: Whether this kind of item may carry the one-line short quote above.
+    allows_standalone_short_quote: ClassVar[bool] = False
 
     # The bounds are enforced by `_quote_identifies_a_passage` rather than by
     # `min_length`/`max_length`, whose generic message ("String should have at
@@ -123,19 +171,15 @@ class _EvidencedItem(BaseModel):
 
     @field_validator("evidence_quote")
     @classmethod
-    def _quote_identifies_a_passage(cls, value: str) -> str:
+    def _quote_identifies_a_passage(cls, value: str, info: ValidationInfo) -> str:
         """Bound the quote after trimming, in words a retry can act on.
 
         Matches the semantic-matching contract (`schemas/llm/semantic_match.py`).
         Trimming first means padding cannot carry a fragment past the minimum.
         """
         quote = _non_blank(value)
-        if len(quote) < MIN_QUOTE_LENGTH:
-            raise ValueError(
-                f"evidence_quote is too short to identify a passage "
-                f"({len(quote)} characters, minimum {MIN_QUOTE_LENGTH}). "
-                f"Quote the whole line the term appears on instead."
-            )
+        if len(quote) < MIN_QUOTE_LENGTH and not cls._stands_as_its_own_line(quote, info):
+            raise _short_quote_error(quote)
         if len(quote) > MAX_QUOTE_LENGTH:
             raise ValueError(
                 f"evidence_quote is longer than {MAX_QUOTE_LENGTH} characters. "
@@ -143,9 +187,21 @@ class _EvidencedItem(BaseModel):
             )
         return quote
 
+    @classmethod
+    def _stands_as_its_own_line(cls, quote: str, info: ValidationInfo) -> bool:
+        """The document-dependent half of the exception; see the class docstring."""
+        if not cls.allows_standalone_short_quote:
+            return False
+        document = (info.context or {}).get(DOCUMENT_TEXT_CONTEXT)
+        if not isinstance(document, str):
+            return False
+        return any(ch.isalpha() for ch in quote) and find_whole_line(quote, document) != -1
+
 
 class ExtractedSkill(_EvidencedItem):
     """A skill the CV claims, named as the CV names it."""
+
+    allows_standalone_short_quote: ClassVar[bool] = True
 
     name: str = Field(
         min_length=1,
@@ -154,6 +210,14 @@ class ExtractedSkill(_EvidencedItem):
     )
 
     _validate_name = field_validator("name")(_non_blank)
+
+    @model_validator(mode="after")
+    def _a_short_quote_is_the_skill_itself(self) -> ExtractedSkill:
+        """The name half of the exception. It runs after the fields because
+        `name` is validated after the inherited `evidence_quote`."""
+        if len(self.evidence_quote) < MIN_QUOTE_LENGTH and self.evidence_quote != self.name:
+            raise _short_quote_error(self.evidence_quote)
+        return self
 
 
 class ExtractedExperience(_EvidencedItem):

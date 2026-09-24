@@ -148,3 +148,28 @@ def find_token(needle: str, haystack: str) -> int:
 def occurs_as_token(needle: str, haystack: str) -> bool:
     """Whether `needle` appears in `haystack` on token boundaries at all."""
     return find_token(needle, haystack) != -1
+
+
+def find_whole_line(needle: str, haystack: str) -> int:
+    """Index where `needle` stands as an entire line of `haystack`, or -1.
+
+    A line qualifies when, with surrounding whitespace trimmed, it *is* the
+    needle -- nothing before it, nothing after it. The index points at the
+    needle's first character, so ``haystack[i : i + len(needle)] == needle``.
+
+    Stricter than `find_token`, deliberately. Token boundaries are any
+    non-alphanumeric, so "R" is a token of "R&D" and "C" of "C++" or "C#".
+    For a one- or two-character quotation that is not good enough: only a line
+    that consists of the characters and nothing else shows the document itself
+    set them apart. Comparison is exact -- no case folding, no Unicode
+    normalization -- so anything unusual fails closed.
+    """
+    if not needle or needle != needle.strip():
+        return -1
+
+    offset = 0
+    for line in haystack.split("\n"):
+        if line.strip() == needle:
+            return offset + (len(line) - len(line.lstrip()))
+        offset += len(line) + 1
+    return -1

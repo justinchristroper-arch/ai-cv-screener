@@ -71,7 +71,7 @@ the page is specific to Vercel.
 
 | On the page                                                                                        | Source                                                                                                            |
 | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 1,288 backend and 135 frontend tests; 97% backend coverage                                         | `.\tasks.ps1 test` and `.\tasks.ps1 coverage`, run locally                                                        |
+| 1,327 backend and 135 frontend tests; 97% backend coverage                                         | `.\tasks.ps1 test` and `.\tasks.ps1 coverage`, run locally                                                        |
 | Structured evaluation: 97/101, 0/94, 2/94, 52/52, 45/45, 52/52, 101/101                            | [`evaluation/RESULTS.md`](../evaluation/RESULTS.md), from `.\tasks.ps1 evaluate`                                  |
 | Deterministic engine against Qwen2.5-7B: 88.8% vs 82.0%, 0 vs 2 over-credits, 5.5 ms vs ~14,900 ms | [ADR-0012](../docs/decisions/0012-structured-screening-criteria.md)                                               |
 | Demo scores 83 (Good Match) and 38 (Low Match)                                                     | Pinned by `backend/tests/test_demo.py`; visible in the screenshots                                                |

@@ -11,7 +11,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.text import NORMALIZATION_VERSION, has_meaningful_text, normalize_text
+from app.core.text import (
+    NORMALIZATION_VERSION,
+    find_whole_line,
+    has_meaningful_text,
+    normalize_text,
+)
 
 # --------------------------------------------------------------------------
 # Whitespace and line endings
@@ -162,3 +167,71 @@ def test_any_content_is_meaningful(content: str) -> None:
 def test_the_version_is_recorded_and_stable() -> None:
     """Stored on every parsed document; changing the rules must change this."""
     assert NORMALIZATION_VERSION == "text-normalize-v1"
+
+
+# --------------------------------------------------------------------------
+# find_whole_line: the test a one- or two-character quotation must pass
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("needle", "document"),
+    [
+        ("C", "Skills\nC\nPython"),
+        ("AI", "Skills\nAI\nMachine learning"),
+        ("Go", "Go\nRust"),
+        ("C", "Skills\nPython\nC"),
+        ("C", "Skills\n  C  \nPython"),
+        ("C", "Skills\n C\nPython"),
+    ],
+    ids=["one-letter", "two-letter", "first-line", "last-line", "padded", "nbsp-padded"],
+)
+def test_a_needle_that_is_an_entire_line_is_found_at_its_characters(
+    needle: str, document: str
+) -> None:
+    start = find_whole_line(needle, document)
+
+    assert start != -1
+    assert document[start : start + len(needle)] == needle
+
+
+@pytest.mark.parametrize(
+    ("needle", "document"),
+    [
+        ("R", "Budget owner for R&D"),
+        ("C", "Built a C++ service"),
+        ("C", "C#"),
+        ("C", "Languages: C, Python"),
+        ("C", "Skills\nC,\nPython"),
+        ("AI", "Completed training in data analysis."),
+        ("C", "Skills\nＣ\nPython"),
+        ("C", "Skills\nC​\nPython"),
+    ],
+    ids=[
+        "inside-R&D",
+        "inside-C++",
+        "inside-C#",
+        "in-a-list",
+        "with-punctuation",
+        "inside-a-word",
+        "full-width-lookalike",
+        "zero-width-joined",
+    ],
+)
+def test_a_needle_that_is_only_part_of_a_line_is_not_found(needle: str, document: str) -> None:
+    """A token boundary is not enough: "R" is a token of "R&D", "C" of "C++"."""
+    assert find_whole_line(needle, document) == -1
+
+
+def test_the_first_whole_line_is_found_even_after_a_token_on_an_earlier_line() -> None:
+    document = "Built a C++ service\nSkills\nC\nPython"
+
+    start = find_whole_line("C", document)
+
+    assert start == document.index("\nC\n") + 1
+
+
+@pytest.mark.parametrize("needle", ["", " C", "C "])
+def test_an_empty_or_padded_needle_never_matches(needle: str) -> None:
+    """Callers trim first; an untrimmed needle is a caller bug, not a match."""
+    assert find_whole_line(needle, "Skills\nC\n C \nC ") == -1

@@ -316,6 +316,60 @@ def test_an_injected_instruction_is_still_refused_when_it_is_short() -> None:
 
 
 # --------------------------------------------------------------------------
+# Quotes under three characters: cite the line that *is* the quote
+# --------------------------------------------------------------------------
+#
+# Profile extraction accepts a skill's one- or two-character quote only when it
+# is an entire line of the document ("C" printed alone in a skills list). The
+# verifier must then cite that line. A token search stopping at the first
+# boundary would cite "C" inside "C++" on an earlier line: verified, and wrong.
+# Status never changes here -- only which occurrence the offsets point at.
+
+
+def test_a_short_quote_cites_its_whole_line_not_an_earlier_token() -> None:
+    document = "Built a C++ service\nSkills\nC\nPython\n"
+    offsets = [{"page": 1, "start": 0, "end": 20}, {"page": 2, "start": 20, "end": len(document)}]
+
+    result = verify_quote("C", document, offsets)
+
+    whole_line = document.index("\nC\n") + 1
+    assert result.status is EvidenceVerification.VERIFIED_EXACT
+    assert (result.start_char, result.end_char) == (whole_line, whole_line + 1)
+    assert result.start_char > document.index("C++"), "not the C inside C++"
+    assert result.page_number == 2
+
+
+def test_without_a_whole_line_a_short_quote_behaves_exactly_as_before() -> None:
+    """No whole-line occurrence: today's token search and its status, unchanged."""
+    document = "Built a C++ service\n"
+
+    result = verify_quote("C", document)
+
+    assert result.status is EvidenceVerification.VERIFIED_EXACT
+    assert result.start_char == document.index("C++")
+
+
+def test_the_whole_line_citation_keeps_injection_detection(monkeypatch) -> None:
+    """The new branch must not bypass the instruction-text flag."""
+    from app.services import evidence
+
+    monkeypatch.setattr(evidence, "scan_for_injection", lambda text: ["flagged"])
+
+    result = evidence.verify_quote("C", "Skills\nC\n")
+
+    assert result.is_verified
+    assert result.instruction_like
+    assert not result.is_usable
+
+
+def test_the_whole_line_threshold_is_the_schemas_minimum() -> None:
+    from app.schemas.llm.profile_extraction import MIN_QUOTE_LENGTH
+    from app.services.evidence import WHOLE_LINE_QUOTE_CHARS
+
+    assert WHOLE_LINE_QUOTE_CHARS == MIN_QUOTE_LENGTH
+
+
+# --------------------------------------------------------------------------
 # The contract boundary: what the schemas will and will not accept
 # --------------------------------------------------------------------------
 #

@@ -60,6 +60,7 @@ from app.models.profile import (
     ProfileSkill,
 )
 from app.schemas.llm.profile_extraction import (
+    DOCUMENT_TEXT_CONTEXT,
     ExtractedExperience,
     ProfileExtractionOutput,
 )
@@ -136,12 +137,18 @@ def _record_call(
     return log
 
 
-def _validate(raw_text: str) -> tuple[ProfileExtractionOutput | None, str | None]:
-    """Parse and validate a raw reply.
+def _validate(
+    raw_text: str, document_text: str
+) -> tuple[ProfileExtractionOutput | None, str | None]:
+    """Parse and validate a raw reply against the document it describes.
 
     Returns ``(output, None)`` on success or ``(None, error_description)`` on
     failure. The description is written back to the model on the retry, so it is
     phrased to be actionable rather than merely diagnostic.
+
+    The parsed text goes in as validation context for one rule only: a skill's
+    quote shorter than the minimum is accepted when it is an entire line of this
+    document (see `_EvidencedItem`).
     """
     try:
         payload = json.loads(raw_text)
@@ -149,7 +156,9 @@ def _validate(raw_text: str) -> tuple[ProfileExtractionOutput | None, str | None
         return None, f"The reply was not valid JSON: {exc.msg} (at position {exc.pos})."
 
     try:
-        output = ProfileExtractionOutput.model_validate(payload)
+        output = ProfileExtractionOutput.model_validate(
+            payload, context={DOCUMENT_TEXT_CONTEXT: document_text}
+        )
     except ValidationError as exc:
         lines = []
         for error in exc.errors():
@@ -302,7 +311,7 @@ def _extract_from_model(
                 details={"provider": str(exc)},
             ) from exc
 
-        output, error = _validate(response.text)
+        output, error = _validate(response.text, parsed.full_text)
 
         if output is None:
             last_error = error or "unknown validation failure"

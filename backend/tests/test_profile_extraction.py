@@ -41,6 +41,7 @@ from app.models.profile import (
     ProfileSkill,
 )
 from app.schemas.llm.profile_extraction import (
+    DOCUMENT_TEXT_CONTEXT,
     MAX_QUOTE_LENGTH,
     MIN_QUOTE_LENGTH,
     ProfileExtractionOutput,
@@ -208,14 +209,26 @@ def test_the_maximum_is_unchanged_and_still_enforced() -> None:
     assert "Quote only the sentence or line that supports this item." in message
 
 
+#: The complete remedy a too-short quote is refused with. Both halves matter.
+SHORT_QUOTE_REMEDY = (
+    "Quote the whole line the term appears on instead, or leave the item out "
+    "if that line is shorter than 3 characters."
+)
+
+
 def test_the_refusal_tells_a_retry_what_to_do_instead() -> None:
     """A bound alone gave a model whose quote was correct no compliant answer.
 
     A live reply was refused twice for one two-character skill quote under the
     old generic message ("String should have at least 3 characters"). The
     message is what reaches the retry, so it names the remedy.
+
+    Quoting the whole line is not always possible: a CV can print a one-letter
+    skill alone on its line. Leaving the item out is then the only compliant
+    answer, and it is the prompt's own rule for anything that cannot be quoted.
     """
-    assert "Quote the whole line the term appears on instead." in _quote_error("Go")
+    assert SHORT_QUOTE_REMEDY in _quote_error("Go")
+    assert SHORT_QUOTE_REMEDY in _quote_error("C")
 
 
 @pytest.mark.parametrize("section", ["skills", "experience", "education", "projects"])
@@ -226,6 +239,113 @@ def test_the_provider_schema_still_advertises_the_quote_bounds(section: str) -> 
 
     assert quote["minLength"] == MIN_QUOTE_LENGTH == 3
     assert quote["maxLength"] == MAX_QUOTE_LENGTH == 400
+
+
+# A CV can print a one-letter skill alone on its line, and then the only true
+# quote is that one character. It is accepted when the skill's quote is its own
+# name, contains a letter, and is an entire line of the document -- which only
+# the extraction service can check, by passing the document as context.
+
+
+def _validate_against(document: str, reply: dict) -> ProfileExtractionOutput:
+    return ProfileExtractionOutput.model_validate(reply, context={DOCUMENT_TEXT_CONTEXT: document})
+
+
+def _skill_reply(name: str, quote: str) -> dict:
+    return _valid_reply() | {"skills": [{"name": name, "evidence_quote": quote}]}
+
+
+@pytest.mark.parametrize(
+    ("skill", "document"),
+    [
+        ("C", "Skills\nC\nPython, FastAPI, Postgres"),
+        ("AI", "Skills\nAI\nPython, FastAPI, Postgres"),
+        ("Go", "Skills\n  Go  \nPython, FastAPI, Postgres"),
+    ],
+    ids=["one-letter", "two-letters", "padded-line"],
+)
+def test_a_skill_printed_alone_on_its_line_may_quote_that_line(skill: str, document: str) -> None:
+    output = _validate_against(document, _skill_reply(skill, skill))
+
+    assert output.skills[0].evidence_quote == skill
+
+
+@pytest.mark.parametrize(
+    ("name", "quote", "document"),
+    [
+        ("R", "R", "Budget owner for R&D"),
+        ("C", "C", "Built a C++ service"),
+        ("C", "C", "Wrote C# tooling"),
+        ("C", "C", "Languages: C, Python"),
+        ("C", "C", "Skills\nC,\nPython"),
+        ("2", "2", "Skills\n2\nPython"),
+        ("•", "•", "Skills\n•\nPython"),
+        ("Python", "C", "Skills\nC\nPython"),
+    ],
+    ids=[
+        "R-inside-R&D",
+        "C-inside-C++",
+        "C-inside-C#",
+        "C-in-a-list",
+        "C-with-punctuation",
+        "a-digit-line",
+        "a-bullet-line",
+        "quote-is-not-the-skill",
+    ],
+)
+def test_a_short_quote_that_is_not_the_skill_on_its_own_line_is_refused(
+    name: str, quote: str, document: str
+) -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        _validate_against(document, _skill_reply(name, quote))
+
+    [error] = excinfo.value.errors()
+    assert error["loc"][:2] == ("skills", 0)
+    assert SHORT_QUOTE_REMEDY in error["msg"]
+
+
+@pytest.mark.parametrize("section", ["experience", "education", "projects"])
+def test_only_a_skill_may_carry_a_one_line_short_quote(section: str) -> None:
+    """A role, a qualification or a project is never one or two characters."""
+    items = {
+        "experience": {
+            "role_title": "C",
+            "organization": None,
+            "start_date": None,
+            "end_date": None,
+            "is_current": False,
+            "description": None,
+            "evidence_quote": "C",
+        },
+        "education": {
+            "degree": "C",
+            "field_of_study": None,
+            "institution": None,
+            "completion_year": None,
+            "evidence_quote": "C",
+        },
+        "projects": {"name": "C", "description": None, "technologies": [], "evidence_quote": "C"},
+    }
+    reply = _valid_reply() | {section: [items[section]]}
+
+    with pytest.raises(ValidationError) as excinfo:
+        _validate_against("Skills\nC\nPython, FastAPI, Postgres", reply)
+
+    [error] = excinfo.value.errors()
+    assert error["loc"] == (section, 0, "evidence_quote")
+    assert SHORT_QUOTE_REMEDY in error["msg"]
+
+
+def test_without_the_document_the_minimum_is_unchanged() -> None:
+    """Every caller that does not pass the document keeps the plain minimum."""
+    with pytest.raises(ValidationError):
+        ProfileExtractionOutput.model_validate(_skill_reply("C", "C"))
+
+
+def test_a_normal_quote_is_unaffected_by_the_document_context() -> None:
+    output = _validate_against("Built a C++ service", _skill_reply("C++", "C++"))
+
+    assert output.skills[0].evidence_quote == "C++"
 
 
 def test_a_completely_empty_profile_is_rejected() -> None:
@@ -514,10 +634,61 @@ def test_a_quote_too_short_is_retried_with_advice_the_model_can_act_on(
     assert [log.status for log in logs] == [LlmStatus.SCHEMA_INVALID, LlmStatus.SUCCESS]
     assert result.attempts == 2
 
-    remedy = "Quote the whole line the term appears on instead."
-    assert remedy in logs[0].error_detail
-    assert remedy not in client.requests[0].user_content
-    assert remedy in client.requests[1].user_content
+    assert SHORT_QUOTE_REMEDY in logs[0].error_detail
+    assert SHORT_QUOTE_REMEDY not in client.requests[0].user_content
+    assert SHORT_QUOTE_REMEDY in client.requests[1].user_content
+
+
+@pytest.mark.requires_db
+def test_a_one_letter_skill_alone_on_its_line_is_extracted_with_verified_evidence(
+    db_session: Session,
+) -> None:
+    """The live failure, end to end: a one-letter skill printed on its own line.
+
+    Before, the reply was refused twice for that single quote and the whole
+    profile was lost. Now it validates on the first attempt, and the span points
+    at the standalone line -- not at the "C" inside "C++" on an earlier line.
+    """
+    document = (
+        "Sam Example\n"
+        "Built a C++ service for Example Co, 2022 to 2024\n"
+        "Skills\n"
+        "C\n"
+        "Python, FastAPI, Postgres\n"
+    )
+    job = jobs.create_job(db_session, title="Systems Engineer")
+    candidate, _ = make_parsed_candidate(db_session, job.id, document)
+    reply = {
+        "display_name": "Sam Example",
+        "skills": [
+            {"name": "C", "evidence_quote": "C"},
+            {"name": "Python", "evidence_quote": "Python, FastAPI, Postgres"},
+        ],
+        "experience": [],
+        "education": [],
+        "projects": [],
+    }
+    client = _StubClient(json.dumps(reply))
+
+    result = profile_extraction.extract_profile(db_session, candidate.id, client)
+
+    assert result.attempts == 1
+    assert client.calls == [1]
+    log = db_session.get(LlmCallLog, result.llm_call_id)
+    assert log.status is LlmStatus.SUCCESS
+    db_session.refresh(candidate)
+    assert candidate.status is CandidateStatus.EXTRACTED
+
+    skill = db_session.scalars(
+        select(ProfileSkill).where(
+            ProfileSkill.profile_id == result.profile.id, ProfileSkill.raw_name == "C"
+        )
+    ).one()
+    span = db_session.get(EvidenceSpan, skill.evidence_span_id)
+    standalone_line = document.index("\nC\n") + 1
+    assert span.verification_status is EvidenceVerification.VERIFIED_EXACT
+    assert (span.start_char, span.end_char) == (standalone_line, standalone_line + 1)
+    assert document[span.start_char : span.end_char] == "C"
 
 
 @pytest.mark.parametrize(

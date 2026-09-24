@@ -891,7 +891,7 @@ The full list is in
 | Hosted AI mode | 🟡 DeepSeek, `deepseek-flash`, via `LLM_PROVIDER=deepseek`. Implemented and covered by offline tests; **never exercised against a real key in this repository**, so no claim about its answers is made. |
 | Hosted AI mode (OpenRouter) | 🟡 A separate provider, `LLM_PROVIDER=openrouter`, with the model in `OPENROUTER_MODEL` (`deepseek/deepseek-v4.1-flash` by default). Implemented and covered by offline tests; **never exercised against a real key in this repository**, so no claim about its answers or its upstream routing is made. |
 | Cloud AI mode | 🟡 Anthropic, opt-in via `LLM_PROVIDER=anthropic`. Implemented and wired; **never exercised against a real key in this repository**, so no claim about it is made. |
-| Tests | ✅ 1423 passing (1288 backend, 135 frontend), 97% backend coverage. The backend suite collects 1289; the single skip is the opt-in live-Ollama check, which needs a running model server. |
+| Tests | ✅ 1462 passing (1327 backend, 135 frontend), 97% backend coverage. The backend suite collects 1328; the single skip is the opt-in live-Ollama check, which needs a running model server. |
 | Evaluation | ✅ [`evaluation/`](evaluation/) — 12 synthetic candidates, 101 structured plus 89 free-text labelled pairs, 18 metrics measured and 6 reported as not measurable offline, with reasons. |
 | Security review | ✅ [docs/security.md](docs/security.md) — controls attacked, findings triaged, limits stated. |
 | Documentation | ✅ Specification, architecture, data model, development guide, evaluation, security, deployment, 12 ADRs. |
