@@ -12,12 +12,13 @@ without depending on whatever `.env` a given developer happens to have.
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import SecretStr, ValidationError, model_validator
+from pydantic import SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/core/config.py -> backend/app/core -> backend/app -> backend -> repo root
@@ -28,6 +29,12 @@ DEFAULT_ENV_FILE = REPO_ROOT / ".env"
 #: http. Traffic to them never leaves this machine, so the API key does not
 #: cross a network in the clear.
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+#: A PostgreSQL URL that names no driver. SQLAlchemy reads a bare
+#: ``postgresql://`` as psycopg2, which is not installed -- this project uses
+#: psycopg 3 (requirements.txt) -- and rejects ``postgres://`` outright. Managed
+#: hosts such as Railway hand out exactly these forms.
+_BARE_POSTGRES_SCHEME = re.compile(r"^(?:postgres|postgresql)://", re.IGNORECASE)
 
 
 class ConfigurationError(RuntimeError):
@@ -50,6 +57,20 @@ class Settings(BaseSettings):
     # Required. No default — an unset DATABASE_URL is a startup failure, not a
     # value to guess at.
     database_url: str
+
+    @field_validator("database_url")
+    @classmethod
+    def _database_url_uses_psycopg3(cls, url: str) -> str:
+        """Give a driverless PostgreSQL URL the installed driver, psycopg 3.
+
+        Without this, the process starts and passes its health check, and then
+        the first request that touches the database fails with
+        ``ModuleNotFoundError: No module named 'psycopg2'`` -- the engine is
+        created lazily. Only the scheme is rewritten, so credentials and
+        options pass through byte for byte; a URL that already names a driver
+        is an explicit choice and is left alone.
+        """
+        return _BARE_POSTGRES_SCHEME.sub("postgresql+psycopg://", url, count=1)
 
     # When true, all LLM calls are served from recorded fixtures: no key, no
     # cost, no server, identical results every run. This is the outer switch and

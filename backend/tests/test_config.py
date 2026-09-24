@@ -544,3 +544,52 @@ def test_each_provider_names_its_own_model(monkeypatch: pytest.MonkeyPatch) -> N
     ]:
         monkeypatch.setenv("LLM_PROVIDER", provider)
         assert load_settings(env_file=None).provider_model == expected
+
+
+# --------------------------------------------------------------------------
+# DATABASE_URL: a managed host's driverless URL still reaches psycopg 3
+# --------------------------------------------------------------------------
+#
+# Railway (like most managed PostgreSQL hosts) hands out a URL with no driver.
+# SQLAlchemy reads a bare "postgresql://" as psycopg2, which this project does
+# not install, so production answered /health and then failed every database
+# request with "No module named 'psycopg2'". No credentials below are real.
+
+_REST_OF_URL = "user:p%40ss:w0rd@db.internal:5432/railway?sslmode=require"
+
+
+@pytest.mark.parametrize("scheme", ["postgresql", "postgres", "POSTGRESQL"])
+def test_a_driverless_postgres_url_is_given_the_psycopg3_driver(
+    monkeypatch: pytest.MonkeyPatch, scheme: str
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", f"{scheme}://{_REST_OF_URL}")
+
+    settings = load_settings(env_file=None)
+
+    # Only the scheme changes: credentials and options pass through untouched.
+    assert settings.database_url == f"postgresql+psycopg://{_REST_OF_URL}"
+
+
+@pytest.mark.parametrize("scheme", ["postgresql+psycopg", "postgresql+psycopg2"])
+def test_a_url_that_names_its_driver_is_left_alone(
+    monkeypatch: pytest.MonkeyPatch, scheme: str
+) -> None:
+    url = f"{scheme}://{_REST_OF_URL}"
+    monkeypatch.setenv("DATABASE_URL", url)
+
+    assert load_settings(env_file=None).database_url == url
+
+
+def test_the_engine_built_from_a_railway_style_url_uses_psycopg3(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production failure itself. Builds the engine; opens no connection."""
+    from sqlalchemy import create_engine
+
+    monkeypatch.setenv("DATABASE_URL", f"postgresql://{_REST_OF_URL}")
+
+    engine = create_engine(load_settings(env_file=None).database_url)
+    try:
+        assert engine.dialect.driver == "psycopg"
+    finally:
+        engine.dispose()
